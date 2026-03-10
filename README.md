@@ -55,11 +55,8 @@ bootstrap.bat
 - **Antigravity IDE**
 - **VS Code** / **Cursor AI**
 
-Android 개발 시 Android Studio 최초 실행 후 수동 설정:
-```
-ANDROID_HOME = C:\Users\<username>\AppData\Local\Android\Sdk
-PATH에 추가: %ANDROID_HOME%\platform-tools
-```
+> Android Studio(6번) 선택 시 `ANDROID_HOME` 및 PATH(`platform-tools`, `emulator`)가 **자동으로 설정**됩니다.
+> 단, SDK 실제 파일은 Android Studio 최초 실행 후 다운로드됩니다.
 
 ## 설치 완료 후
 

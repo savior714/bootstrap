@@ -46,9 +46,14 @@
 - 그룹별 설명(Desc) 라인은 불필요하여 제거됨
 
 ### Post-install 자동화
-- **Rust**: rustup stable toolchain 자동 설치
-- **Java**: `JAVA_HOME` 환경변수 자동 설정 (`C:\Program Files\Eclipse Adoptium\jdk-17*`)
-- **Android Studio**: `ANDROID_HOME` 수동 설정 안내만 출력
+
+`Add-ToUserPath` 헬퍼 함수: 경로 존재 확인 후 User PATH 중복 없이 등록, 현재 세션 즉시 반영
+
+| 항목 | 자동화 내용 |
+|------|------------|
+| **Rust** | rustup stable toolchain 설치 및 default 설정 |
+| **Java** | `JAVA_HOME` 설정 (`C:\Program Files\Eclipse Adoptium\jdk-17*`) + `\bin` PATH 자동 추가 |
+| **Android** | `ANDROID_HOME` 설정 (`%LOCALAPPDATA%\Android\Sdk`) + `platform-tools`, `emulator` PATH 자동 추가 |
 
 ---
 

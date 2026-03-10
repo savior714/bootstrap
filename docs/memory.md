@@ -18,3 +18,14 @@
 | `README.md` | 관리자 실행 필수 안내, PS7 행 제거, 용도 열 제거 |
 | `docs/CRITICAL_LOGIC.md` | SSOT 신규 작성 |
 | `docs/memory.md` | 작업 로그 신규 작성 |
+
+---
+
+## [2026-03-10] 추가 기능 및 정리
+
+### 변경 사항
+| 파일 | 변경 내용 |
+|------|----------|
+| `Bootstrap-DevEnv.ps1` | 그룹 번호 재정렬(1~8 연속), pwsh verCheck 제거, `Add-ToUserPath` 함수 추가, Java/Android PATH 자동 등록 |
+| `README.md` | 그룹 번호 테이블 동기화 |
+| `docs/CRITICAL_LOGIC.md` | Post-install 자동화 항목 상세 업데이트 |
