@@ -62,6 +62,19 @@ function Refresh-EnvPath {
     $env:PATH = "$m;$u"
 }
 
+function Add-ToUserPath {
+    param([string]$Dir)
+    if (-not (Test-Path $Dir)) { return }
+    $current = [System.Environment]::GetEnvironmentVariable("PATH", "User")
+    $entries = $current -split ";" | Where-Object { $_ -ne "" }
+    if ($entries -notcontains $Dir) {
+        $new = ($entries + $Dir) -join ";"
+        [System.Environment]::SetEnvironmentVariable("PATH", $new, "User")
+        $env:PATH = "$env:PATH;$Dir"
+        Write-OK "PATH += $Dir"
+    }
+}
+
 function Show-CheckMark {
     param([bool]$Selected)
     if ($Selected) { return "[X]" } else { return "[ ]" }
@@ -237,7 +250,7 @@ if ($selected["1"]) {
     }
 }
 
-# Java: JAVA_HOME 설정
+# Java: JAVA_HOME + PATH 자동 설정
 if ($selected["5"]) {
     $javaPath = "C:\Program Files\Eclipse Adoptium\jdk-17*"
     $found = Get-ChildItem $javaPath -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -245,16 +258,21 @@ if ($selected["5"]) {
         [System.Environment]::SetEnvironmentVariable("JAVA_HOME", $found.FullName, "Machine")
         $env:JAVA_HOME = $found.FullName
         Write-OK "JAVA_HOME set to: $($found.FullName)"
+        Add-ToUserPath "$($found.FullName)\bin"
     } else {
         Write-WARN "JAVA_HOME not set automatically - set it manually after installation."
     }
 }
 
-# Android Studio: ANDROID_HOME hint
+# Android: ANDROID_HOME + PATH 자동 설정
 if ($selected["6"]) {
-    Write-WARN "Android Studio installed. After first launch:"
-    Write-WARN "  Set ANDROID_HOME = C:\Users\$env:USERNAME\AppData\Local\Android\Sdk"
-    Write-WARN "  Add to PATH: %ANDROID_HOME%\platform-tools"
+    $androidSdk = "$env:LOCALAPPDATA\Android\Sdk"
+    [System.Environment]::SetEnvironmentVariable("ANDROID_HOME", $androidSdk, "User")
+    $env:ANDROID_HOME = $androidSdk
+    Write-OK "ANDROID_HOME set to: $androidSdk"
+    Add-ToUserPath "$androidSdk\platform-tools"
+    Add-ToUserPath "$androidSdk\emulator"
+    Write-INFO "Launch Android Studio once to complete SDK installation."
 }
 #endregion
 
