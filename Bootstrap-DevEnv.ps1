@@ -1,7 +1,7 @@
-# Bootstrap-DevEnv.ps1
+﻿# Bootstrap-DevEnv.ps1
 # Fresh Windows 11 Dev Environment Bootstrap (winget-based, interactive)
 # Projects: eco_pediatrics, cheonggu, law, golf_scoring, stock_vercel, blog, fmkorea, mail, myllm
-# UTF-8 (no BOM) - PS7 compatible
+# UTF-8 with BOM - PS5 (powershell.exe) compatible
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
@@ -87,7 +87,6 @@ $groups = [ordered]@{
 
     "1" = @{
         Label   = "Core (Git, Python 3.14, Node.js LTS, Rust, uv)"
-        Desc    = "Required for all projects"
         Default = $true
         Pkgs    = @(
             @{ Id = "Git.Git";              Name = "Git" },
@@ -98,18 +97,8 @@ $groups = [ordered]@{
         )
     }
 
-    "2" = @{
-        Label   = "PowerShell 7 (pwsh)"
-        Desc    = "Fixes PS5 encoding/compatibility issues"
-        Default = $true
-        Pkgs    = @(
-            @{ Id = "Microsoft.PowerShell"; Name = "PowerShell 7" }
-        )
-    }
-
     "3" = @{
         Label   = "VS Build Tools 2022 (MSVC + Windows SDK)"
-        Desc    = "Required for Tauri, Python native extensions (pyiceberg etc.)"
         Default = $true
         Pkgs    = @(
             @{
@@ -122,7 +111,6 @@ $groups = [ordered]@{
 
     "4" = @{
         Label   = "Windows Terminal"
-        Desc    = "Required for eco.bat dev launcher (wt.exe)"
         Default = $true
         Pkgs    = @(
             @{ Id = "Microsoft.WindowsTerminal"; Name = "Windows Terminal" }
@@ -131,7 +119,6 @@ $groups = [ordered]@{
 
     "5" = @{
         Label   = "Go"
-        Desc    = "Go language runtime"
         Default = $false
         Pkgs    = @(
             @{ Id = "GoLang.Go"; Name = "Go" }
@@ -140,7 +127,6 @@ $groups = [ordered]@{
 
     "6" = @{
         Label   = "Java (Temurin JDK 17 LTS)"
-        Desc    = "Java runtime - Eclipse Adoptium Temurin 17"
         Default = $false
         Pkgs    = @(
             @{ Id = "EclipseAdoptium.Temurin.17.JDK"; Name = "Temurin JDK 17" }
@@ -149,7 +135,6 @@ $groups = [ordered]@{
 
     "7" = @{
         Label   = "Android Studio"
-        Desc    = "Android SDK for Capacitor (stock_vercel) & Expo (golf_scoring)"
         Default = $false
         Pkgs    = @(
             @{ Id = "Google.AndroidStudio"; Name = "Android Studio" }
@@ -158,7 +143,6 @@ $groups = [ordered]@{
 
     "8" = @{
         Label   = "Docker Desktop"
-        Desc    = "Container runtime"
         Default = $false
         Pkgs    = @(
             @{ Id = "Docker.DockerDesktop"; Name = "Docker Desktop" }
@@ -167,7 +151,6 @@ $groups = [ordered]@{
 
     "9" = @{
         Label   = "Supabase CLI"
-        Desc    = "For law, eco_pediatrics DB management"
         Default = $false
         Pkgs    = @(
             @{ Id = "Supabase.CLI"; Name = "Supabase CLI" }
@@ -198,7 +181,6 @@ function Draw-Menu {
         $chk = if ($selected[$key]) { "[X]" } else { "[ ]" }
         $col = if ($selected[$key]) { "Green" } else { "Gray" }
         Write-Host ("  [{0}] {1} {2}" -f $key, $chk, $g.Label) -ForegroundColor $col
-        Write-Host ("       => {0}" -f $g.Desc) -ForegroundColor DarkGray
     }
     Write-Host ""
 }
