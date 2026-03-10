@@ -40,13 +40,13 @@ bootstrap.bat
 | # | 항목 | 기본 선택 |
 |---|------|:---:|
 | 1 | **Core** — Git, Python 3.14, Node.js LTS, Rust (rustup), uv | ✅ |
-| 3 | **VS Build Tools 2022** (MSVC + Windows SDK) | ✅ |
-| 4 | **Windows Terminal** | ✅ |
-| 5 | Go | ⬜ |
-| 6 | Java (Temurin JDK 17 LTS) | ⬜ |
-| 7 | Android Studio | ⬜ |
-| 8 | Docker Desktop | ⬜ |
-| 9 | Supabase CLI | ⬜ |
+| 2 | **VS Build Tools 2022** (MSVC + Windows SDK) | ✅ |
+| 3 | **Windows Terminal** | ✅ |
+| 4 | Go | ⬜ |
+| 5 | Java (Temurin JDK 17 LTS) | ⬜ |
+| 6 | Android Studio | ⬜ |
+| 7 | Docker Desktop | ⬜ |
+| 8 | Supabase CLI | ⬜ |
 
 ## 설치 후 추가 설정
 

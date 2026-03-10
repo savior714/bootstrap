@@ -97,7 +97,7 @@ $groups = [ordered]@{
         )
     }
 
-    "3" = @{
+    "2" = @{
         Label   = "VS Build Tools 2022 (MSVC + Windows SDK)"
         Default = $true
         Pkgs    = @(
@@ -109,7 +109,7 @@ $groups = [ordered]@{
         )
     }
 
-    "4" = @{
+    "3" = @{
         Label   = "Windows Terminal"
         Default = $true
         Pkgs    = @(
@@ -117,7 +117,7 @@ $groups = [ordered]@{
         )
     }
 
-    "5" = @{
+    "4" = @{
         Label   = "Go"
         Default = $false
         Pkgs    = @(
@@ -125,7 +125,7 @@ $groups = [ordered]@{
         )
     }
 
-    "6" = @{
+    "5" = @{
         Label   = "Java (Temurin JDK 17 LTS)"
         Default = $false
         Pkgs    = @(
@@ -133,7 +133,7 @@ $groups = [ordered]@{
         )
     }
 
-    "7" = @{
+    "6" = @{
         Label   = "Android Studio"
         Default = $false
         Pkgs    = @(
@@ -141,7 +141,7 @@ $groups = [ordered]@{
         )
     }
 
-    "8" = @{
+    "7" = @{
         Label   = "Docker Desktop"
         Default = $false
         Pkgs    = @(
@@ -149,7 +149,7 @@ $groups = [ordered]@{
         )
     }
 
-    "9" = @{
+    "8" = @{
         Label   = "Supabase CLI"
         Default = $false
         Pkgs    = @(
@@ -238,7 +238,7 @@ if ($selected["1"]) {
 }
 
 # Java: JAVA_HOME 설정
-if ($selected["6"]) {
+if ($selected["5"]) {
     $javaPath = "C:\Program Files\Eclipse Adoptium\jdk-17*"
     $found = Get-ChildItem $javaPath -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($found) {
@@ -251,7 +251,7 @@ if ($selected["6"]) {
 }
 
 # Android Studio: ANDROID_HOME hint
-if ($selected["7"]) {
+if ($selected["6"]) {
     Write-WARN "Android Studio installed. After first launch:"
     Write-WARN "  Set ANDROID_HOME = C:\Users\$env:USERNAME\AppData\Local\Android\Sdk"
     Write-WARN "  Add to PATH: %ANDROID_HOME%\platform-tools"
@@ -268,7 +268,6 @@ $verChecks = @(
     @{ Name = "node";    Cmd = "node";    Args = @("-v") },
     @{ Name = "npm";     Cmd = "npm";     Args = @("-v") },
     @{ Name = "uv";      Cmd = "uv";      Args = @("--version") },
-    @{ Name = "pwsh";    Cmd = "pwsh";    Args = @("--version") },
     @{ Name = "cargo";   Cmd = "$env:USERPROFILE\.cargo\bin\cargo.exe"; Args = @("--version") },
     @{ Name = "rustup";  Cmd = "$env:USERPROFILE\.cargo\bin\rustup.exe"; Args = @("--version") },
     @{ Name = "go";      Cmd = "go";      Args = @("version") },
@@ -290,7 +289,7 @@ Write-Host "  [NEXT STEPS]" -ForegroundColor Cyan
 Write-Host "  1. Open a NEW terminal (apply PATH changes)" -ForegroundColor White
 Write-Host "  2. Clone/navigate to project directory" -ForegroundColor White
 Write-Host "  3. Run: eco.bat -> [2] Environment Setup" -ForegroundColor White
-if ($selected["3"]) {
+if ($selected["2"]) {
     Write-Host ""
     Write-Host "  NOTE: VS Build Tools may still be installing in background." -ForegroundColor Yellow
     Write-Host "        Wait for it before running native builds (Tauri, pyiceberg)." -ForegroundColor Yellow
