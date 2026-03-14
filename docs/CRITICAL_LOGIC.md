@@ -142,6 +142,7 @@ Antigravity 에이전트와 터미널 간의 안정적인 상호작용을 위한
 | **전역 경로 등록**      | `ANTIGRAVITY_BOOTSTRAP_PATH` 시스템 환경 변수를 현재 레포지토리 경로로 등록                                |
 | **터미널 영구 안정화**  | 사용자 `$PROFILE`에 `init-terminal.ps1` 호출 코드를 자동 주입하여 모든 터미널 세션의 인코딩을 UTF-8로 고정 |
 | **전역 도구 표준화**    | `git config --global core.autocrlf false`, `init.defaultBranch main` 등의 설정을 강제 적용                 |
+| **Git 식별자 설정**     | `user.name`, `user.email`을 설치 후 단계에서 **대화형(Interactive)**으로 입력 및 확인                     |
 | **무설정 에이전트 지침** | 에이전트가 `ANTIGRAVITY_BOOTSTRAP_PATH`를 감지하면 자동으로 해당 경로의 전역 지침을 로드하도록 설계        |
 
 ---

@@ -275,6 +275,48 @@ foreach ($key in $groups.Keys) {
 Write-Header "Post-install configuration"
 Refresh-EnvPath
 
+# Git: Global configuration & Identity
+Write-INFO "Checking Git configuration..."
+$gitExe = Get-Command git -ErrorAction SilentlyContinue
+if ($gitExe) {
+    # 1. Standard config (Auto)
+    git config --global core.autocrlf false
+    git config --global init.defaultBranch main
+    Write-OK "Git core.autocrlf=false, init.defaultBranch=main set globally."
+
+    # 2. Identity (Interactive)
+    $curName  = git config --global user.name
+    $curEmail = git config --global user.email
+    
+    Write-Host ""
+    Write-Host "  [Git Identity Setup]" -ForegroundColor Cyan
+    Write-Host "  Current Name : $curName" -ForegroundColor Gray
+    Write-Host "  Current Email: $curEmail" -ForegroundColor Gray
+    
+    $shouldUpdate = $false
+    if (-not $curName -or -not $curEmail) {
+        Write-Host "  [!] Git identity is missing." -ForegroundColor Yellow
+        $shouldUpdate = $true
+    } else {
+        Write-Host "  Do you want to update your Git Identity? (y/N): " -NoNewline
+        $ans = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        $ch  = $ans.Character.ToString().ToUpper()
+        Write-Host $ch
+        if ($ch -eq "Y") { $shouldUpdate = $true }
+    }
+
+    if ($shouldUpdate) {
+        $newName = Read-Host "  Enter Git User Name"
+        $newEmail = Read-Host "  Enter Git User Email"
+        
+        if ($newName) { git config --global user.name $newName }
+        if ($newEmail) { git config --global user.email $newEmail }
+        Write-OK "Git identity updated."
+    }
+} else {
+    Write-WARN "git command not found. Skipping git configuration."
+}
+
 # Rust: stable toolchain & shim generation
 if ($selected["1"]) {
     Write-INFO "Configuring Rust stable toolchain..."

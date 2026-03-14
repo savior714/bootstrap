@@ -108,4 +108,5 @@
 ### 진행 상황
 
 - [x] Task 1: SSOT 문서(`CRITICAL_LOGIC.md`) 최종 업데이트
-- [/] Task 2: `/git` 워크플로우를 통한 Git Commit & Push (진행 중)
+- [x] Task 2: `Bootstrap-DevEnv.ps1` 수정 — Git 사용자 정보(Identity) 대화형 설정 로직 추가
+- [/] Task 3: `/git` 워크플로우를 통한 최종 Git Commit & Push (진행 중)
