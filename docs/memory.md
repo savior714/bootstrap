@@ -62,3 +62,22 @@
 - [x] Task 7: 공유 린트 정책(Shared Policy) 동기화 검증
 - [x] Task 8: 통합 보고서(`env_report.json`) 생성 및 자동 복구 제안
 - [x] Git Push: 모든 변경 사항을 SSOT 문서에 반영하고 원격 저장소에 푸시
+- [x] Fix: `Bootstrap-DevEnv.ps1`을 UTF-8 with BOM으로 재저장하여 PS5 파싱 오류 해결
+- [x] Fix: `bootstrap.bat` 끝에 `pause` 추가하여 비정상 종료 시 원인 파악 가능하도록 개선
+
+---
+
+## [2026-03-14] 메뉴 키 입력 버그 수정
+
+### 문제
+인터랙티브 선택 메뉴에서 1~8 키 입력 시 `[System.Collections.Specialized.OrderedDictionary]` 관련 에러 발생 후 메뉴 재렌더링.
+
+### 원인
+`$groups`는 `[ordered]@{}`(`System.Collections.Specialized.OrderedDictionary`) 타입이며, `.ContainsKey()` 메서드가 존재하지 않음.
+`Hashtable`의 `.ContainsKey()`와 혼동 — `OrderedDictionary`는 `.Contains()`만 지원.
+
+### 해결
+
+| 파일 | 변경 내용 |
+| :--- | :--- |
+| `Bootstrap-DevEnv.ps1` | 210번 줄 `$groups.ContainsKey($ch)` → `$groups.Contains($ch)` |

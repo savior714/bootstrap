@@ -52,12 +52,22 @@ function Add-ReportItem {
         if ($FixCommand) {
             Write-Host ("  -> FIX: ${FixCommand}") -ForegroundColor Yellow
             if ($script:Fix) {
-                Write-Host "  -> Attempting Auto-Fix..." -ForegroundColor Cyan
-                try {
-                    Invoke-Expression $FixCommand
-                    Write-Host "  -> Auto-Fix Success!" -ForegroundColor Green
-                } catch {
-                    Write-Host "  -> Auto-Fix Failed: $($_.Exception.Message)" -ForegroundColor Red
+                $maxRetries = 3
+                $attempt = 0
+                $healed = $false
+                while ($attempt -lt $maxRetries -and -not $healed) {
+                    $attempt++
+                    Write-Host ("  -> [Self-Healing] Attempt {0}/{1}..." -f $attempt, $maxRetries) -ForegroundColor Cyan
+                    try {
+                        Invoke-Expression $FixCommand
+                        $healed = $true
+                        Write-Host ("  -> [Self-Healing] Success on attempt {0}." -f $attempt) -ForegroundColor Green
+                    } catch {
+                        Write-Host ("  -> [Self-Healing] Attempt {0} failed: {1}" -f $attempt, $_.Exception.Message) -ForegroundColor Red
+                        if ($attempt -ge $maxRetries) {
+                            Write-Host "  -> [ABORT] Max retries (${maxRetries}) reached. Manual intervention required." -ForegroundColor Red
+                        }
+                    }
                 }
             }
         }
@@ -149,7 +159,7 @@ function Test-NpmConfigSetting {
 }
 
 function Test-FileEncoding {
-    param([string]$Path, [string]$Category = "Encoding")
+    param([string]$Path, [string]$Category = "Encoding", [bool]$RequireBom = $false)
     $fileName = Split-Path $Path -Leaf
     try {
         if (-not (Test-Path $Path)) {
@@ -158,8 +168,18 @@ function Test-FileEncoding {
         }
 
         $bytes = [System.IO.File]::ReadAllBytes($Path)
-        
-        if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+        $hasBom = ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+
+        if ($RequireBom) {
+            if (-not $hasBom) {
+                Add-ReportItem -Category $Category -Item $fileName -Status $false -Message "BOM missing (UTF-8 with BOM required for PS5 compatibility)" -FixCommand "powershell -File $PSScriptRoot/fix-encoding.ps1 $Path --add-bom"
+                return $false
+            }
+            Add-ReportItem -Category $Category -Item $fileName -Status $true -Message "UTF-8 with BOM (PS5 compatible)"
+            return $true
+        }
+
+        if ($hasBom) {
             Add-ReportItem -Category $Category -Item $fileName -Status $false -Message "BOM detected (UTF-8 with BOM)" -FixCommand "powershell -File $PSScriptRoot/fix-encoding.ps1 $Path"
             return $false
         }
@@ -338,7 +358,7 @@ $results = @(
     (Test-ToolPresence -Name "Git"     -Command "git"),
     (Test-ToolPresence -Name "npm"     -Command "npm"),
     (Test-ToolPresence -Name "pnpm"    -Command "pnpm" -IsOptional $true),
-    (Test-ToolPresence -Name "yarn"    -Command "yarn" -VersionArg "v" -IsOptional $true)
+    (Test-ToolPresence -Name "yarn"    -Command "yarn" -VersionArg "--version" -IsOptional $true)
 )
 foreach ($res in $results) { if ($null -ne $res -and -not $res) { $allPassed = $false } }
 
@@ -354,16 +374,28 @@ foreach ($res in $configResults) { if ($null -ne $res -and -not $res) { $allPass
 
 # 3. Encoding Integrity
 Write-Host "`n[3] File System & Encoding Integrity" -ForegroundColor Gray
-$filesToCheck = @(
+# UTF-8 no BOM 대상
+$noBomFiles = @(
     "$PSScriptRoot\..\README.md",
-    "$PSScriptRoot\..\Bootstrap-DevEnv.ps1",
     "$PSScriptRoot\check-env.ps1",
     "$PSScriptRoot\..\package.json",
     "$PSScriptRoot\..\tsconfig.json"
 )
-foreach ($f in $filesToCheck) {
+# UTF-8 with BOM 필수 (PS5 파싱 오류 방지)
+$requireBomFiles = @(
+    "$PSScriptRoot\..\Bootstrap-DevEnv.ps1"
+)
+foreach ($f in $noBomFiles) {
     if (Test-Path $f) {
-        if (-not (Test-FileEncoding -Path $f)) { $allPassed = $false }
+        if (-not (Test-FileEncoding -Path $f -RequireBom $false)) { $allPassed = $false }
+    } else {
+        Add-ReportItem -Category "Encoding" -Item (Split-Path $f -Leaf) -Status $false -Message "Required file missing"
+        $allPassed = $false
+    }
+}
+foreach ($f in $requireBomFiles) {
+    if (Test-Path $f) {
+        if (-not (Test-FileEncoding -Path $f -RequireBom $true)) { $allPassed = $false }
     } else {
         Add-ReportItem -Category "Encoding" -Item (Split-Path $f -Leaf) -Status $false -Message "Required file missing"
         $allPassed = $false

@@ -22,4 +22,7 @@ pause
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Bootstrap-DevEnv.ps1"
 
+echo.
+echo  Installation script finished.
+pause
 endlocal

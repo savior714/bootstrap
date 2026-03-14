@@ -1,7 +1,7 @@
-# Bootstrap-DevEnv.ps1
+﻿# Bootstrap-DevEnv.ps1
 # Fresh Windows 11 Dev Environment Bootstrap (winget-based, interactive)
 # Projects: eco_pediatrics, cheonggu, law, golf_scoring, stock_vercel, blog, fmkorea, mail, myllm
-# UTF-8 no BOM - Antigravity Standard (Architecture Goal)
+# UTF-8 with BOM - Required for PS5 parsing compatibility
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
@@ -182,12 +182,12 @@ foreach ($key in $groups.Keys) {
 function Draw-Menu {
     Clear-Host
     Write-Host ""
-    Write-Host "  ╔══════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║       ECO Dev Environment - Package Selector     ║" -ForegroundColor Cyan
-    Write-Host "  ╠══════════════════════════════════════════════════╣" -ForegroundColor Cyan
-    Write-Host "  ║  Toggle: press number key  |  Install: [Enter]   ║" -ForegroundColor DarkCyan
-    Write-Host "  ║  Select all: [A]           |  Deselect all: [N]  ║" -ForegroundColor DarkCyan
-    Write-Host "  ╚══════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
+    Write-Host "  |       ECO Dev Environment - Package Selector     |" -ForegroundColor Cyan
+    Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
+    Write-Host "  |  Toggle: press number key  |  Install: [Enter]   |" -ForegroundColor DarkCyan
+    Write-Host "  |  Select all: [A]           |  Deselect all: [N]  |" -ForegroundColor DarkCyan
+    Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
     Write-Host ""
     foreach ($key in $groups.Keys) {
         $g   = $groups[$key]
@@ -207,7 +207,7 @@ while ($true) {
     if ($ch -eq "`r" -or $key.VirtualKeyCode -eq 13) { break }  # Enter
     if ($ch -eq "A") { foreach ($k in $groups.Keys) { $selected[$k] = $true } }
     if ($ch -eq "N") { foreach ($k in $groups.Keys) { $selected[$k] = $false } }
-    if ($groups.ContainsKey($ch)) { $selected[$ch] = -not $selected[$ch] }
+    if ($groups.Contains($ch)) { $selected[$ch] = -not $selected[$ch] }
 }
 #endregion
 
@@ -250,7 +250,7 @@ if ($selected["1"]) {
     }
 }
 
-# Java: JAVA_HOME + PATH 자동 설정
+# Java: JAVA_HOME + PATH ?癒?짗 ??쇱젟
 if ($selected["5"]) {
     $javaPath = "C:\Program Files\Eclipse Adoptium\jdk-17*"
     $found = Get-ChildItem $javaPath -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -264,7 +264,7 @@ if ($selected["5"]) {
     }
 }
 
-# Android: ANDROID_HOME + PATH 자동 설정
+# Android: ANDROID_HOME + PATH ?癒?짗 ??쇱젟
 if ($selected["6"]) {
     $androidSdk = "$env:LOCALAPPDATA\Android\Sdk"
     [System.Environment]::SetEnvironmentVariable("ANDROID_HOME", $androidSdk, "User")
