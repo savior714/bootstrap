@@ -77,6 +77,14 @@ powershell -ExecutionPolicy Bypass -File scripts/check-env.ps1
 
 이 스크립트는 Node.js, Git, Lint 설정, 파일 인코딩 등을 검사하고 `env_report.json`을 생성합니다.
 
+## Zero-Config 자동화 (Aritgravity 최적화)
+
+`bootstrap.bat` 실행 시 아래 설정이 전역적으로 자동 적용됩니다:
+
+- **터미널 세션 고정**: `$PROFILE`에 `init-terminal.ps1`이 주입되어 모든 PowerShell 세션의 인코딩이 UTF-8로 고정됩니다.
+- **전역 지침 연결**: `ANTIGRAVITY_BOOTSTRAP_PATH` 환경 변수가 등록되어, 에이전트가 다른 프로젝트에서도 이 레포의 `AI_GUIDELINES.md`를 참조할 수 있습니다.
+- **Git/NPM 표준화**: `core.autocrlf = false`, `init.defaultBranch = main` 등의 전역 설정이 강제 적용됩니다.
+
 ## 요구사항
 
 - Windows 11 (winget 내장)
@@ -90,9 +98,11 @@ bootstrap/
 ├── bootstrap.bat          # 더블클릭 런처 (powershell.exe 실행)
 ├── Bootstrap-DevEnv.ps1   # 설치 로직 본체
 ├── scripts/
-│   └── check-env.ps1      # 환경 무결성 검증 엔진
+│   ├── check-env.ps1      # 환경 무결성 검증 엔진
+│   └── init-terminal.ps1  # 터미널 세션 초기화 프로토콜
 ├── shared_lint_rules.json # 전역 공유 린트 정책
 ├── eslint.config.js       # 프로젝트 표준 린트 설정
+├── .antigravityrules      # 에이전트 터미널 상호작용 규칙
 ├── README.md
 └── docs/
     ├── CRITICAL_LOGIC.md  # 설계 결정 SSOT

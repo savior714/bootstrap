@@ -1,10 +1,13 @@
-﻿# Bootstrap-DevEnv.ps1
-# Fresh Windows 11 Dev Environment Bootstrap (winget-based, interactive)
-# Projects: eco_pediatrics, cheonggu, law, golf_scoring, stock_vercel, blog, fmkorea, mail, myllm
-# UTF-8 with BOM - Required for PS5 parsing compatibility
+#region --- 0. Terminal & Environment Initialization ---
+$initScript = Join-Path $PSScriptRoot "scripts\init-terminal.ps1"
+# Ensure UTF-8 even during bootstrap
+[Console]::InputEncoding = [Console]::OutputEncoding = $OutputEncoding = [System.Text.Encoding]::UTF8
+$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
 
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
+if (Test-Path $initScript) {
+    . $initScript
+}
+#endregion
 
 #region --- 0. Admin self-elevation ---
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
@@ -12,6 +15,31 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     Write-Host "[ECO] Admin privileges required. Re-launching as Administrator..." -ForegroundColor Yellow
     Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
     exit 0
+}
+#endregion
+
+#region --- 0. Global Automation (Zero-Config) ---
+Write-Host "[ECO] Configuring Global Automation..." -ForegroundColor Cyan
+
+# 1. Register Global Environment Variable
+$bootstrapPath = [System.IO.Path]::GetFullPath($PSScriptRoot)
+[System.Environment]::SetEnvironmentVariable("ANTIGRAVITY_BOOTSTRAP_PATH", $bootstrapPath, "User")
+$env:ANTIGRAVITY_BOOTSTRAP_PATH = $bootstrapPath
+Write-Host "  [+] ANTIGRAVITY_BOOTSTRAP_PATH = $bootstrapPath" -ForegroundColor Green
+
+# 2. Inject to PowerShell Profile
+$profileDir = Split-Path $PROFILE -Parent
+if (-not (Test-Path $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force | Out-Null }
+if (-not (Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force | Out-Null }
+
+$profileContent = Get-Content $PROFILE -Raw
+$initTerminalCommand = "`n# Antigravity Terminal Initialization`nif (Test-Path `"$initScript`") { . `"$initScript`" }`n"
+
+if ($profileContent -notlike "*Antigravity Terminal Initialization*") {
+    Add-Content -Path $PROFILE -Value $initTerminalCommand
+    Write-Host "  [+] Injected init-terminal.ps1 into PowerShell Profile ($PROFILE)" -ForegroundColor Green
+} else {
+    Write-Host "  [OK] PowerShell Profile already contains Antigravity initialization." -ForegroundColor Gray
 }
 #endregion
 

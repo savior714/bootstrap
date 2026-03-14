@@ -80,4 +80,58 @@
 
 | 파일 | 변경 내용 |
 | :--- | :--- |
-| `Bootstrap-DevEnv.ps1` | 210번 줄 `$groups.ContainsKey($ch)` → `$groups.Contains($ch)` |
+
+---
+
+## [2026-03-14] AI 지침 및 린트 정책 표준화 (Cross-Project Standardization)
+
+### 작업 내용
+
+| `scripts/check-env.ps1` | AI_GUIDELINES.md 존재 여부 검사 및 self-healing 복구 로직 추가 (Task 3) |
+| `scripts/fix-encoding.ps1` | PS5 호환성 지원을 위해 --add-bom 옵션 추가 (Task 3) |
+| `docs/CRITICAL_LOGIC.md` | 전역 규칙 관리 표준(AI & Technical) 가이드라인 추가 (Task 4) |
+
+### 진행 상황
+
+- [x] Task 1: `templates/AI_GUIDELINES.md` 신규 생성
+- [x] Task 2: `shared_lint_rules.json` 고도화
+- [x] Task 3: `scripts/check-env.ps1` 지침 동기화 로직 추가
+- [x] Task 4: `docs/CRITICAL_LOGIC.md` 전역 규칙 관리 표준 추가
+
+---
+
+## [2026-03-14] 터미널 파싱 에러 방지 프로토콜 (Terminal Interaction Protocol)
+
+### 작업 내용
+
+| `Bootstrap-DevEnv.ps1` | 터미널 초기화 로직 통합 (`init-terminal.ps1` 연동) (Task 3) |
+| `docs/CRITICAL_LOGIC.md` | Terminal Interaction Protocol 섹션 추가 (SSOT 반영) (Task 4) |
+
+### 진행 상황
+
+- [x] Task 1: `.antigravityrules` 생성 — 터미널 아키텍처 규칙 정의
+- [x] Task 2: `scripts/init-terminal.ps1` 생성 — 세션 초기화 스크립트
+- [x] Task 3: `Bootstrap-DevEnv.ps1` 업데이트 — 터미널 설정 통합
+- [x] Task 4: `docs/CRITICAL_LOGIC.md` 업데이트 — 터미널 프로토콜 SSOT 반영
+- [x] Task 5: 검증 및 `memory.md` 기록
+
+
+---
+
+## [2026-03-14] Antigravity Zero-Config Automation
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+| :--- | :--- |
+| `Bootstrap-DevEnv.ps1` | 전역 환경 변수(`ANTIGRAVITY_BOOTSTRAP_PATH`) 등록 및 PS `$PROFILE` 주입 로직 추가 |
+| `scripts/check-env.ps1` | 전역 Git/NPM 설정 무결성 검증 고도화 및 `core.autocrlf=false` 표준화 |
+| `docs/CRITICAL_LOGIC.md` | Zero-Config 자동화 섹션(#9) 추가 |
+
+### 진행 상황
+
+- [x] Task 1: `ANTIGRAVITY_BOOTSTRAP_PATH` 환경 변수 사용자 자동 등록 구현
+- [x] Task 2: PowerShell Profile(`$PROFILE`)에 `init-terminal.ps1` 영구 주입 로직 추가
+- [x] Task 3: 전역 Git(`core.autocrlf=false`, `init.defaultBranch=main`) 및 NPM 설정 강제화
+- [x] Task 4: `CRITICAL_LOGIC.md` SSOT 업데이트
+- [x] Task 5: `memory.md` 작업 기록 완료

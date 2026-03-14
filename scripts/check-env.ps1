@@ -4,7 +4,7 @@ param(
 
 # scripts/diagnose_env.ps1
 # Antigravity Environment Integrity Check Script
-# Encoding: UTF-8 no BOM
+# Encoding: UTF-8 no BOM (Fixed to include Guidelines)
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -125,7 +125,7 @@ function Test-GitConfigSetting {
             return $false
         }
         
-        if ($ExpectedValue -and $val -ne $ExpectedValue) {
+        if ($null -ne $ExpectedValue -and $val -ne $ExpectedValue) {
             Add-ReportItem -Category $Category -Item $DisplayName -Status $false -Message "Value mismatch: ${val} (Expected: ${ExpectedValue})" -FixCommand "git config --global ${Key} ${ExpectedValue}"
             return $false
         }
@@ -146,7 +146,7 @@ function Test-NpmConfigSetting {
         if ($null -eq $val) { $val = "" } else { $val = $val.Trim() }
 
         if ([string]::IsNullOrWhiteSpace($val) -or $val -eq "undefined") {
-            Add-ReportItem -Category $Category -Item $DisplayName -Status $false -Message "Missing NPM config '${Key}'" -FixCommand "npm config set ${Key} <your_value>"
+            Add-ReportItem -Category $Category -Item $DisplayName -Status $false -Message "Missing NPM config '${Key}'" -FixCommand "npm config set ${Key} <your_value> --global"
             return $false
         }
         Add-ReportItem -Category $Category -Item $DisplayName -Status $true -Message $val
@@ -323,7 +323,7 @@ function Test-SharedLintPolicy {
         $localContent = Get-Content $LocalConfigPath -Raw
         
         $missingRules = @()
-        foreach ($rule in $policy.rules.PSObject.Properties) {
+        foreach ($rule in $policy.lint_rules.eslint.PSObject.Properties) {
             $ruleName = $rule.Name
             if ($localContent -notlike "*$ruleName*") {
                 $missingRules += $ruleName
@@ -341,6 +341,35 @@ function Test-SharedLintPolicy {
     }
     catch {
         Add-ReportItem -Category $Category -Item "LintPolicy" -Status $false -Message "Error: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+function Test-AIGuidelinesIntegrity {
+    param(
+        [string]$Path,
+        [string]$TemplatePath,
+        [string]$Category = "Guidelines"
+    )
+    try {
+        if (-not (Test-Path $Path)) {
+            Add-ReportItem -Category $Category -Item "AI_GUIDELINES.md" -Status $false -Message "Missing AI Behavioral Guidelines" -FixCommand "if (-not (Test-Path '$PSScriptRoot/../templates')) { New-Item -ItemType Directory -Path '$PSScriptRoot/../templates' -Force }; Copy-Item -Path $TemplatePath -Destination $Path -Force"
+            return $false
+        }
+
+        # encoding check
+        $bytes = [System.IO.File]::ReadAllBytes($Path)
+        $hasBom = ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+        if ($hasBom) {
+            Add-ReportItem -Category $Category -Item "AI_GUIDELINES.md" -Status $false -Message "BOM detected (UTF-8 no BOM required)" -FixCommand "powershell -File $PSScriptRoot/fix-encoding.ps1 $Path"
+            return $false
+        }
+
+        Add-ReportItem -Category $Category -Item "AI_GUIDELINES.md" -Status $true -Message "Present and correctly encoded (UTF-8 no BOM)"
+        return $true
+    }
+    catch {
+        Add-ReportItem -Category $Category -Item "AI_GUIDELINES.md" -Status $false -Message "Error checking AI_GUIDELINES.md: $($_.Exception.Message)"
         return $false
     }
 }
@@ -365,25 +394,26 @@ foreach ($res in $results) { if ($null -ne $res -and -not $res) { $allPassed = $
 # 2. Config Integrity
 Write-Host "`n[2] Configuration Integrity" -ForegroundColor Gray
 $configResults = @(
-    (Test-GitConfigSetting -Key "user.name"     -DisplayName "User Name"),
-    (Test-GitConfigSetting -Key "user.email"    -DisplayName "User Email"),
-    (Test-GitConfigSetting -Key "core.autocrlf" -DisplayName "Auto CRLF" -ExpectedValue "true"),
-    (Test-NpmConfigSetting -Key "registry"      -DisplayName "Registry URL")
+    (Test-GitConfigSetting -Key "user.name"          -DisplayName "User Name"),
+    (Test-GitConfigSetting -Key "user.email"         -DisplayName "User Email"),
+    (Test-GitConfigSetting -Key "core.autocrlf"      -DisplayName "Auto CRLF" -ExpectedValue "false"),
+    (Test-GitConfigSetting -Key "init.defaultBranch" -DisplayName "Default Branch" -ExpectedValue "main"),
+    (Test-NpmConfigSetting -Key "registry"           -DisplayName "Registry URL")
 )
 foreach ($res in $configResults) { if ($null -ne $res -and -not $res) { $allPassed = $false } }
 
 # 3. Encoding Integrity
 Write-Host "`n[3] File System & Encoding Integrity" -ForegroundColor Gray
-# UTF-8 no BOM 대상
+# UTF-8 no BOM Target
 $noBomFiles = @(
     "$PSScriptRoot\..\README.md",
-    "$PSScriptRoot\check-env.ps1",
     "$PSScriptRoot\..\package.json",
     "$PSScriptRoot\..\tsconfig.json"
 )
-# UTF-8 with BOM 필수 (PS5 파싱 오류 방지)
+# UTF-8 with BOM Required (PS5 Parsing Error Prevention)
 $requireBomFiles = @(
-    "$PSScriptRoot\..\Bootstrap-DevEnv.ps1"
+    "$PSScriptRoot\..\Bootstrap-DevEnv.ps1",
+    "$PSScriptRoot\check-env.ps1"
 )
 foreach ($f in $noBomFiles) {
     if (Test-Path $f) {
@@ -426,6 +456,10 @@ if ($currentRegistry) {
 # 7. Lint Policy
 Write-Host "`n[7] Shared Lint Policy Verification" -ForegroundColor Gray
 if (-not (Test-SharedLintPolicy -PolicyPath "$PSScriptRoot\..\shared_lint_rules.json" -LocalConfigPath "$PSScriptRoot\..\eslint.config.js")) { $allPassed = $false }
+
+# 8. AI Behavioral Guidelines
+Write-Host "`n[8] AI Behavioral Guidelines Verification" -ForegroundColor Gray
+if (-not (Test-AIGuidelinesIntegrity -Path "$PSScriptRoot\..\AI_GUIDELINES.md" -TemplatePath "$PSScriptRoot\..\templates\AI_GUIDELINES.md")) { $allPassed = $false }
 
 # Final Report
 $reportPath = "$PSScriptRoot\env_report.json"

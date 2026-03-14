@@ -77,7 +77,57 @@
 
 ---
 
-## 6. 별도 설치 도구 (스크립트 외)
+## 6. 전역 규칙 관리 표준 (AI & Quality)
+
+프로젝트 간 개발 경험을 통일하고 동일한 에러의 재발을 방지하기 위한 전역 관리 시스템입니다.
+
+### 행동 및 품질 규칙 구성
+1. **AI 행동 지침 (Behavioral)**: `templates/AI_GUIDELINES.md`
+   - AI(Antigravity)가 코드를 작성하거나 디버깅할 때 반드시 준수해야 하는 행동 원칙.
+   - 인코딩, Micro-task, 안정성 중심의 단계별 실행 지침 포함.
+2. **기술 린트 정책 (Technical)**: `shared_lint_rules.json`
+   - ESLint 등 도구가 프로젝트 소스 코드를 기계적으로 검증하는 규칙 모음.
+   - 플랫폼 호환성 및 인코딩 사고 방지를 위한 엄격한 규칙 적용.
+
+### 타 프로젝트 이식 및 참조 프로세스
+- **배포**: 신규 프로젝트 생성 시 `bootstrap.bat` 또는 동기화 스크립트에서 해당 파일들을 타겟 프로젝트 루트로 복사합니다.
+- **검증**: `scripts/check-env.ps1`을 통해 각 프로젝트의 로컬 지침이 `bootstrap` 저장소의 템플릿과 일치하는지 상시 확인합니다.
+- **동기화**: `bootstrap` 저장소의 규칙이 업데이트되면, `check-env.ps1`의 self-healing 기능을 통해 타겟 프로젝트의 지침을 갱신합니다.
+
+---
+
+## 7. 별도 설치 도구 (스크립트 외)
 
 - Antigravity IDE
 - VS Code / Cursor AI
+
+---
+
+## 8. Terminal Interaction Protocol
+
+Antigravity 에이전트와 터미널 간의 안정적인 상호작용을 위한 프로토콜입니다.
+
+| 항목 | 내용 |
+|------|-----------|
+| **세션 초기화** | `scripts/init-terminal.ps1`을 호출하여 세션의 인코딩을 UTF-8로 고정하고 ANSI 시퀀스를 억제 |
+| **명령어 파일화** | 100자 이상의 복잡한 명령이나 중첩 따옴표가 포함된 경우 임시 스크립트(`.ps1`)를 생성하여 실행 |
+| **인코딩 원칙** | 터미널 출력 및 파싱은 UTF-8을 기본으로 하며, 결과물 파일 생성 시에도 UTF-8 no BOM 준수 |
+| **전역 규칙** | `.antigravityrules`에 명시된 터미널 상호작용 지침을 최우선으로 준수 |
+
+### 위반 시 대응
+- 파싱 에러 발생 시 즉시 `init-terminal.ps1` 재실행 및 세션 상태 확인
+- 명령어가 너무 길어 파싱 지연이 예상될 경우 자동으로 Micro-task로 분할하여 수행
+
+
+---
+
+## 9. Zero-Config Automation
+
+사용자의 수동 개입 없이 `bootstrap.bat` 실행만으로 모든 환경을 전역 최적화하는 매커니즘입니다.
+
+| 항목 | 구현 내용 |
+|------|-----------|
+| **전역 경로 등록** | `ANTIGRAVITY_BOOTSTRAP_PATH` 시스템 환경 변수를 현재 레포지토리 경로로 등록 |
+| **터미널 영구 안정화** | 사용자 `$PROFILE`에 `init-terminal.ps1` 호출 코드를 자동 주입하여 모든 터미널 세션의 인코딩을 UTF-8로 고정 |
+| **전역 도구 표준화** | `git config --global core.autocrlf false`, `init.defaultBranch main` 등의 설정을 강제 적용 |
+| **무설정 에이전트 지침** | 에이전트가 `ANTIGRAVITY_BOOTSTRAP_PATH`를 감지하면 자동으로 해당 경로의 전역 지침을 로드하도록 설계 |
