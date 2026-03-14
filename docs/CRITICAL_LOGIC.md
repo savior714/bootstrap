@@ -57,7 +57,27 @@
 
 ---
 
-## 4. 별도 설치 도구 (스크립트 외)
+## 5. 환경 무결성 검증 엔진 (Integrity Engine)
+
+개발 환경의 일관성을 유지하고 "Ghost Bug"를 방지하기 위한 검증 시스템입니다.
+
+| 항목 | 검증 내용 |
+|------|-----------|
+| **Core CLI** | Node.js, Git, npm, pnpm, yarn의 설치 및 최소 버전 확인 |
+| **Config** | `.npmrc` (Registry), `.gitconfig` (User Info, autocrlf) 무결성 확인 |
+| **File System** | 주요 설정 파일(`package.json` 등)의 인코딩(UTF-8 no BOM) 검증 |
+| **IDE Sync** | VSCode `settings.json`의 일관성 확인 및 자동 생성 지원 |
+| **Tech Stack** | `tsc`, `eslint`, `prettier` 바이너리 가용성 Dry-Run |
+| **Shared Lint** | `shared_lint_rules.json`을 통한 프로젝트 간 동일 린트 정책 강제 |
+
+### 검증 결과 보고
+- `scripts/check-env.ps1` 실행 시 `env_report.json` 생성
+- IDE와의 연동을 위해 표준 JSON 스키마를 따름
+- 위반 사항 발견 시 구체적인 복구 제안 제공
+
+---
+
+## 6. 별도 설치 도구 (스크립트 외)
 
 - Antigravity IDE
 - VS Code / Cursor AI

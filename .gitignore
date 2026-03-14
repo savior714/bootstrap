@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+.next/
+*.log
+env_report.json
+.pnpm-store/
+.turbo/
+out/
+coverage/
+.nyc_output/
+*.map
+*.sst
+*.deps
+*.incremental

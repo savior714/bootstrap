@@ -1,7 +1,7 @@
-﻿# Bootstrap-DevEnv.ps1
+# Bootstrap-DevEnv.ps1
 # Fresh Windows 11 Dev Environment Bootstrap (winget-based, interactive)
 # Projects: eco_pediatrics, cheonggu, law, golf_scoring, stock_vercel, blog, fmkorea, mail, myllm
-# UTF-8 with BOM - PS5 (powershell.exe) compatible
+# UTF-8 no BOM - Antigravity Standard (Architecture Goal)
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
@@ -221,7 +221,7 @@ foreach ($key in $groups.Keys) {
     if (-not $selected[$key]) { continue }
     $g = $groups[$key]
     Write-Host ""
-    Write-Host "  >>> $($g.Label)" -ForegroundColor Cyan
+    Write-Host "  ==> $($g.Label)" -ForegroundColor Cyan
 
     $allOk = $true
     foreach ($pkg in $g.Pkgs) {

@@ -66,6 +66,17 @@ bootstrap.bat
 eco.bat   # [2] Environment Setup
 ```
 
+## 환경 무결성 검증 (Integrity Check)
+
+설치가 완료되었거나 기존 환경의 정합성을 확인하려면 아래 명령어를 실행하세요:
+
+```powershell
+# 환경 무결성 검사 및 보고서 생성
+powershell -ExecutionPolicy Bypass -File scripts/check-env.ps1
+```
+
+이 스크립트는 Node.js, Git, Lint 설정, 파일 인코딩 등을 검사하고 `env_report.json`을 생성합니다.
+
 ## 요구사항
 
 - Windows 11 (winget 내장)
@@ -78,6 +89,10 @@ eco.bat   # [2] Environment Setup
 bootstrap/
 ├── bootstrap.bat          # 더블클릭 런처 (powershell.exe 실행)
 ├── Bootstrap-DevEnv.ps1   # 설치 로직 본체
+├── scripts/
+│   └── check-env.ps1      # 환경 무결성 검증 엔진
+├── shared_lint_rules.json # 전역 공유 린트 정책
+├── eslint.config.js       # 프로젝트 표준 린트 설정
 ├── README.md
 └── docs/
     ├── CRITICAL_LOGIC.md  # 설계 결정 SSOT
