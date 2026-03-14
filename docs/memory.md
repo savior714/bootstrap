@@ -173,3 +173,17 @@
 
 - [x] Task 1~5: 모든 Gap 항목 명문화 완료
 - [x] 검증: `AI_GUIDELINES.md` 76줄 / `CRITICAL_LOGIC.md` 139줄 (300줄 미만)
+
+---
+
+## [2026-03-14] ECO 하드코딩 흔적 제거 (Branding Cleanup)
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+| :--- | :--- |
+| `Bootstrap-DevEnv.ps1` | `[ECO]` 태그 → `[Bootstrap]` 대체 (L15, L22), 헤더/메뉴 타이틀 `ECO` → `Antigravity` 대체 (L113, L214), NEXT STEPS `eco.bat` 참조 → 범용 문구 대체 (L337) |
+
+### 진행 상황
+
+- [x] 총 5개 하드코딩 흔적 제거 완료

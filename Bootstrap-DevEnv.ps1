@@ -12,14 +12,14 @@ if (Test-Path $initScript) {
 #region --- 0. Admin self-elevation ---
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "[ECO] Admin privileges required. Re-launching as Administrator..." -ForegroundColor Yellow
+    Write-Host "[Bootstrap] Admin privileges required. Re-launching as Administrator..." -ForegroundColor Yellow
     Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
     exit 0
 }
 #endregion
 
 #region --- 0. Global Automation (Zero-Config) ---
-Write-Host "[ECO] Configuring Global Automation..." -ForegroundColor Cyan
+Write-Host "[Bootstrap] Configuring Global Automation..." -ForegroundColor Cyan
 
 # 1. Register Global Environment Variable
 $bootstrapPath = [System.IO.Path]::GetFullPath($PSScriptRoot)
@@ -110,7 +110,7 @@ function Show-CheckMark {
 #endregion
 
 #region --- 1. winget check ---
-Write-Header "ECO Dev Environment Bootstrap"
+Write-Header "Antigravity Dev Environment Bootstrap"
 Write-Host ""
 try {
     $wgVer = (winget --version 2>&1)
@@ -211,7 +211,7 @@ function Draw-Menu {
     Clear-Host
     Write-Host ""
     Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
-    Write-Host "  |       ECO Dev Environment - Package Selector     |" -ForegroundColor Cyan
+    Write-Host "  |   Antigravity Dev Environment - Package Selector  |" -ForegroundColor Cyan
     Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
     Write-Host "  |  Toggle: press number key  |  Install: [Enter]   |" -ForegroundColor DarkCyan
     Write-Host "  |  Select all: [A]           |  Deselect all: [N]  |" -ForegroundColor DarkCyan
@@ -334,7 +334,7 @@ Write-Host ""
 Write-Host "  [NEXT STEPS]" -ForegroundColor Cyan
 Write-Host "  1. Open a NEW terminal (apply PATH changes)" -ForegroundColor White
 Write-Host "  2. Clone/navigate to project directory" -ForegroundColor White
-Write-Host "  3. Run: eco.bat -> [2] Environment Setup" -ForegroundColor White
+Write-Host "  3. Run your project's setup script" -ForegroundColor White
 if ($selected["2"]) {
     Write-Host ""
     Write-Host "  NOTE: VS Build Tools may still be installing in background." -ForegroundColor Yellow
