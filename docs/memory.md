@@ -154,3 +154,22 @@
 - [x] Task 2: `AI_GUIDELINES.md` 행동 지침 (Pre-flight, SOP) 업데이트
 - [x] Task 3: `docs/CRITICAL_LOGIC.md` SSOT 프로토콜 동기화
 - [x] Task 4: `scripts/check-env.ps1` 인코딩 검증 로직 강화
+
+---
+
+## [2026-03-14] Terminal Protocol 구체적 패턴 명문화 (Codification)
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+| :--- | :--- |
+| `templates/AI_GUIDELINES.md` | Section 3 확장: Safe Execution 패턴, Pre-flight 패턴, 에러 기반 탐색 금지 추가 |
+| `templates/AI_GUIDELINES.md` | Section 4 신설: Context Caching, 세미콜론 연쇄 금지, `Get-Item` 변경 확인 패턴 |
+| `templates/AI_GUIDELINES.md` | Section 6 신설: Windows 경로/인코딩 준수, 파싱 에러 SOP (`Set-Content -Encoding String`) |
+| `docs/CRITICAL_LOGIC.md` | Section 8 테이블에 3개 항목 동기화 (에러 기반 탐색 금지, 세미콜론 연쇄 금지, 파일 변경 확인 패턴) |
+| `docs/plans/terminal-protocol-codification.md` | Blueprint 신규 생성 (6개 Gap 항목 기반 5-Task 계획) |
+
+### 진행 상황
+
+- [x] Task 1~5: 모든 Gap 항목 명문화 완료
+- [x] 검증: `AI_GUIDELINES.md` 76줄 / `CRITICAL_LOGIC.md` 139줄 (300줄 미만)

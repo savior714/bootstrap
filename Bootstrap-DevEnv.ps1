@@ -1,4 +1,4 @@
-#region --- 0. Terminal & Environment Initialization ---
+﻿#region --- 0. Terminal & Environment Initialization ---
 $initScript = Join-Path $PSScriptRoot "scripts\init-terminal.ps1"
 # Ensure UTF-8 even during bootstrap
 [Console]::InputEncoding = [Console]::OutputEncoding = $OutputEncoding = [System.Text.Encoding]::UTF8
@@ -278,7 +278,7 @@ if ($selected["1"]) {
     }
 }
 
-# Java: JAVA_HOME + PATH ?癒?짗 ??쇱젟
+# Java: JAVA_HOME + PATH ???吏????깆젧
 if ($selected["5"]) {
     $javaPath = "C:\Program Files\Eclipse Adoptium\jdk-17*"
     $found = Get-ChildItem $javaPath -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -292,7 +292,7 @@ if ($selected["5"]) {
     }
 }
 
-# Android: ANDROID_HOME + PATH ?癒?짗 ??쇱젟
+# Android: ANDROID_HOME + PATH ???吏????깆젧
 if ($selected["6"]) {
     $androidSdk = "$env:LOCALAPPDATA\Android\Sdk"
     [System.Environment]::SetEnvironmentVariable("ANDROID_HOME", $androidSdk, "User")

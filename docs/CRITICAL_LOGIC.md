@@ -114,7 +114,10 @@ Antigravity 에이전트와 터미널 간의 안정적인 상호작용을 위한
 | **Safe Execution** | 100자 이상의 복잡한 명령이나 중첩 따옴표 포함 시 반드시 `.ps1` 임시 파일로 변환하여 실행 |
 | **Traffic Zero** | 모든 CLI 도구에 `--quiet` 플래그를 강제하고, `Select-Object` 등을 통해 터미널 출력량을 물리적으로 제한 |
 | **Context Caching** | 반복되는 환경 정보 조회를 지양하고, `memory.md`의 기록을 활용하여 불필요한 I/O 및 토큰 낭비 방지 |
-| **에러 대응 (SOP)** | 터미널 파싱 에러 발생 시 즉시 `init-terminal.ps1` 재실행을 통해 세션을 초기화하고 원인을 `memory.md`에 기록 |
+| **파일 변경 확인 패턴** | 재조회 전 `Get-Item <path> \| Select-Object Name, Length, LastWriteTime` 으로 변경 여부만 확인. 전체 재조회 금지 |
+| **세미콜론 연쇄 금지** | `Get-Content ...; Get-Content ...` 형식의 다중 파일 동시 읽기 절대 금지. 각 파일은 별도 Tool Call로 분리 |
+| **에러 기반 탐색 금지** | 명령 실행 후 에러로 도구 존재 여부를 판단하는 방식 절대 금지. `Get-Command <cmd> -ErrorAction SilentlyContinue` 로 사전 확인 필수 |
+| **에러 대응 (SOP)** | 파싱 에러 감지 시: ① `Write-Output`으로 버퍼 비우기 → ② `init-terminal.ps1` 재실행 → ③ `> "$env:TEMP\terminal_log.txt"` 저장 후 추출 |
 
 ### 기술적 사양 (Technical Specification)
 - **Encoding**: `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`
