@@ -24,6 +24,8 @@
 
 - **Quiet Mode**: 모든 CLI 도구 사용 시 `--quiet`, `--silent`, `-q`, `-s` 등 최소 출력 플래그를 강제합니다.
 - **Hard Truncation**: 터미널 출력이 방대할 경우 `Select-Object -Last 30` 또는 `Select-Object -First 50` 등으로 엄격하게 제한합니다.
+- **Pre-flight Check**: 터미널 작업 전 `scripts/init-terminal.ps1`이 로드되었는지 확인하고, 환경 변수 및 인코딩 설정을 검증합니다.
+- **Safe Execution**: 파괴적인 명령(파일 삭제, 저장소 초기화 등) 실행 전에는 반드시 타겟을 재확인하고 `-WhatIf` 플래그를 사용하거나 사용자에게 명시적으로 승인을 요청합니다.
 - **Surgical Changes**: 요청받지 않은 리팩토링이나 단순 코드 스타일 수정은 지양하며, 목표 달성에 필요한 **최소한의 코드**만 수정합니다.
 - **Zombie Cleanup**: 작업 전 관련 프로세스(`node`, `tsc`, `cargo` 등)가 점유 중인지 확인하고 필요 시 정리합니다.
 
@@ -34,7 +36,7 @@
 - **Early Return**: 조건문의 중첩을 피하고 가독성을 높이기 위해 Early Return 패턴을 사용합니다.
 - **No Placeholders**: 코드 수정 시 `// ...` 와 같은 생략 표현을 절대 사용하지 않으며, 전후 문맥을 포함한 **완성형 코드**를 제공합니다.
 
-## 5. 작업 기록 (Memory Management)
-
-- 모든 주요 변경 사항은 `docs/memory.md`에 기록하고 업데이트합니다.
-- 로그가 200줄에 도달하면 이전 기록을 50줄 이내로 요약 정리하여 효율적인 컨텍스트를 유지합니다.
+- **Terminal Error SOP**: 터미널 출력에 깨진 문자나 인코딩 오류 발생 시, 즉시 `scripts/init-terminal.ps1`을 재실행하여 세션을 초기화하고 `$OutputEncoding`을 재확인합니다.
+- **Context Caching**: 불필요한 I/O와 토큰 소모를 방지하기 위해, 한 번 읽은 디렉토리 구조나 파일 스키마는 `docs/memory.md`에 기록하거나 내부 메모리에 유지하며 중복 탐색을 최소화합니다.
+- **Job Log Update**: 모든 주요 변경 사항은 `docs/memory.md`에 기록하고 업데이트합니다.
+- **Log Compression**: 로그가 200줄에 도달하면 이전 기록을 50줄 이내로 요약 정리하여 효율적인 컨텍스트를 유지합니다.

@@ -109,14 +109,17 @@ Antigravity 에이전트와 터미널 간의 안정적인 상호작용을 위한
 
 | 항목 | 내용 |
 |------|-----------|
-| **세션 초기화** | `scripts/init-terminal.ps1`을 호출하여 세션의 인코딩을 UTF-8로 고정하고 ANSI 시퀀스를 억제 |
-| **명령어 파일화** | 100자 이상의 복잡한 명령이나 중첩 따옴표가 포함된 경우 임시 스크립트(`.ps1`)를 생성하여 실행 |
-| **인코딩 원칙** | 터미널 출력 및 파싱은 UTF-8을 기본으로 하며, 결과물 파일 생성 시에도 UTF-8 no BOM 준수 |
-| **전역 규칙** | `.antigravityrules`에 명시된 터미널 상호작용 지침을 최우선으로 준수 |
+| **세션 초기화 (SSOT)** | `scripts/init-terminal.ps1`을 통한 UTF-8 인코딩 고정, `$ProgressPreference` 억제, 텔레메트리 차단 및 NO_COLOR 강제 |
+| **Pre-flight Check** | 명령어 실행 전 현재 세션의 인코딩(UTF8) 및 환경 변수(`TERM=dumb`) 무결성 여부를 우선 검증 |
+| **Safe Execution** | 100자 이상의 복잡한 명령이나 중첩 따옴표 포함 시 반드시 `.ps1` 임시 파일로 변환하여 실행 |
+| **Traffic Zero** | 모든 CLI 도구에 `--quiet` 플래그를 강제하고, `Select-Object` 등을 통해 터미널 출력량을 물리적으로 제한 |
+| **Context Caching** | 반복되는 환경 정보 조회를 지양하고, `memory.md`의 기록을 활용하여 불필요한 I/O 및 토큰 낭비 방지 |
+| **에러 대응 (SOP)** | 터미널 파싱 에러 발생 시 즉시 `init-terminal.ps1` 재실행을 통해 세션을 초기화하고 원인을 `memory.md`에 기록 |
 
-### 위반 시 대응
-- 파싱 에러 발생 시 즉시 `init-terminal.ps1` 재실행 및 세션 상태 확인
-- 명령어가 너무 길어 파싱 지연이 예상될 경우 자동으로 Micro-task로 분할하여 수행
+### 기술적 사양 (Technical Specification)
+- **Encoding**: `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`
+- **Environment**: `$env:TERM = 'dumb'`, `$env:NO_COLOR = '1'`, `$env:POWERSHELL_TELEMETRY_OPTOUT = '1'`
+- **Performance**: `$ProgressPreference = 'SilentlyContinue'`를 통해 진행 바 출력을 억제하여 파싱 렉 방지
 
 
 ---

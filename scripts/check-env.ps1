@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$Fix = $false
 )
 
@@ -159,7 +159,12 @@ function Test-NpmConfigSetting {
 }
 
 function Test-FileEncoding {
-    param([string]$Path, [string]$Category = "Encoding", [bool]$RequireBom = $false)
+    param(
+        [string]$Path, 
+        [string]$Category = "Encoding", 
+        [ValidateSet("UTF8NoBom", "UTF8WithBom", "ANSI")]
+        [string]$Required = "UTF8NoBom"
+    )
     $fileName = Split-Path $Path -Leaf
     try {
         if (-not (Test-Path $Path)) {
@@ -170,21 +175,52 @@ function Test-FileEncoding {
         $bytes = [System.IO.File]::ReadAllBytes($Path)
         $hasBom = ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
 
-        if ($RequireBom) {
+        if ($Required -eq "UTF8WithBom") {
             if (-not $hasBom) {
-                Add-ReportItem -Category $Category -Item $fileName -Status $false -Message "BOM missing (UTF-8 with BOM required for PS5 compatibility)" -FixCommand "powershell -File $PSScriptRoot/fix-encoding.ps1 $Path --add-bom"
+                Add-ReportItem -Category $Category -Item $fileName -Status $false -Message "BOM missing (UTF-8 with BOM required)" -FixCommand "powershell -File $PSScriptRoot/fix-encoding.ps1 '$Path' --add-bom"
                 return $false
             }
-            Add-ReportItem -Category $Category -Item $fileName -Status $true -Message "UTF-8 with BOM (PS5 compatible)"
+            Add-ReportItem -Category $Category -Item $fileName -Status $true -Message "UTF-8 with BOM (OK)"
             return $true
         }
 
         if ($hasBom) {
-            Add-ReportItem -Category $Category -Item $fileName -Status $false -Message "BOM detected (UTF-8 with BOM)" -FixCommand "powershell -File $PSScriptRoot/fix-encoding.ps1 $Path"
+            $fixArg = if ($Required -eq "ANSI") { "--ansi" } else { "" }
+            Add-ReportItem -Category $Category -Item $fileName -Status $false -Message "BOM detected (Expected: $Required)" -FixCommand "powershell -File $PSScriptRoot/fix-encoding.ps1 '$Path' $fixArg"
             return $false
         }
 
-        Add-ReportItem -Category $Category -Item $fileName -Status $true -Message "UTF-8 no BOM"
+        if ($Required -eq "UTF8NoBom") {
+            try {
+                $utf8 = New-Object System.Text.UTF8Encoding($false, $true)
+                $null = $utf8.GetString($bytes)
+                Add-ReportItem -Category $Category -Item $fileName -Status $true -Message "UTF-8 no BOM (OK)"
+                return $true
+            } catch {
+                Add-ReportItem -Category $Category -Item $fileName -Status $false -Message "Invalid UTF-8 sequence (Likely ANSI)" -FixCommand "powershell -File $PSScriptRoot/fix-encoding.ps1 '$Path'"
+                return $false
+            }
+        }
+        
+        if ($Required -eq "ANSI") {
+            $hasNonAscii = $false
+            foreach ($b in $bytes) { if ($b -gt 127) { $hasNonAscii = $true; break } }
+            
+            if ($hasNonAscii) {
+                try {
+                    $utf8 = New-Object System.Text.UTF8Encoding($false, $true)
+                    $null = $utf8.GetString($bytes)
+                    # If it's valid UTF-8 and has non-ASCII, it's dangerous for .bat
+                    Add-ReportItem -Category $Category -Item $fileName -Status $false -Message "UTF-8 no BOM detected (ANSI required for .bat)" -FixCommand "powershell -File $PSScriptRoot/fix-encoding.ps1 '$Path' --ansi"
+                    return $false
+                } catch {
+                    # Not valid UTF-8, but has non-ASCII -> Likely ANSI
+                }
+            }
+            Add-ReportItem -Category $Category -Item $fileName -Status $true -Message "ANSI/ASCII (OK)"
+            return $true
+        }
+
         return $true
     }
     catch {
@@ -357,15 +393,12 @@ function Test-AIGuidelinesIntegrity {
             return $false
         }
 
-        # encoding check
-        $bytes = [System.IO.File]::ReadAllBytes($Path)
-        $hasBom = ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
-        if ($hasBom) {
-            Add-ReportItem -Category $Category -Item "AI_GUIDELINES.md" -Status $false -Message "BOM detected (UTF-8 no BOM required)" -FixCommand "powershell -File $PSScriptRoot/fix-encoding.ps1 $Path"
+        # encoding check using unified function
+        if (-not (Test-FileEncoding -Path $Path -Category $Category -Required "UTF8NoBom")) {
             return $false
         }
 
-        Add-ReportItem -Category $Category -Item "AI_GUIDELINES.md" -Status $true -Message "Present and correctly encoded (UTF-8 no BOM)"
+        Add-ReportItem -Category $Category -Item "AI_GUIDELINES.md" -Status $true -Message "Present and correctly encoded"
         return $true
     }
     catch {
@@ -404,32 +437,35 @@ foreach ($res in $configResults) { if ($null -ne $res -and -not $res) { $allPass
 
 # 3. Encoding Integrity
 Write-Host "`n[3] File System & Encoding Integrity" -ForegroundColor Gray
-# UTF-8 no BOM Target
+
+# ANSI Target (.bat files)
+$ansiFiles = @(
+    "$PSScriptRoot\..\bootstrap.bat"
+)
+
+# UTF-8 no BOM Target (Source code, Docs, Config)
 $noBomFiles = @(
     "$PSScriptRoot\..\README.md",
     "$PSScriptRoot\..\package.json",
-    "$PSScriptRoot\..\tsconfig.json"
+    "$PSScriptRoot\..\tsconfig.json",
+    "$PSScriptRoot\..\docs\CRITICAL_LOGIC.md",
+    "$PSScriptRoot\init-terminal.ps1"
 )
-# UTF-8 with BOM Required (PS5 Parsing Error Prevention)
+
+# UTF-8 with BOM Required (Entry points for PS5)
 $requireBomFiles = @(
     "$PSScriptRoot\..\Bootstrap-DevEnv.ps1",
     "$PSScriptRoot\check-env.ps1"
 )
+
+foreach ($f in $ansiFiles) {
+    if (-not (Test-FileEncoding -Path $f -Required "ANSI")) { $allPassed = $false }
+}
 foreach ($f in $noBomFiles) {
-    if (Test-Path $f) {
-        if (-not (Test-FileEncoding -Path $f -RequireBom $false)) { $allPassed = $false }
-    } else {
-        Add-ReportItem -Category "Encoding" -Item (Split-Path $f -Leaf) -Status $false -Message "Required file missing"
-        $allPassed = $false
-    }
+    if (-not (Test-FileEncoding -Path $f -Required "UTF8NoBom")) { $allPassed = $false }
 }
 foreach ($f in $requireBomFiles) {
-    if (Test-Path $f) {
-        if (-not (Test-FileEncoding -Path $f -RequireBom $true)) { $allPassed = $false }
-    } else {
-        Add-ReportItem -Category "Encoding" -Item (Split-Path $f -Leaf) -Status $false -Message "Required file missing"
-        $allPassed = $false
-    }
+    if (-not (Test-FileEncoding -Path $f -Required "UTF8WithBom")) { $allPassed = $false }
 }
 
 # 4. IDE Verification

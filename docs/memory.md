@@ -135,3 +135,22 @@
 - [x] Task 3: 전역 Git(`core.autocrlf=false`, `init.defaultBranch=main`) 및 NPM 설정 강제화
 - [x] Task 4: `CRITICAL_LOGIC.md` SSOT 업데이트
 - [x] Task 5: `memory.md` 작업 기록 완료
+
+
+---
+
+## [2026-03-14] 터미널 프로토콜 정밀화 (Terminal Protocol Refinement)
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+| :--- | :--- |
+| `scripts/init-terminal.ps1` | UTF-8 인코딩 SSOT 고정, $ProgressPreference 억제 및 텔레메트리 차단 추가 (Task 1) |
+| `AI_GUIDELINES.md` | Pre-flight Check, Safe Execution, Terminal Error SOP, Context Caching 지침 추가 (Task 2) |
+
+### 진행 상황
+
+- [x] Task 1: `scripts/init-terminal.ps1` 고도화 및 정밀 설정 반영
+- [x] Task 2: `AI_GUIDELINES.md` 행동 지침 (Pre-flight, SOP) 업데이트
+- [x] Task 3: `docs/CRITICAL_LOGIC.md` SSOT 프로토콜 동기화
+- [x] Task 4: `scripts/check-env.ps1` 인코딩 검증 로직 강화
