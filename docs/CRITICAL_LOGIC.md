@@ -121,7 +121,7 @@ Antigravity 에이전트와 터미널 간의 안정적인 상호작용을 위한
 | **세션 초기화 (SSOT)**     | `scripts/init-terminal.ps1`을 통한 UTF-8 인코딩 고정, `$ProgressPreference` 억제, 텔레메트리 차단 및 NO_COLOR 강제 |
 | **NoProfile Mode**         | 모든 에이전트 내부 PowerShell 호출 시 `-NoProfile` 스위치를 사용하여 로컬 프로필 간섭 배제                         |
 | **Shell Integration 차단** | 터미널 시퀀스(`\e]633;...`) 노이즈가 파싱을 방해하는 경우 환경 변수나 초기화 코드로 이를 명시적으로 억제           |
-| **Syntax Check**           | `.ps1` 파일 수정 후 실행 전 `[scriptblock]::Create()`를 이용한 구문 오류 선제적 검증                               |
+| **Syntax Check**           | `.ps1` 파일 수정 후 실행 전 `[System.Management.Automation.Language.Parser]::ParseInput()`을 이용한 정밀 구문 검증 |
 | **Safe Execution**         | 100자 이상의 복잡한 명령이나 중첩 따옴표 포함 시 반드시 `.ps1` 임시 파일로 변환하여 실행                           |
 | **Traffic Zero**           | 모든 CLI 도구에 `--quiet` 플래그를 강제하고, `Select-Object` 등을 통해 터미널 출력량을 물리적으로 제한             |
 | **Terminal Recovery**      | 파싱 불가 또는 세션 렉 발생 시 `reset` 스크립트 실행 및 로그 추출을 포함한 표준 복구 SOP 가동                      |
@@ -129,8 +129,13 @@ Antigravity 에이전트와 터미널 간의 안정적인 상호작용을 위한
 ### 기술적 사양 (Technical Specification)
 
 - **Encoding**: `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`
-- **Environment**: `$env:TERM = 'dumb'`, `$env:NO_COLOR = '1'`, `$env:POWERSHELL_TELEMETRY_OPTOUT = '1'`
+- **Session Init**: `$env:TERM = 'dumb'`, `$env:NO_COLOR = '1'`, `$env:POWERSHELL_TELEMETRY_OPTOUT = '1'`
+- **AST Parser Logic**: 
+  ```powershell
+  $Errors = $null; [System.Management.Automation.Language.Parser]::ParseInput((Get-Content "file.ps1" -Raw), [ref]$null, [ref]$Errors)
+  ```
 - **Performance**: `$ProgressPreference = 'SilentlyContinue'`를 통해 진행 바 출력을 억제하여 파싱 렉 방지
+- **NoProfile**: 모든 에이전트 명령은 `powershell -NoProfile -Command "..."` 형식을 SSOT 표준으로 함
 
 ---
 

@@ -202,3 +202,22 @@ function Test-AIGuidelinesIntegrity {
         return $false
     }
 }
+
+function Test-SyntaxHealth {
+    param($Path, [string]$Category = "Syntax")
+    $fileName = Split-Path $Path -Leaf
+    if (-not (Test-Path $Path)) { return $true }
+    try {
+        $errors = $null
+        [System.Management.Automation.Language.Parser]::ParseInput((Get-Content $Path -Raw), [ref]$null, [ref]$errors)
+        if ($errors) {
+            Add-ReportItem -Category $Category -Item $fileName -Status $false -Message "Syntax Error: $($errors[0].Message)"
+            return $false
+        }
+        Add-ReportItem -Category $Category -Item $fileName -Status $true -Message "Valid"
+        return $true
+    } catch {
+        Add-ReportItem -Category $Category -Item $fileName -Status $false -Message "Parser Exception: $($_.Exception.Message)"
+        return $false
+    }
+}

@@ -114,6 +114,18 @@ if (-not (Test-SharedLintPolicy -PolicyPath "$PSScriptRoot\..\shared_lint_rules.
 Write-Host "`n[8] AI Behavioral Guidelines Verification" -ForegroundColor Gray
 if (-not (Test-AIGuidelinesIntegrity -Path "$PSScriptRoot\..\AI_GUIDELINES.md" -TemplatePath "$PSScriptRoot\..\templates\AI_GUIDELINES.md")) { $allPassed = $false }
 
+# 9. Syntax Verification
+Write-Host "`n[9] Script Syntax Integrity (AST)" -ForegroundColor Gray
+$scriptsToCheck = @(
+    "$PSScriptRoot\..\Bootstrap-DevEnv.ps1",
+    "$PSScriptRoot\init-terminal.ps1",
+    "$PSScriptRoot\check-env.ps1",
+    "$PSScriptRoot\lib\env-core.ps1"
+)
+foreach ($s in $scriptsToCheck) {
+    if (-not (Test-SyntaxHealth -Path $s)) { $allPassed = $false }
+}
+
 # Final Report
 $reportPath = "$PSScriptRoot\env_report.json"
 try {
