@@ -61,14 +61,16 @@
 
 개발 환경의 일관성을 유지하고 "Ghost Bug"를 방지하기 위한 검증 시스템입니다.
 
-| 항목 | 검증 내용 |
+| 항목 | 상세 내용 |
 |------|-----------|
-| **Core CLI** | Node.js, Git, npm, pnpm, yarn의 설치 및 최소 버전 확인 |
+| **아키텍처** | `scripts/check-env.ps1` (Main) + `scripts/lib/env-core.ps1` (Lib) 구조로 분리 (300L Rule 준수) |
+| **Core CLI** | Node.js, Git, npm, pnpm, yarn의 설치 및 가용성 확인 |
 | **Config** | `.npmrc` (Registry), `.gitconfig` (User Info, autocrlf) 무결성 확인 |
-| **File System** | 주요 설정 파일(`package.json` 등)의 인코딩(UTF-8 no BOM) 검증 |
-| **IDE Sync** | VSCode `settings.json`의 일관성 확인 및 자동 생성 지원 |
-| **Tech Stack** | `tsc`, `eslint`, `prettier` 바이너리 가용성 Dry-Run |
-| **Shared Lint** | `shared_lint_rules.json`을 통한 프로젝트 간 동일 린트 정책 강제 |
+| **File System** | 주요 파일의 인코딩(UTF-8 no BOM/with BOM, ANSI)을 `Test-FileEncoding` 함수로 정밀 검증 |
+| **Hash Sync** | `AI_GUIDELINES.md`와 `templates` 간 **MD5 Hash 비교**를 통해 내용의 비동기화 차단 |
+| **IDE Sync** | VSCode `settings.json`의 필수 항목(encoding, tabSize) 일관성 확인 |
+| **Tech Stack** | `tsc`, `eslint`, `prettier` 바이너리 가용성 및 버전 조회를 통한 런타임 환경 검증 |
+| **Shared Lint** | `shared_lint_rules.json`과 `eslint.config.js` 간의 정책 일치 여부 강제 |
 
 ### 검증 결과 보고
 - `scripts/check-env.ps1` 실행 시 `env_report.json` 생성
@@ -82,17 +84,18 @@
 프로젝트 간 개발 경험을 통일하고 동일한 에러의 재발을 방지하기 위한 전역 관리 시스템입니다.
 
 ### 행동 및 품질 규칙 구성
-1. **AI 행동 지침 (Behavioral)**: `templates/AI_GUIDELINES.md`
+1. **AI 행동 지침 (Behavioral)**: `./AI_GUIDELINES.md` (Master), `templates/AI_GUIDELINES.md` (Deploy)
    - AI(Antigravity)가 코드를 작성하거나 디버깅할 때 반드시 준수해야 하는 행동 원칙.
-   - 인코딩, Micro-task, 안정성 중심의 단계별 실행 지침 포함.
+   - Senior Architect 페르소나, Traffic Zero, Micro-task, 안정성 중심의 단계별 실행 지침 포함.
 2. **기술 린트 정책 (Technical)**: `shared_lint_rules.json`
    - ESLint 등 도구가 프로젝트 소스 코드를 기계적으로 검증하는 규칙 모음.
    - 플랫폼 호환성 및 인코딩 사고 방지를 위한 엄격한 규칙 적용.
 
-### 타 프로젝트 이식 및 참조 프로세스
-- **배포**: 신규 프로젝트 생성 시 `bootstrap.bat` 또는 동기화 스크립트에서 해당 파일들을 타겟 프로젝트 루트로 복사합니다.
-- **검증**: `scripts/check-env.ps1`을 통해 각 프로젝트의 로컬 지침이 `bootstrap` 저장소의 템플릿과 일치하는지 상시 확인합니다.
-- **동기화**: `bootstrap` 저장소의 규칙이 업데이트되면, `check-env.ps1`의 self-healing 기능을 통해 타겟 프로젝트의 지침을 갱신합니다.
+### 타 프로젝트 이식 및 참조 프로세스 (Portability)
+- **온보딩**: 신규 프로젝트 이식 시 AI는 `AI_GUIDELINES.md` Section 11의 **Onboarding Checklist**를 즉시 실행하여 환경을 자발적으로 파악합니다.
+- **배포**: `bootstrap.bat` 또는 동기화 도구에서 `templates/AI_GUIDELINES.md`를 타겟 프로젝트 루트로 복사합니다.
+- **검증**: `scripts/check-env.ps1`의 Hash 비교 로직을 통해 로컬 지침이 마스터와 일치하는지 상시 확인합니다.
+- **동기화**: 마스터 규범 업데이트 시 `templates/` 하위 파일도 동기화하며, 불일치 시 `check-env.ps1`이 자동으로 `Copy-Item` 기반의 Self-Healing을 제안합니다.
 
 ---
 

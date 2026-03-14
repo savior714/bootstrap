@@ -35,12 +35,43 @@
 
 ### 진행 상황
 
-- [x] Task 1: `.gitignore` 시크릿 패턴 추가
-- [x] Task 2: `.env.example` 생성
-- [x] Task 3: `config/packages.json` 생성
-- [x] Task 4: `config/paths.ps1` 생성
-- [x] Task 5: `Bootstrap-DevEnv.ps1` UI 상수 블록 추가 및 매직 넘버 치환
-- [x] Task 6: Java 경로 하드코딩 제거
-- [x] Task 7: VS SDK 버전 하드코딩 제거
-- [x] Task 8: `CRITICAL_LOGIC.md` SSOT 업데이트
-- [x] Task 9: `memory.md` 요약 및 갱신
+- [x] Task 1: AI_GUIDELINES.md 표준화 및 고도화
+- [x] Task 2: CLAUDE.md 상속 구조 도입 및 슬림화 (139L -> 43L)
+- [x] Task 3: memory.md 업데이트 및 아키텍처 반영
+
+---
+
+## [2026-03-14] Terminal Protocol Extended (Ongoing)
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `CLAUDE.md` | Section 3 Linux→PowerShell 명령어 매핑 테이블 추가 |
+
+### 진행 상황 (완료)
+
+- [x] Task 1: AI_GUIDELINES.md 표준화 및 고도화 (마스터 가이드라인 승격)
+- [x] Task 2: CLAUDE.md 상속 구조 유지 (사용자 요청에 따라 슬림화 없이 현 상태 유지)
+- [x] Task 4: AI_GUIDELINES.md 이동성 검증 체크리스트 추가
+- [x] Task 5: 신규 프로젝트 온보딩 드라이런(Dry-run) 수행 및 검증 완료
+
+---
+
+## [2026-03-14] AI Guidelines Rationalization & Portability (Ongoing)
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `AI_GUIDELINES.md` | Section 11 드라이런 수행 — 임시 프로젝트 환경에서 온보딩 체크리스트의 실효성 입증 |
+| `docs/memory.md` | 드라이런 결과 기록 및 기술 부채(L300 초과) 해결 계획 수립 |
+
+### 진행 상황
+
+- [x] Task 1: AI Onboarding Checklist 정상 작동 여부 드라이런 수행
+- [x] Task 2: `scripts/check-env.ps1` 무결성 검증(Hash 비교) 로직 추가
+- [x] Task 3: `scripts/check-env.ps1` 300라인 초과에 따른 하위 모듈 분리(Refactoring)
+- [x] Task 4: `scripts/check-env.ps1`과 `templates/AI_GUIDELINES.md` 간 동기화 정밀 검증
+
+
