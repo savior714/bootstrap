@@ -25,9 +25,9 @@
 | 5   | Java (Temurin JDK 17 LTS)                               |    ⬜     |
 | 6   | Android Studio                                          |    ⬜     |
 | 7   | Docker Desktop                                          |    ⬜     |
-| 8   | Supabase CLI                                            |    ⬜     |
 
 **제거된 항목:**
+
 
 - ~~PowerShell 7 (pwsh)~~ — PS7 미사용 환경이므로 제거 (그룹 #2였음)
 
@@ -108,6 +108,7 @@
 
 - Antigravity IDE
 - VS Code / Cursor AI
+- Supabase CLI (Manual: `npm install -g supabase`)
 
 ---
 

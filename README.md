@@ -47,7 +47,7 @@ bootstrap.bat
 | 5   | Java (Temurin JDK 17 LTS)                                   |    ⬜     |
 | 6   | Android Studio                                              |    ⬜     |
 | 7   | Docker Desktop                                              |    ⬜     |
-| 8   | Supabase CLI                                                |    ⬜     |
+| --- | ----------------------------------------------------------- | :-------: |
 
 ## 설치 후 추가 설정
 
@@ -55,6 +55,7 @@ bootstrap.bat
 
 - **Antigravity IDE**
 - **VS Code** / **Cursor AI**
+- **Supabase CLI**: `npm install -g supabase` 명령어로 직접 설치하십시오. (winget 미지원)
 
 > Android Studio(6번) 선택 시 `ANDROID_HOME` 및 PATH(`platform-tools`, `emulator`)가 **자동으로 설정**됩니다.
 > 단, SDK 실제 파일은 Android Studio 최초 실행 후 다운로드됩니다.

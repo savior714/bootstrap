@@ -199,14 +199,6 @@ $groups = [ordered]@{
             @{ Id = "Docker.DockerDesktop"; Name = "Docker Desktop" }
         )
     }
-
-    "8" = @{
-        Label   = "Supabase CLI"
-        Default = $false
-        Pkgs    = @(
-            @{ Id = "Supabase.CLI"; Name = "Supabase CLI" }
-        )
-    }
 }
 #endregion
 
@@ -370,8 +362,7 @@ $verChecks = @(
     @{ Name = "rustup";  Cmd = "$env:USERPROFILE\.cargo\bin\rustup.exe"; Args = @("--version") },
     @{ Name = "go";      Cmd = "go";      Args = @("version") },
     @{ Name = "java";    Cmd = "java";    Args = @("-version") },
-    @{ Name = "docker";  Cmd = "docker";  Args = @("--version") },
-    @{ Name = "supabase";Cmd = "supabase";Args = @("--version") }
+    @{ Name = "docker";  Cmd = "docker";  Args = @("--version") }
 )
 
 Write-Host ""

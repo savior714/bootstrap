@@ -107,6 +107,26 @@
 
 ### 진행 상황
 
-- [x] Task 1: SSOT 문서(`CRITICAL_LOGIC.md`) 최종 업데이트
+- [ ] Task 1: SSOT 문서(`CRITICAL_LOGIC.md`) 최종 업데이트
 - [x] Task 2: `Bootstrap-DevEnv.ps1` 수정 — Git 사용자 정보(Identity) 대화형 설정 로직 추가
 - [/] Task 3: `/git` 워크플로우를 통한 최종 Git Commit & Push (진행 중)
+
+---
+
+## [2026-03-14] Remove Unsupported Supabase CLI (Ongoing)
+
+### 작업 내용
+
+| 파일                   | 변경 내용                                                                 |
+| ---------------------- | ------------------------------------------------------------------------- |
+| `config/packages.json`   | 지원되지 않는 `Supabase.CLI` (Group 8) 정의 제거                          |
+| `README.md`             | Supabase CLI 자동 설치 항목 제거 및 `npm` 수동 설치 가이드 추가           |
+| `scripts/env_report.json` | 환경 무결성 검증 결과 기록 (Git Config 제외 모든 항목 PASS)               |
+| `docs/plans/...`         | Supabase CLI 자동 설치 제거 계획 완료 (Tasks 1-4)                         |
+
+### 진행 상황
+
+- [x] Task 1: `config/packages.json`에서 Supabase CLI 정의 제거
+- [x] Task 2: `Bootstrap-DevEnv.ps1`에서 Group 8 로직 및 버전 체크 제거
+- [x] Task 3: `README.md`에 수동 설치(`npm`) 가이드 추가
+- [x] Task 4: `check-env.ps1` 검증 및 최종 SSOT 동기화

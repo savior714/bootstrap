@@ -60,13 +60,6 @@
       "packages": [
         { "id": "Docker.DockerDesktop", "name": "Docker Desktop" }
       ]
-    },
-    "8": {
-      "label": "Supabase CLI",
-      "default": false,
-      "packages": [
-        { "id": "Supabase.CLI", "name": "Supabase CLI" }
-      ]
     }
   }
 }
