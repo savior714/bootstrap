@@ -60,20 +60,20 @@ $ansiFiles = @(
     "$PSScriptRoot\..\bootstrap.bat"
 )
 
-# UTF-8 no BOM Target (Source code, Docs, Config)
+# UTF-8 no BOM Target (Source code, Docs, Config, Scripts)
 $noBomFiles = @(
     "$PSScriptRoot\..\README.md",
     "$PSScriptRoot\..\package.json",
     "$PSScriptRoot\..\tsconfig.json",
     "$PSScriptRoot\..\docs\CRITICAL_LOGIC.md",
-    "$PSScriptRoot\init-terminal.ps1"
+    "$PSScriptRoot\..\Bootstrap-DevEnv.ps1",
+    "$PSScriptRoot\init-terminal.ps1",
+    "$PSScriptRoot\check-env.ps1",
+    "$PSScriptRoot\lib\env-core.ps1"
 )
 
-# UTF-8 with BOM Required (Entry points for PS5)
-$requireBomFiles = @(
-    "$PSScriptRoot\..\Bootstrap-DevEnv.ps1",
-    "$PSScriptRoot\check-env.ps1"
-)
+# UTF-8 with BOM Required (None - all migrated to No BOM per new protocol)
+$requireBomFiles = @()
 
 foreach ($f in $ansiFiles) {
     if (-not (Test-FileEncoding -Path $f -Required "ANSI")) { $allPassed = $false }

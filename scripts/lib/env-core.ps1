@@ -1,6 +1,6 @@
 # scripts/lib/env-core.ps1
 # Antigravity Environment Integrity Core Library
-# Encoding: UTF-8 with BOM
+# Encoding: UTF-8 no BOM
 
 # --- Helper Functions ---
 
@@ -13,8 +13,10 @@ function Update-VSCodeSetting {
     
     $config = Get-Content $path -Raw | ConvertFrom-Json
     $config | Add-Member -MemberType NoteProperty -Name $Key -Value $Value -Force
-    # Use Out-File with explicit UTF8 for consistency
-    $config | ConvertTo-Json | Out-File -FilePath $path -Encoding utf8
+    # Use System.IO.File to ensure UTF8 no BOM (PowerShell 5.x Out-File -Encoding utf8 adds BOM)
+    $json = $config | ConvertTo-Json -Depth 10
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($path, $json, $utf8NoBom)
     Write-Host "Updated VSCode setting: ${Key} = ${Value}" -ForegroundColor Cyan
 }
 

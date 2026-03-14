@@ -6,29 +6,29 @@
 
 ## 1. 실행 환경 표준
 
-| 항목 | 결정 | 이유 |
-|------|------|------|
-| 런처 | `bootstrap.bat` 우클릭 → **관리자 권한으로 실행** | 스크립트 내 admin self-elevation 시 원본 창이 닫히는 현상 방지 |
-| PowerShell | **`powershell.exe` (PS5) 고정** | PS7 미사용 환경. pwsh 감지 로직 제거됨 |
-| PS1 인코딩 | **UTF-8 with BOM** | PS5가 BOM 없는 UTF-8을 ANSI(CP949)로 읽어 파싱 오류 발생 → BOM 필수 |
-| bat 인코딩 | **ANSI (CP949)** | Windows cmd 호환성 |
+| 항목       | 결정                                              | 이유                                                                        |
+| ---------- | ------------------------------------------------- | --------------------------------------------------------------------------- |
+| 런처       | `bootstrap.bat` 우클릭 → **관리자 권한으로 실행** | 스크립트 내 admin self-elevation 시 원본 창이 닫히는 현상 방지              |
+| PS1 인코딩 | **UTF-8 no BOM**                                  | Windows PowerShell 5.1 및 7.x 간의 교차 호환성 및 현대적 파싱 도구와의 정렬 |
+| bat 인코딩 | **ANSI (CP949)**                                  | Windows cmd 호환성 유지                                                     |
 
 ---
 
 ## 2. 패키지 그룹 구성 (현행)
 
-| # | 항목 | 기본 선택 |
-|---|------|:---:|
-| 1 | Core — Git, Python 3.14, Node.js LTS, Rust (rustup), uv | ✅ |
-| 2 | VS Build Tools 2022 (MSVC + Windows SDK 26100) | ✅ |
-| 3 | Windows Terminal | ✅ |
-| 4 | Go | ⬜ |
-| 5 | Java (Temurin JDK 17 LTS) | ⬜ |
-| 6 | Android Studio | ⬜ |
-| 7 | Docker Desktop | ⬜ |
-| 8 | Supabase CLI | ⬜ |
+| #   | 항목                                                    | 기본 선택 |
+| --- | ------------------------------------------------------- | :-------: |
+| 1   | Core — Git, Python 3.14, Node.js LTS, Rust (rustup), uv |    ✅     |
+| 2   | VS Build Tools 2022 (MSVC + Windows SDK 26100)          |    ✅     |
+| 3   | Windows Terminal                                        |    ✅     |
+| 4   | Go                                                      |    ⬜     |
+| 5   | Java (Temurin JDK 17 LTS)                               |    ⬜     |
+| 6   | Android Studio                                          |    ⬜     |
+| 7   | Docker Desktop                                          |    ⬜     |
+| 8   | Supabase CLI                                            |    ⬜     |
 
 **제거된 항목:**
+
 - ~~PowerShell 7 (pwsh)~~ — PS7 미사용 환경이므로 제거 (그룹 #2였음)
 
 ---
@@ -36,11 +36,13 @@
 ## 3. 설계 결정 사항
 
 ### Admin 자동 승격 구조
+
 - `Bootstrap-DevEnv.ps1` 실행 시 admin 아닐 경우 `Start-Process powershell -Verb RunAs`로 재실행 후 `exit 0`
 - 이로 인해 **원본 bat 창이 닫히고 UAC 창 + 새 창이 열리는 것은 정상 동작**
 - 해결책: bat 파일을 처음부터 관리자 권한으로 실행
 
 ### 메뉴 UI
+
 - `$Host.UI.RawUI.ReadKey` 기반 인터랙티브 메뉴
 - 숫자 키로 토글, `A`/`N`으로 전체 선택/해제, `Enter`로 설치 시작
 - 그룹별 설명(Desc) 라인은 불필요하여 제거됨
@@ -49,11 +51,11 @@
 
 `Add-ToUserPath` 헬퍼 함수: 경로 존재 확인 후 User PATH 중복 없이 등록, 현재 세션 즉시 반영
 
-| 항목 | 자동화 내용 |
-|------|------------|
-| **Rust** | rustup stable toolchain 설치 및 default 설정 |
-| **Java** | `JAVA_HOME` 설정 (`$Script:JAVA_INSTALL_BASE\$Script:JAVA_VERSION_GLOB`) + `\bin` PATH 자동 추가. 경로 상수는 `config/paths.ps1` 참조. `JAVA_INSTALL_BASE` 환경 변수로 재정의 가능. |
-| **Android** | `ANDROID_HOME` 설정 (`$Script:ANDROID_SDK_BASE`) + `platform-tools`, `emulator` PATH 자동 추가. 경로 상수는 `config/paths.ps1` 참조. |
+| 항목        | 자동화 내용                                                                                                                                                                         |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Rust**    | rustup stable toolchain 설치 및 default 설정                                                                                                                                        |
+| **Java**    | `JAVA_HOME` 설정 (`$Script:JAVA_INSTALL_BASE\$Script:JAVA_VERSION_GLOB`) + `\bin` PATH 자동 추가. 경로 상수는 `config/paths.ps1` 참조. `JAVA_INSTALL_BASE` 환경 변수로 재정의 가능. |
+| **Android** | `ANDROID_HOME` 설정 (`$Script:ANDROID_SDK_BASE`) + `platform-tools`, `emulator` PATH 자동 추가. 경로 상수는 `config/paths.ps1` 참조.                                                |
 
 ---
 
@@ -61,18 +63,19 @@
 
 개발 환경의 일관성을 유지하고 "Ghost Bug"를 방지하기 위한 검증 시스템입니다.
 
-| 항목 | 상세 내용 |
-|------|-----------|
-| **아키텍처** | `scripts/check-env.ps1` (Main) + `scripts/lib/env-core.ps1` (Lib) 구조로 분리 (300L Rule 준수) |
-| **Core CLI** | Node.js, Git, npm, pnpm, yarn의 설치 및 가용성 확인 |
-| **Config** | `.npmrc` (Registry), `.gitconfig` (User Info, autocrlf) 무결성 확인 |
-| **File System** | 주요 파일의 인코딩(UTF-8 no BOM/with BOM, ANSI)을 `Test-FileEncoding` 함수로 정밀 검증 |
-| **Hash Sync** | `AI_GUIDELINES.md`와 `templates` 간 **MD5 Hash 비교**를 통해 내용의 비동기화 차단 |
-| **IDE Sync** | VSCode `settings.json`의 필수 항목(encoding, tabSize) 일관성 확인 |
-| **Tech Stack** | `tsc`, `eslint`, `prettier` 바이너리 가용성 및 버전 조회를 통한 런타임 환경 검증 |
-| **Shared Lint** | `shared_lint_rules.json`과 `eslint.config.js` 간의 정책 일치 여부 강제 |
+| 항목            | 상세 내용                                                                                      |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| **아키텍처**    | `scripts/check-env.ps1` (Main) + `scripts/lib/env-core.ps1` (Lib) 구조로 분리 (300L Rule 준수) |
+| **Core CLI**    | Node.js, Git, npm, pnpm, yarn의 설치 및 가용성 확인                                            |
+| **Config**      | `.npmrc` (Registry), `.gitconfig` (User Info, autocrlf) 무결성 확인                            |
+| **File System** | 주요 파일의 인코딩(UTF-8 no BOM/with BOM, ANSI)을 `Test-FileEncoding` 함수로 정밀 검증         |
+| **Hash Sync**   | `AI_GUIDELINES.md`와 `templates` 간 **MD5 Hash 비교**를 통해 내용의 비동기화 차단              |
+| **IDE Sync**    | VSCode `settings.json`의 필수 항목(encoding, tabSize) 일관성 확인                              |
+| **Tech Stack**  | `tsc`, `eslint`, `prettier` 바이너리 가용성 및 버전 조회를 통한 런타임 환경 검증               |
+| **Shared Lint** | `shared_lint_rules.json`과 `eslint.config.js` 간의 정책 일치 여부 강제                         |
 
 ### 검증 결과 보고
+
 - `scripts/check-env.ps1` 실행 시 `env_report.json` 생성
 - IDE와의 연동을 위해 표준 JSON 스키마를 따름
 - 위반 사항 발견 시 구체적인 복구 제안 제공
@@ -84,6 +87,7 @@
 프로젝트 간 개발 경험을 통일하고 동일한 에러의 재발을 방지하기 위한 전역 관리 시스템입니다.
 
 ### 행동 및 품질 규칙 구성
+
 1. **AI 행동 지침 (Behavioral)**: `./AI_GUIDELINES.md` (Master), `templates/AI_GUIDELINES.md` (Deploy)
    - AI(Antigravity)가 코드를 작성하거나 디버깅할 때 반드시 준수해야 하는 행동 원칙.
    - Senior Architect 페르소나, Traffic Zero, Micro-task, 안정성 중심의 단계별 실행 지침 포함.
@@ -92,6 +96,7 @@
    - 플랫폼 호환성 및 인코딩 사고 방지를 위한 엄격한 규칙 적용.
 
 ### 타 프로젝트 이식 및 참조 프로세스 (Portability)
+
 - **온보딩**: 신규 프로젝트 이식 시 AI는 `AI_GUIDELINES.md` Section 11의 **Onboarding Checklist**를 즉시 실행하여 환경을 자발적으로 파악합니다.
 - **배포**: `bootstrap.bat` 또는 동기화 도구에서 `templates/AI_GUIDELINES.md`를 타겟 프로젝트 루트로 복사합니다.
 - **검증**: `scripts/check-env.ps1`의 Hash 비교 로직을 통해 로컬 지침이 마스터와 일치하는지 상시 확인합니다.
@@ -110,23 +115,21 @@
 
 Antigravity 에이전트와 터미널 간의 안정적인 상호작용을 위한 프로토콜입니다.
 
-| 항목 | 내용 |
-|------|-----------|
-| **세션 초기화 (SSOT)** | `scripts/init-terminal.ps1`을 통한 UTF-8 인코딩 고정, `$ProgressPreference` 억제, 텔레메트리 차단 및 NO_COLOR 강제 |
-| **Pre-flight Check** | 명령어 실행 전 현재 세션의 인코딩(UTF8) 및 환경 변수(`TERM=dumb`) 무결성 여부를 우선 검증 |
-| **Safe Execution** | 100자 이상의 복잡한 명령이나 중첩 따옴표 포함 시 반드시 `.ps1` 임시 파일로 변환하여 실행 |
-| **Traffic Zero** | 모든 CLI 도구에 `--quiet` 플래그를 강제하고, `Select-Object` 등을 통해 터미널 출력량을 물리적으로 제한 |
-| **Context Caching** | 반복되는 환경 정보 조회를 지양하고, `memory.md`의 기록을 활용하여 불필요한 I/O 및 토큰 낭비 방지 |
-| **파일 변경 확인 패턴** | 재조회 전 `Get-Item <path> \| Select-Object Name, Length, LastWriteTime` 으로 변경 여부만 확인. 전체 재조회 금지 |
-| **세미콜론 연쇄 금지** | `Get-Content ...; Get-Content ...` 형식의 다중 파일 동시 읽기 절대 금지. 각 파일은 별도 Tool Call로 분리 |
-| **에러 기반 탐색 금지** | 명령 실행 후 에러로 도구 존재 여부를 판단하는 방식 절대 금지. `Get-Command <cmd> -ErrorAction SilentlyContinue` 로 사전 확인 필수 |
-| **에러 대응 (SOP)** | 파싱 에러 감지 시: ① `Write-Output`으로 버퍼 비우기 → ② `init-terminal.ps1` 재실행 → ③ `> "$env:TEMP\terminal_log.txt"` 저장 후 추출 |
+| 항목                       | 내용                                                                                                               |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **세션 초기화 (SSOT)**     | `scripts/init-terminal.ps1`을 통한 UTF-8 인코딩 고정, `$ProgressPreference` 억제, 텔레메트리 차단 및 NO_COLOR 강제 |
+| **NoProfile Mode**         | 모든 에이전트 내부 PowerShell 호출 시 `-NoProfile` 스위치를 사용하여 로컬 프로필 간섭 배제                         |
+| **Shell Integration 차단** | 터미널 시퀀스(`\e]633;...`) 노이즈가 파싱을 방해하는 경우 환경 변수나 초기화 코드로 이를 명시적으로 억제           |
+| **Syntax Check**           | `.ps1` 파일 수정 후 실행 전 `[scriptblock]::Create()`를 이용한 구문 오류 선제적 검증                               |
+| **Safe Execution**         | 100자 이상의 복잡한 명령이나 중첩 따옴표 포함 시 반드시 `.ps1` 임시 파일로 변환하여 실행                           |
+| **Traffic Zero**           | 모든 CLI 도구에 `--quiet` 플래그를 강제하고, `Select-Object` 등을 통해 터미널 출력량을 물리적으로 제한             |
+| **Terminal Recovery**      | 파싱 불가 또는 세션 렉 발생 시 `reset` 스크립트 실행 및 로그 추출을 포함한 표준 복구 SOP 가동                      |
 
 ### 기술적 사양 (Technical Specification)
+
 - **Encoding**: `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`
 - **Environment**: `$env:TERM = 'dumb'`, `$env:NO_COLOR = '1'`, `$env:POWERSHELL_TELEMETRY_OPTOUT = '1'`
 - **Performance**: `$ProgressPreference = 'SilentlyContinue'`를 통해 진행 바 출력을 억제하여 파싱 렉 방지
-
 
 ---
 
@@ -134,9 +137,31 @@ Antigravity 에이전트와 터미널 간의 안정적인 상호작용을 위한
 
 사용자의 수동 개입 없이 `bootstrap.bat` 실행만으로 모든 환경을 전역 최적화하는 매커니즘입니다.
 
-| 항목 | 구현 내용 |
-|------|-----------|
-| **전역 경로 등록** | `ANTIGRAVITY_BOOTSTRAP_PATH` 시스템 환경 변수를 현재 레포지토리 경로로 등록 |
-| **터미널 영구 안정화** | 사용자 `$PROFILE`에 `init-terminal.ps1` 호출 코드를 자동 주입하여 모든 터미널 세션의 인코딩을 UTF-8로 고정 |
-| **전역 도구 표준화** | `git config --global core.autocrlf false`, `init.defaultBranch main` 등의 설정을 강제 적용 |
-| **무설정 에이전트 지침** | 에이전트가 `ANTIGRAVITY_BOOTSTRAP_PATH`를 감지하면 자동으로 해당 경로의 전역 지침을 로드하도록 설계 |
+| 항목                     | 구현 내용                                                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| **전역 경로 등록**      | `ANTIGRAVITY_BOOTSTRAP_PATH` 시스템 환경 변수를 현재 레포지토리 경로로 등록                                |
+| **터미널 영구 안정화**  | 사용자 `$PROFILE`에 `init-terminal.ps1` 호출 코드를 자동 주입하여 모든 터미널 세션의 인코딩을 UTF-8로 고정 |
+| **전역 도구 표준화**    | `git config --global core.autocrlf false`, `init.defaultBranch main` 등의 설정을 강제 적용                 |
+| **무설정 에이전트 지침** | 에이전트가 `ANTIGRAVITY_BOOTSTRAP_PATH`를 감지하면 자동으로 해당 경로의 전역 지침을 로드하도록 설계        |
+
+---
+
+## 10. Encoding Standard & File Rules
+
+범용적인 호환성과 인코딩 충돌을 방지하기 위한 소스 코드 및 설정 파일 관리 표준입니다.
+
+| 규칙                  | 상세 내용                                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **Standard Encoding** | 모든 소스 코드(`.ps1`, `.js`, `.json`, `.md`)는 **UTF-8 no BOM**으로 통일함                                              |
+| **No BOM Guarantee**  | PowerShell `Out-File` 또는 `Set-Content` 대신 `[System.IO.File]::WriteAllText()`를 사용하여 BOM 없는 UTF-8 저장을 보장함 |
+| **Exception**         | `.bat` 파일은 `ANSI (CP949)`를 유지하여 CMD 호환성을 확보함                                                              |
+| **IDE Enforcement**   | VSCode `settings.json`에 `files.encoding: "utf8"`, `files.autoGuessEncoding: false`를 강제하여 사용자 실수 방지          |
+| **Integrity Check**   | `check-env.ps1`에서 `Test-FileEncoding` 함수를 통해 전수 조사를 수행하며, 위반 시 린트 에러로 간주함                     |
+
+### 파일 쓰기 권장 패턴 (PowerShell)
+
+```powershell
+# BOM 없는 UTF-8 파일 쓰기 표준 로직
+$utf8NoBomEncoding = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($targetPath, $content, $utf8NoBomEncoding)
+```

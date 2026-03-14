@@ -27,6 +27,7 @@ bootstrap.bat
 > **UAC 창에서 "예"를 누르면 새 창에서 계속 실행됩니다.**
 >
 > 창이 뜨지 않거나 즉시 종료된다면 아래 방법으로 직접 실행하세요:
+>
 > ```powershell
 > # 관리자 권한 PowerShell에서 실행
 > powershell -ExecutionPolicy Bypass -File Bootstrap-DevEnv.ps1
@@ -37,16 +38,16 @@ bootstrap.bat
 실행 시 아래 목록에서 숫자 키로 토글 → `Enter`로 설치 시작합니다.
 `A` = 전체 선택, `N` = 전체 해제
 
-| # | 항목 | 기본 선택 |
-|---|------|:---:|
-| 1 | **Core** — Git, Python 3.14, Node.js LTS, Rust (rustup), uv | ✅ |
-| 2 | **VS Build Tools 2022** (MSVC + Windows SDK) | ✅ |
-| 3 | **Windows Terminal** | ✅ |
-| 4 | Go | ⬜ |
-| 5 | Java (Temurin JDK 17 LTS) | ⬜ |
-| 6 | Android Studio | ⬜ |
-| 7 | Docker Desktop | ⬜ |
-| 8 | Supabase CLI | ⬜ |
+| #   | 항목                                                        | 기본 선택 |
+| --- | ----------------------------------------------------------- | :-------: |
+| 1   | **Core** — Git, Python 3.14, Node.js LTS, Rust (rustup), uv |    ✅     |
+| 2   | **VS Build Tools 2022** (MSVC + Windows SDK)                |    ✅     |
+| 3   | **Windows Terminal**                                        |    ✅     |
+| 4   | Go                                                          |    ⬜     |
+| 5   | Java (Temurin JDK 17 LTS)                                   |    ⬜     |
+| 6   | Android Studio                                              |    ⬜     |
+| 7   | Docker Desktop                                              |    ⬜     |
+| 8   | Supabase CLI                                                |    ⬜     |
 
 ## 설치 후 추가 설정
 

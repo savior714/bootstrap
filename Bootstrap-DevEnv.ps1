@@ -1,4 +1,4 @@
-﻿#region --- 0. Terminal & Environment Initialization ---
+#region --- 0. Terminal & Environment Initialization ---
 $initScript   = Join-Path $PSScriptRoot "scripts\init-terminal.ps1"
 $configScript = Join-Path $PSScriptRoot "config\paths.ps1"
 if (Test-Path $configScript) { . $configScript } else {
