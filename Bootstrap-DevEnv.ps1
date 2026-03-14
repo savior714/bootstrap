@@ -1,5 +1,9 @@
 ﻿#region --- 0. Terminal & Environment Initialization ---
-$initScript = Join-Path $PSScriptRoot "scripts\init-terminal.ps1"
+$initScript   = Join-Path $PSScriptRoot "scripts\init-terminal.ps1"
+$configScript = Join-Path $PSScriptRoot "config\paths.ps1"
+if (Test-Path $configScript) { . $configScript } else {
+    Write-Warning "[Bootstrap] config\paths.ps1 not found. Using built-in defaults."
+}
 # Ensure UTF-8 even during bootstrap
 [Console]::InputEncoding = [Console]::OutputEncoding = $OutputEncoding = [System.Text.Encoding]::UTF8
 $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
@@ -43,6 +47,12 @@ if ($profileContent -notlike "*Antigravity Terminal Initialization*") {
 }
 #endregion
 
+#region --- Constants ---
+# UI 및 런타임 상수. 변경 시 이 블록만 수정한다.
+# 경로·버전 상수는 config\paths.ps1 참조.
+$WINGET_ALREADY_INSTALLED_CODE = -1978335189
+#endregion
+
 #region --- Helper functions ---
 function Write-Header {
     param([string]$Msg)
@@ -75,7 +85,7 @@ function Install-Pkg {
     if ($Override) { $wingetArgs += @("--override", $Override) }
     winget @wingetArgs 2>&1 | Out-Null
     # Exit code -1978335189 = WINGET_ALREADY_INSTALLED (also OK)
-    if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -1978335189) {
+    if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq $WINGET_ALREADY_INSTALLED_CODE) {
         Write-OK "$Name installed."
         return $true
     } else {
@@ -145,7 +155,7 @@ $groups = [ordered]@{
             @{
                 Id       = "Microsoft.VisualStudio.2022.BuildTools"
                 Name     = "VS Build Tools 2022"
-                Override = "--quiet --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.Windows11SDK.26100 --includeRecommended"
+                Override = "--quiet --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.Windows11SDK.$($Script:WINDOWS_SDK_VER) --includeRecommended"
             }
         )
     }
@@ -280,7 +290,7 @@ if ($selected["1"]) {
 
 # Java: JAVA_HOME + PATH ???吏????깆젧
 if ($selected["5"]) {
-    $javaPath = "C:\Program Files\Eclipse Adoptium\jdk-17*"
+    $javaPath = Join-Path $Script:JAVA_INSTALL_BASE $Script:JAVA_VERSION_GLOB
     $found = Get-ChildItem $javaPath -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($found) {
         [System.Environment]::SetEnvironmentVariable("JAVA_HOME", $found.FullName, "Machine")

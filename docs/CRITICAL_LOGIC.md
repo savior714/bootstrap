@@ -52,8 +52,8 @@
 | 항목 | 자동화 내용 |
 |------|------------|
 | **Rust** | rustup stable toolchain 설치 및 default 설정 |
-| **Java** | `JAVA_HOME` 설정 (`C:\Program Files\Eclipse Adoptium\jdk-17*`) + `\bin` PATH 자동 추가 |
-| **Android** | `ANDROID_HOME` 설정 (`%LOCALAPPDATA%\Android\Sdk`) + `platform-tools`, `emulator` PATH 자동 추가 |
+| **Java** | `JAVA_HOME` 설정 (`$Script:JAVA_INSTALL_BASE\$Script:JAVA_VERSION_GLOB`) + `\bin` PATH 자동 추가. 경로 상수는 `config/paths.ps1` 참조. `JAVA_INSTALL_BASE` 환경 변수로 재정의 가능. |
+| **Android** | `ANDROID_HOME` 설정 (`$Script:ANDROID_SDK_BASE`) + `platform-tools`, `emulator` PATH 자동 추가. 경로 상수는 `config/paths.ps1` 참조. |
 
 ---
 

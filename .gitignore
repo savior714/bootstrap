@@ -4,6 +4,13 @@ build/
 .next/
 *.log
 env_report.json
+
+# Security: 시크릿 및 환경 설정 파일
+.env
+.env.local
+.env.*.local
+*.secret
+*.key
 .pnpm-store/
 .turbo/
 out/
