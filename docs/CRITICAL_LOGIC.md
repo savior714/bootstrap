@@ -124,7 +124,8 @@ Antigravity 에이전트와 터미널 간의 안정적인 상호작용을 위한
 | **Syntax Check**           | `.ps1` 파일 수정 후 실행 전 `[System.Management.Automation.Language.Parser]::ParseInput()`을 이용한 정밀 구문 검증 |
 | **Safe Execution**         | 100자 이상의 복잡한 명령이나 중첩 따옴표 포함 시 반드시 `.ps1` 임시 파일로 변환하여 실행                           |
 | **Traffic Zero**           | 모든 CLI 도구에 `--quiet` 플래그를 강제하고, `Select-Object` 등을 통해 터미널 출력량을 물리적으로 제한             |
-| **Terminal Recovery**      | 파싱 불가 또는 세션 렉 발생 시 `reset` 스크립트 실행 및 로그 추출을 포함한 표준 복구 SOP 가동                      |
+| **Get-Command Check**      | 외부 도구(`npm`, `git` 등) 호출 전 `Get-Command`로 가용성을 사전 확인하여 런타임 예외 방지                 |
+| **Terminal Recovery**      | 파싱 불가 시 `TERMINAL_RECOVERY_MARKER` 구분자를 사용해 데이터 추출을 시도하며, 필요시 복구 SOP 가동      |
 
 ### 기술적 사양 (Technical Specification)
 

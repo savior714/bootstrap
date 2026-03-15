@@ -133,22 +133,17 @@
 
 ---
 
-## [2026-03-15] Protocol Architect Version Update
+## [2026-03-15] Protocol Architect Version Update (Extended)
 
 ### 작업 내용
 
-| 파일 | 변경 내용 |
-| :--- | :--- |
-| `AI_GUIDELINES.md` | 8대 섹션 구조로 전면 개편. AST Parsing (Parser logic), NoProfile, Surgical Edits, Caching 전략 수칙 통합 |
-| `templates/AI_GUIDELINES.md` | 마스터 지침과의 100% 동기화 (Portability 확보) |
-| `docs/CRITICAL_LOGIC.md` | Section 8 Terminal Protocol에 AST Parser 기술 사양 및 NoProfile 표준 명문화 |
-| `scripts/lib/env-core.ps1` | `Test-SyntaxHealth` 함수 추가 (PowerShell Language Parser 기반 구문 검증) |
-| `scripts/check-env.ps1` | Section 9 (Syntax Verification) 추가 및 주요 스크립트 무결성 검증 로직 반영 |
+| 파일               | 변경 내용                                                                                          |
+| :----------------- | :------------------------------------------------------------------------------------------------- |
+| `AI_GUIDELINES.md` | -NoProfile 권고, 명령어 체이닝 금지, Self-Verification(tsc --noEmit), Get-Command 가용성 확인, TERMINAL_RECOVERY_MARKER 도입 |
+| `docs/plans/...`   | `update_ai_guidelines.md` 생성 및 Task 1~3 전체 실행 완료                                         |
 
 ### 진행 상황
 
-- [x] Task 1: AI_GUIDELINES.md 고도화 — Protocol 통합
-- [x] Task 2: docs/CRITICAL_LOGIC.md 업데이트 — 기술 사양 정밀화
-- [x] Task 3: templates/AI_GUIDELINES.md 동기화
-- [x] Task 4: scripts/init-terminal.ps1 검토 및 보완 (Integrity Engine 고도화 포함)
-- [x] Task 5: docs/memory.md 및 최종 보고
+- [x] Task 1: AI_GUIDELINES.md 섹션 리팩토링 및 보완 (Terminal & Integrity)
+- [x] Task 2: 기술적 체크리스트 및 복구 SOP 추가
+- [x] Task 3: 최종 무결성 검증
