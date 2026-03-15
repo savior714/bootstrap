@@ -125,6 +125,8 @@ Antigravity 에이전트와 터미널 간의 안정적인 상호작용을 위한
 | **Safe Execution**         | 100자 이상의 복잡한 명령이나 중첩 따옴표 포함 시 반드시 `.ps1` 임시 파일로 변환하여 실행                           |
 | **Traffic Zero**           | 모든 CLI 도구에 `--quiet` 플래그를 강제하고, `Select-Object` 등을 통해 터미널 출력량을 물리적으로 제한             |
 | **Get-Command Check**      | 외부 도구(`npm`, `git` 등) 호출 전 `Get-Command`로 가용성을 사전 확인하여 런타임 예외 방지                 |
+| **Chaining Prohibition**  | 입출력 버퍼 오염 방지를 위해 한 번의 Tool Call에서 `;`, `&&` 등 명령어 체이닝 금지                            |
+| **Self-Verification**     | 주요 변경 전후로 `tsc --noEmit` 또는 `check-env.ps1`을 통한 시스템 무결성 자가 검증 수행                   |
 | **Terminal Recovery**      | 파싱 불가 시 `TERMINAL_RECOVERY_MARKER` 구분자를 사용해 데이터 추출을 시도하며, 필요시 복구 SOP 가동      |
 
 ### 기술적 사양 (Technical Specification)
@@ -165,6 +167,8 @@ Antigravity 에이전트와 터미널 간의 안정적인 상호작용을 위한
 | **Exception**         | `.bat` 파일은 `ANSI (CP949)`를 유지하여 CMD 호환성을 확보함                                                              |
 | **IDE Enforcement**   | VSCode `settings.json`에 `files.encoding: "utf8"`, `files.autoGuessEncoding: false`를 강제하여 사용자 실수 방지          |
 | **Integrity Check**   | `check-env.ps1`에서 `Test-FileEncoding` 함수를 통해 전수 조사를 수행하며, 위반 시 린트 에러로 간주함                     |
+| **Boolean Syntax**    | PowerShell 조건문/할당 시 `$true`, `$false` 필수 사용 (프리픽스 없는 `True` 사용 엄금)                             |
+| **Safe Raw IO**       | .NET IO 메소드 사용 시 `Test-Path` 선행 및 배열 인덱싱 전 Null 체크 필수 (`Null Safety`)                          |
 
 ### 파일 쓰기 권장 패턴 (PowerShell)
 

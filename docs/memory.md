@@ -147,3 +147,53 @@
 - [x] Task 1: AI_GUIDELINES.md 섹션 리팩토링 및 보완 (Terminal & Integrity)
 - [x] Task 2: 기술적 체크리스트 및 복구 SOP 추가
 - [x] Task 3: 최종 무결성 검증
+
+---
+
+## [2026-03-15] AI Behavioral Guidelines 강화 (PowerShell Null IO 방지)
+
+### 작업 내용
+
+| 파일               | 변경 내용                                                                                             |
+| :----------------- | :---------------------------------------------------------------------------------------------------- |
+| `AI_GUIDELINES.md` | .NET 정적 메소드(`[System.IO.File]`) 사용 시 `Test-Path` 및 Null Indexing 방지 수칙(`Safe Raw IO`) 추가 |
+| `docs/memory.md`   | 작업 결과 기록 및 SSOT 동기화                                                                         |
+
+### 진행 상황
+
+- [x] Task 1: AI_GUIDELINES.md 수정 — Null Safety 및 IO 검증 수칙 추가
+- [x] Task 2: memory.md 업데이트
+
+---
+
+## [2026-03-15] AI Behavioral Guidelines 강화 (PS Boolean & Terminal Noise)
+
+### 작업 내용
+
+| 파일               | 변경 내용                                                                                             |
+| :----------------- | :----------------:----------------:----------------:----------------:----------------: |
+| `AI_GUIDELINES.md` | PowerShell 불리언 `$true` 수칙 명문화 및 터미널 셸 통합 노이즈 제어 지침 추가                       |
+| `docs/plans/...`   | `update_ai_guidelines_ps_syntax.md` 생성 및 실행 완료                                             |
+
+### 진행 상황
+
+- [x] Task 1: AI_GUIDELINES.md 수정 — PS Booleans & Terminal Protocol
+- [x] Task 2: memory.md 업데이트
+
+---
+
+## [2026-03-15] Finalization & Git Push
+
+### 작업 내용
+
+| 파일                     | 변경 내용                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `docs/CRITICAL_LOGIC.md` | Terminal Protocol (Chaining, Self-Verification) 및 Coding Rules (Boolean, Safe IO) SSOT 반영 |
+| `docs/memory.md`         | 세션 최종 요약 및 `/git` 워크플로우 실행 기록 추가                             |
+| 전체 프로젝트            | Git 커밋 및 원격 저장소 푸시 (`feat(docs): strengthen AI behavioral guidelines & terminal protocol`) |
+
+### 진행 상황
+
+- [x] Task 1: SSOT 문서(`CRITICAL_LOGIC.md`) 최종 업데이트
+- [x] Task 2: `docs/memory.md` 최신화
+- [/] Task 3: `/git` 워크플로우를 통한 최종 Git Commit & Push (진행 중)

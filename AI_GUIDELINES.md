@@ -31,7 +31,7 @@
   $Errors = $null; [System.Management.Automation.Language.Parser]::ParseInput((Get-Content "file.ps1" -Raw), [ref]$null, [ref]$Errors)
   if ($Errors) { throw "Syntax Error: $Errors" }
   ```
-- **터미널 복구 (Recovery SOP)**: 터미널 출력 파싱 에러가 발생하거나 불확실한 출력이 예상될 경우, `TERMINAL_RECOVERY_MARKER`와 같은 **고유 구분자(Marker)**를 사용해 실제 데이터의 시작과 끝을 명시적으로 분리하여 데이터를 추출합니다.
+- **터미널 노이즈 제어 (Shell Integration Noise)**: VS Code와 같은 IDE의 셸 통합용 이스케이프 시퀀스(`\e]633;A` 등)나 배경 프로토콜 메시지가 출력에 섞일 수 있음을 인지하고, 데이터 추출 시 정규식(Regex)을 사용하여 이를 제거하거나 `TERMINAL_RECOVERY_MARKER`를 통해 순수 데이터 영역만 파싱합니다.
 - **명령어 사전 변형**: 방대한 출력이 예상되는 도구는 최소 출력 플래그(`-q`, `--silent`)를 사용하고, 명령어 끝에 `2>&1 | Select-Object -Last 30` 또는 `| Out-Null`을 붙여 Traffic을 관리합니다.
 - **좀비 프로세스**: 작업 시작 전 미사용 중인 `node`, `tsc`, `cargo` 프로세스를 정리하여 리소스를 확보합니다.
 
@@ -51,6 +51,8 @@
 - **Surgical Edits**: 파일 수정 시 기존 `Import` 구문 및 코드 스타일을 완벽히 보존하며 필요한 부분만 정밀하게 수정합니다.
 - **Early Return**: 조건절에서 **Early Return** 패턴을 활용하여 함수의 들여쓰기 깊이를 2단계 이내로 관리합니다.
 - **Idempotency**: 파일 쓰기 전 반드시 존재 여부(`Test-Path`)를 체크하여 중복 실행 부작용을 원천 차단합니다.
+- **Safe Raw IO**: `[System.IO.File]` 등 .NET 정적 메소드 사용 시 반드시 `Test-Path`로 존재 여부를 먼저 확인하고, 반환값이 `$null`일 경우를 대비해 인덱싱 전 Null 체크를 수행합니다.
+- **PowerShell Boolean Syntax**: PowerShell 조건문이나 변수 할당 시 반드시 `$true`, `$false` 형식을 사용하며, 프리픽스가 없는 `True`, `False`는 시스템 명령어나 문자열로 오인될 수 있으므로 절대 사용하지 않습니다.
 - **Error Handling**: 모든 핵심 로직은 `Try { ... } Catch { ... } Finally { ... }` 구조로 예외를 제어합니다.
 
 ## 6. 프로젝트 컨텍스트 및 워크플로우
