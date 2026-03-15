@@ -2,198 +2,48 @@
 
 ---
 
-## [요약] 2026-03-10 ~ 2026-03-14 누적 작업
+## [누적 요약] 2026-03-10 ~ 2026-03-15
 
-| 날짜       | 주요 작업                                                                                                          |
-| ---------- | ------------------------------------------------------------------------------------------------------------------ |
-| 2026-03-10 | 초기 디버깅: PS5 BOM 파싱 오류 해결, 창 종료 원인 README 명시                                                      |
-| 2026-03-11 | 그룹 번호 재정렬(1~8), `Add-ToUserPath` 함수 추가, Java/Android PATH 자동 등록                                     |
-| 2026-03-14 | Integrity Engine(`check-env.ps1`) 8단계 구축: Core CLI, 설정 무결성, 인코딩, IDE, 기술스택, 네트워크, 린트, 보고서 |
-| 2026-03-14 | 메뉴 버그 수정: `OrderedDictionary` `.ContainsKey()` → `.Contains()`                                               |
-| 2026-03-14 | AI 지침 표준화: `templates/AI_GUIDELINES.md`, `shared_lint_rules.json` 고도화                                      |
-| 2026-03-14 | Terminal Interaction Protocol 수립 및 CRITICAL_LOGIC.md Section 8 SSOT 반영                                        |
-| 2026-03-14 | Zero-Config Automation: `ANTIGRAVITY_BOOTSTRAP_PATH` 환경 변수 등록, PS Profile 주입                               |
-| 2026-03-14 | Terminal Protocol 정밀화: `init-terminal.ps1` 고도화, AI_GUIDELINES 패턴 명문화                                    |
-| 2026-03-14 | ECO 브랜딩 제거: `Bootstrap-DevEnv.ps1` 5개 하드코딩 흔적 → Antigravity 대체                                       |
-| 2026-03-14 | Extended Terminal Protocol: Syntax Check 도입, UTF-8 no BOM 표준화, VSCode 설정 No BOM 보장                        |
+| 날짜 | 주요 작업 |
+| --- | --- |
+| 2026-03-10 | PS5 BOM 파싱 오류 해결, 창 종료 원인 README 명시 |
+| 2026-03-11 | 그룹 번호 재정렬(1~8), `Add-ToUserPath` 추가, Java/Android PATH 자동 등록 |
+| 2026-03-14 | `check-env.ps1` 8단계 Integrity Engine 구축, `OrderedDictionary` 버그 수정 |
+| 2026-03-14 | Config 외부화: `config/paths.ps1`, `config/packages.json`, `.env.example` 신규 생성 |
+| 2026-03-14 | `AI_GUIDELINES.md` 마스터 가이드라인 승격, CLAUDE.md 상속 구조 도입 |
+| 2026-03-14 | Supabase CLI 자동 설치 제거 → npm 수동 설치 가이드로 대체 |
+| 2026-03-14 | `Bootstrap-DevEnv.ps1` Git Identity 대화형 설정 로직 추가 |
+| 2026-03-15 | Terminal Protocol 정밀화: NoProfile, 체이닝 금지, TERMINAL_RECOVERY_MARKER, Self-Verification |
+| 2026-03-15 | Safe Raw IO 수칙 추가(`Test-Path` + Null 인덱싱 방지), PS Boolean 오용 사례 명문화 |
+| 2026-03-15 | `CRITICAL_LOGIC.md` Terminal Protocol 및 Coding Rules SSOT 반영 후 Git Push |
 
-**현재 상태**: `CRITICAL_LOGIC.md` 139줄 / `shared_lint_rules.json` 307줄 / `Bootstrap-DevEnv.ps1` ~350줄
+**안정 상태**: `AI_GUIDELINES.md` 82줄 / `CRITICAL_LOGIC.md` 최신화 / `Bootstrap-DevEnv.ps1` ~350줄
 
 ---
 
-## [2026-03-14] 하드코딩 금지 및 설정 외부화 (Config Externalization)
+## [2026-03-16] AI_GUIDELINES.md — Terminal Protocol Architect Version 통합
 
 ### 작업 내용
 
-| 파일                     | 변경 내용                                                                                                    |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `.gitignore`             | `.env`, `.env.local`, `.env.*.local`, `*.secret`, `*.key` 패턴 추가                                          |
-| `.env.example`           | 신규 생성 — 환경 변수 키·설명·기본값 문서화 (Zero-Config 온보딩 기준)                                        |
-| `config/packages.json`   | 신규 생성 — 패키지 그룹 메타데이터 외부화. `{WINDOWS_SDK_VER}` 플레이스홀더                                  |
-| `config/paths.ps1`       | 신규 생성 — 경로·버전 상수 SSOT. 환경 변수 Override 패턴 (PS5 호환)                                          |
-| `Bootstrap-DevEnv.ps1`   | `config/paths.ps1` dot-source 주입, Java 경로·VS SDK 버전 상수화, `$WINGET_ALREADY_INSTALLED_CODE` 상수 추가 |
-| `docs/CRITICAL_LOGIC.md` | Section 3 경로 참조를 `config/paths.ps1` 기준으로 업데이트                                                   |
+| 파일 | 변경 내용 |
+| --- | --- |
+| `AI_GUIDELINES.md` | Terminal Protocol 8개 신규 항목 흡수 (82줄 → 127줄) |
+| `docs/plans/strengthen_ai_guidelines.md` | 블루프린트 생성 및 Task 1~8 전체 실행 완료 |
+
+### 반영된 항목 (Gap Analysis 기준)
+
+| # | 항목 | 위치 |
+| --- | --- | --- |
+| 1 | 세션 초기화 완전화: `InputEncoding`, `PSDefaultParameterValues`, `Clear-Host` | Section 2 |
+| 2 | Cmdlet 파라미터 Pre-Validation (`ContainsKey()` 패턴) | Section 2 |
+| 3 | 설정 파일 기반 의사결정 (`tsconfig.json`, `package.json`, `node_modules` 확인) | Section 2 |
+| 4 | 컨텍스트 캐싱 원칙 + 파일 메타데이터 해시 경량 대조 | Section 2 |
+| 5 | Catch Block Hygiene (TS6133 방지) + Import Zero-Tolerance | Section 5 |
+| 6 | 긴급 복구 SOP 3단계 (RECOVERY_MARKER, `-NoProfile`, 로그 파일 우회) | Section 8 |
+| 7 | Linux→PowerShell 명령어 매핑 테이블 (7항목) | Section 2 |
 
 ### 진행 상황
 
-- [x] Task 1: AI_GUIDELINES.md 표준화 및 고도화
-- [x] Task 2: CLAUDE.md 상속 구조 도입 및 슬림화 (139L -> 43L)
-- [x] Task 3: memory.md 업데이트 및 아키텍처 반영
-
----
-
-## [2026-03-14] Terminal Protocol Extended (Ongoing)
-
-### 작업 내용
-
-| 파일        | 변경 내용                                          |
-| ----------- | -------------------------------------------------- |
-| `CLAUDE.md` | Section 3 Linux→PowerShell 명령어 매핑 테이블 추가 |
-
-### 진행 상황 (완료)
-
-- [x] Task 1: AI_GUIDELINES.md 표준화 및 고도화 (마스터 가이드라인 승격)
-- [x] Task 2: CLAUDE.md 상속 구조 유지 (사용자 요청에 따라 슬림화 없이 현 상태 유지)
-- [x] Task 4: AI_GUIDELINES.md 이동성 검증 체크리스트 추가
-- [x] Task 5: 신규 프로젝트 온보딩 드라이런(Dry-run) 수행 및 검증 완료
-
----
-
-## [2026-03-14] AI Guidelines Rationalization & Portability (Ongoing)
-
-### 작업 내용
-
-| 파일               | 변경 내용                                                                         |
-| ------------------ | --------------------------------------------------------------------------------- |
-| `AI_GUIDELINES.md` | Section 11 드라이런 수행 — 임시 프로젝트 환경에서 온보딩 체크리스트의 실효성 입증 |
-| `docs/memory.md`   | 드라이런 결과 기록 및 기술 부채(L300 초과) 해결 계획 수립                         |
-
-### 진행 상황
-
-- [x] Task 1: AI Onboarding Checklist 정상 작동 여부 드라이런 수행
-- [x] Task 2: `scripts/check-env.ps1` 무결성 검증(Hash 비교) 로직 추가
-- [x] Task 3: `scripts/check-env.ps1` 300라인 초과에 따른 하위 모듈 분리(Refactoring)
-- [x] Task 4: `scripts/check-env.ps1`과 `templates/AI_GUIDELINES.md` 간 동기화 정밀 검증
-
----
-
-## [2026-03-14] Extended Terminal Protocol & Encoding Standard
-
-### 작업 내용
-
-| 파일                       | 변경 내용                                                                                           |
-| -------------------------- | --------------------------------------------------------------------------------------------------- |
-| `AI_GUIDELINES.md`         | Extended Terminal Protocol (Syntax Check, NoProfile, Recovery SOP) 통합 및 인코딩 UTF-8 no BOM 통일 |
-| `scripts/lib/env-core.ps1` | `Update-VSCodeSetting` 함수 수정 — No BOM 보장을 위해 `[System.IO.File]::WriteAllText` 도입         |
-| `scripts/check-env.ps1`    | `UTF8NoBom` 검증 대상 확대 (PowerShell 스크립트 전면 포함)                                          |
-
-### 진행 상황
-
-- [x] Task 1: `AI_GUIDELINES.md` 수정 — 확장 터미널 프로토콜 통합
-- [x] Task 2: `scripts/lib/env-core.ps1` 및 `check-env.ps1` 수정 (인코딩 표준 준수)
-- [x] Task 3: `docs/memory.md` 최신화
-
----
-
-## [2026-03-14] Finalization & Git Push
-
-### 작업 내용
-
-| 파일                     | 변경 내용                                                                      |
-| ------------------------ | ------------------------------------------------------------------------------ |
-| `docs/CRITICAL_LOGIC.md` | Section 10 Encoding Standard & File Rules 추가                                |
-| `docs/memory.md`         | 세션 최종 요약 및 `/git` 워크플로우 실행 기록 추가                             |
-| 전체 프로젝트            | Git 커밋 및 원격 저장소 푸시 (`feat(docs): consolidate architecture standards`) |
-
-### 진행 상황
-
-- [ ] Task 1: SSOT 문서(`CRITICAL_LOGIC.md`) 최종 업데이트
-- [x] Task 2: `Bootstrap-DevEnv.ps1` 수정 — Git 사용자 정보(Identity) 대화형 설정 로직 추가
-- [/] Task 3: `/git` 워크플로우를 통한 최종 Git Commit & Push (진행 중)
-
----
-
-## [2026-03-14] Remove Unsupported Supabase CLI (Ongoing)
-
-### 작업 내용
-
-| 파일                   | 변경 내용                                                                 |
-| ---------------------- | ------------------------------------------------------------------------- |
-| `config/packages.json`   | 지원되지 않는 `Supabase.CLI` (Group 8) 정의 제거                          |
-| `README.md`             | Supabase CLI 자동 설치 항목 제거 및 `npm` 수동 설치 가이드 추가           |
-| `scripts/env_report.json` | 환경 무결성 검증 결과 기록 (Git Config 제외 모든 항목 PASS)               |
-| `docs/plans/...`         | Supabase CLI 자동 설치 제거 계획 완료 (Tasks 1-4)                         |
-
-### 진행 상황
-
-- [x] Task 1: `config/packages.json`에서 Supabase CLI 정의 제거
-- [x] Task 2: `Bootstrap-DevEnv.ps1`에서 Group 8 로직 및 버전 체크 제거
-- [x] Task 3: `README.md`에 수동 설치(`npm`) 가이드 추가
-- [x] Task 4: `check-env.ps1` 검증 및 최종 SSOT 동기화
-
----
-
-## [2026-03-15] Protocol Architect Version Update (Extended)
-
-### 작업 내용
-
-| 파일               | 변경 내용                                                                                          |
-| :----------------- | :------------------------------------------------------------------------------------------------- |
-| `AI_GUIDELINES.md` | -NoProfile 권고, 명령어 체이닝 금지, Self-Verification(tsc --noEmit), Get-Command 가용성 확인, TERMINAL_RECOVERY_MARKER 도입 |
-| `docs/plans/...`   | `update_ai_guidelines.md` 생성 및 Task 1~3 전체 실행 완료                                         |
-
-### 진행 상황
-
-- [x] Task 1: AI_GUIDELINES.md 섹션 리팩토링 및 보완 (Terminal & Integrity)
-- [x] Task 2: 기술적 체크리스트 및 복구 SOP 추가
-- [x] Task 3: 최종 무결성 검증
-
----
-
-## [2026-03-15] AI Behavioral Guidelines 강화 (PowerShell Null IO 방지)
-
-### 작업 내용
-
-| 파일               | 변경 내용                                                                                             |
-| :----------------- | :---------------------------------------------------------------------------------------------------- |
-| `AI_GUIDELINES.md` | .NET 정적 메소드(`[System.IO.File]`) 사용 시 `Test-Path` 및 Null Indexing 방지 수칙(`Safe Raw IO`) 추가 |
-| `docs/memory.md`   | 작업 결과 기록 및 SSOT 동기화                                                                         |
-
-### 진행 상황
-
-- [x] Task 1: AI_GUIDELINES.md 수정 — Null Safety 및 IO 검증 수칙 추가
-- [x] Task 2: memory.md 업데이트
-
----
-
-## [2026-03-15] AI Behavioral Guidelines 강화 (PS Boolean & Terminal Noise)
-
-### 작업 내용
-
-| 파일               | 변경 내용                                                                                             |
-| :----------------- | :----------------:----------------:----------------:----------------:----------------: |
-| `AI_GUIDELINES.md` | PowerShell 불리언 `$true` 수칙 명문화 및 터미널 셸 통합 노이즈 제어 지침 추가                       |
-| `docs/plans/...`   | `update_ai_guidelines_ps_syntax.md` 생성 및 실행 완료                                             |
-
-### 진행 상황
-
-- [x] Task 1: AI_GUIDELINES.md 수정 — PS Booleans & Terminal Protocol
-- [x] Task 2: memory.md 업데이트
-
----
-
-## [2026-03-15] Finalization & Git Push
-
-### 작업 내용
-
-| 파일                     | 변경 내용                                                                      |
-| ------------------------ | ------------------------------------------------------------------------------ |
-| `docs/CRITICAL_LOGIC.md` | Terminal Protocol (Chaining, Self-Verification) 및 Coding Rules (Boolean, Safe IO) SSOT 반영 |
-| `docs/memory.md`         | 세션 최종 요약 및 `/git` 워크플로우 실행 기록 추가                             |
-| 전체 프로젝트            | Git 커밋 및 원격 저장소 푸시 (`feat(docs): strengthen AI behavioral guidelines & terminal protocol`) |
-
-### 진행 상황
-
-- [x] Task 1: SSOT 문서(`CRITICAL_LOGIC.md`) 최종 업데이트
-- [x] Task 2: `docs/memory.md` 최신화
-- [/] Task 3: `/git` 워크플로우를 통한 최종 Git Commit & Push (진행 중)
+- [x] Task 1~7: AI_GUIDELINES.md 항목 통합 (Edit × 7)
+- [x] Task 8: 최종 검토 — 127줄, 중복 없음
+- [/] `/git` 워크플로우 실행 중
