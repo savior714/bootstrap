@@ -22,3 +22,12 @@
 
 # 4. 검증 절차
 # - 스크립트 실행 후 반드시 `$LASTEXITCODE`를 확인하거나, 생성된 결과 파일의 존재 여부를 검증한다.
+
+# 5. Strict Context Isolation (Loop Prevention)
+# - 다음의 대용량 및 시스템 경로는 물리적 스캔(Recursive Search/Indexing) 대상에서 절대적으로 제외한다:
+#   - 빌드/캐시: `node_modules/**`, `**/target/**`, `.next/**`, `.turbo/**`, `dist/**`, `build/**`, `out/**`
+#   - 플랫폼 특화: `android/app/build/**`, `ios/App/build/**`, `src-tauri/gen/**`, `.pnpm-store/**`
+#   - 시스템/메타: `.git/**`, `.vscode/**`, `.idea/**`, `.zed/**`, `coverage/**`, `.nyc_output/**`
+#   - 대용량 파일: `*-lock.yaml`, `package-lock.json`, `Cargo.lock`, `bun.lockb`, `*.map`, `*.sst`, `*.deps`
+# - 에이전트가 위 경로에 접근하려 할 경우 즉시 중단하고 사용자에게 보고한다.
+

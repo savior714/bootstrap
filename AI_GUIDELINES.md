@@ -14,24 +14,36 @@
   - 플랫폼 특화: `android/app/build/**`, `ios/App/build/**`, `src-tauri/gen/**`
   - 시스템/메타: `.git/**`, `.vscode/**`, `.idea/**`, `.zed/**`, `coverage/**`
   - 대용량 파일: `*-lock.yaml`, `package-lock.json`, `Cargo.lock`, `bun.lockb`, `*.map`, `*.sst`, `*.deps`
+- **Antigravity Loop Prevention (안티그라비티 루프 방지)**:
+  - **현상 (Symptoms)**: 확장 프로그램의 **PERMISSIONS** 카운트가 비정상적으로 급증하거나, **"Always run"** 팝업이 무한히 깜빡이며 열리고 닫히는 현상.
+  - **원인 (Cause)**: 에이전트가 `node_modules`, `.git`, `dist` 등 대용량 디렉토리를 물리적으로 스캔하거나, `.antigravityrules` 설정이 미비하여 재귀적 인덱싱 루프에 빠지는 경우.
+  - **방지법 (Prevention)**:
+    - **`.antigravityrules` 정의**: 프로젝트 루트에 `.antigravityrules`를 생성하거나 보완하여 대용량/빌드 경로를 명시적으로 제외하고 물리적 스캔 범위를 제한합니다.
+    - **지침 준수**: `Strict Context Isolation` 수칙을 위반하는 스캔 시도를 즉시 중단하고, 불필요한 파일 목록 조회를 최소화합니다.
+    - **세션 초기화**: 루프 발생 시 즉시 **`Reload Window`** 또는 **`F1 > Developer: Reload Window`**를 수행하여 에이전트 세션을 초기화합니다.
 - **마이크로태스크 원칙**: 1회 응답당 오직 **하나의 Tool Call**만 수행하여 API 부하 및 오류를 최소화합니다.
 - **단계별 실행 제약**: 한 응답에서 단 하나의 원자적 작업만 실행 후 반드시 사용자의 명시적 승인을 대기합니다.
 - **모듈화 기준**: 파일이 **300라인을 초과**하면 즉시 하위 모듈로의 기능 분리(Refactoring)를 수행합니다.
 
 ## 2. 터미널 및 런타임 제어 (Terminal & Runtime)
-- **세션 초기화**: 터미널 시작 시 UTF8 인코딩 설정 및 `$ProgressPreference = 'SilentlyContinue'`를 강제합니다. PowerShell 실행 시 부수 효과 방지를 위해 **-NoProfile** 플래그 사용을 권장합니다.
+- **세션 초기화**: 모든 PowerShell 실행은 사용자 프로필의 별칭이나 함수 간섭을 방지하기 위해 반드시 **-NoProfile** 플래그를 사용합니다. 터미널 시작 시 UTF8 인코딩 설정 및 `$ProgressPreference = 'SilentlyContinue'`를 강제하여 IDE와의 통신 품질을 확보합니다.
   ```powershell
   # 1. 입출력 인코딩 고정 — CP949(기본값)와 UTF-8(에이전트 기대값) 간 괴리 해소
-  $OutputEncoding = [System.Text.Encoding]::UTF8
-  [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-  [Console]::InputEncoding = [System.Text.Encoding]::UTF8
-  $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
-  # 2. 셸 통합 장식 억제 — IDE가 주입하는 \e]633; 제어 문자를 에이전트가 에러로 오인하는 것을 차단
-  $env:TERM = 'dumb'; $env:NO_COLOR = '1'; $ProgressPreference = 'SilentlyContinue'
-  # 3. 버퍼 잔상 제거 — 이전 명령 출력이 스트림에 남아 명령어 앞부분이 잘리는 현상 방지
-  Clear-Host
+  $OutputEncoding = [System.Text.Encoding]::UTF8;
+  [Console]::OutputEncoding = [System.Text.Encoding]::UTF8;
+  [Console]::InputEncoding = [System.Text.Encoding]::UTF8;
+  $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8';
+
+  # 2. 셸 통합 장식 억제 (\e]633 이스케이프 시퀀스 방지) — IDE가 주입하는 제어 문자를 에러로 오인하는 것을 차단
+  $env:TERM = 'dumb';      # 터미널 기능을 최소화하여 제어 문자 주입 방지
+  $env:NO_COLOR = '1';     # 색상 코드를 제거하여 순수 텍스트 기반 파싱 유도
+  $ProgressPreference = 'SilentlyContinue'; # 진행 바 출력이 버퍼를 오염시키는 현상 차단
+
+  # 3. 버퍼 동기화 및 잔상 제거
+  # 명령어 앞부분이 잘리는 현상(Echo Truncation, 예: ct-Object) 방지를 위해 새로운 명령 전 반드시 초기화를 수행합니다.
+  Clear-Host;
   ```
-- **명령어 체이닝 금지**: 입출력 버퍼 오염 및 에러 추적의 복잡성을 피하기 위해 한 번의 Tool Call에서 `;`, `&&`, `||` 등을 통한 **명령어 체이닝(Chaining)을 금지**하며, 단일 원자적 명령만 수행합니다.
+- **명령어 체이닝(Chaining) 절대 금지**: 여러 명령을 한 줄에 나열(`;`, `&&`, `||`)하지 마십시오. 출력 버퍼가 뒤섞이면 에이전트는 명령의 시작과 에러의 끝을 구분하지 못하게 됩니다. 반드시 **단일 원자적 명령**만 개별적으로 수행합니다.
 - **컨텍스트 캐싱 원칙**: 대화 기록에 이미 포함된 파일 내용은 에이전트 메모리에 상주하는 것으로 간주합니다. 파일이 수정되었다는 명확한 증거가 없는 한 재읽기를 금지합니다. 변경 여부가 의심될 때는 파일 전체를 읽는 대신 메타데이터만 경량 대조합니다.
   ```powershell
   Get-Item <file_path> | Select-Object Name, Length, LastWriteTime,
@@ -59,6 +71,11 @@
   powershell -NoProfile -Command "npx tsc --noEmit; if ($?) { Write-Host 'Type check passed.' } else { Write-Error 'Type check failed.' }"
   ```
 - **명령어 사전 변형**: 방대한 출력이 예상되는 도구는 최소 출력 플래그(`-q`, `--silent`)를 사용하고, 명령어 끝에 `2>&1 | Select-Object -Last 30` 또는 `| Out-Null`을 붙여 Traffic을 관리합니다.
+- **PowerShell Professional Coding Rules**:
+  - **Exception Handling**: 모든 핵심 로직은 `Try { ... } Catch { ... } Finally { ... }` 구조로 예외를 제어하십시오.
+  - **Error Propagation**: `$ErrorActionPreference = 'Stop'`을 기본으로 설정하여 오류 발생 시 즉시 감지하고 제어 루프로 진입합니다.
+  - **Variable Scoping**: 전역 변수 오염 방지를 위해 `$script:` 범위를 적극 활용하며, 가능한 `Local` 스코프를 기본값으로 사용하십시오.
+  - **Output Streams**: 성공/정보 로그는 `Write-Output`, 경고는 `Write-Warning`, 에러는 `Write-Error`로 스트림을 명확히 분리하십시오.
 - **좀비 프로세스**: 작업 시작 전 미사용 중인 `node`, `tsc`, `cargo` 프로세스를 정리하여 리소스를 확보합니다.
 - **Linux→PowerShell 명령어 매핑**: 리눅스 별칭 사용을 금지하고 아래 PowerShell 표준 명령어를 반드시 사용합니다.
 
@@ -73,29 +90,40 @@
   | `find . -name` | `Get-ChildItem -Recurse -Filter` |
 
 ## 3. 환경 및 인코딩 가이드 (Environment & Encoding)
-- **인코딩 표준**: 배치(`ANSI/CP949`), PowerShell(`UTF-8 with BOM` - 실행용), 기타 소스(`.js`, `.json`, `.md` 등 `UTF-8 no BOM`)를 엄격히 준수하며 가독성을 해치는 제어 문자를 포함하지 않습니다.
+- **인코딩 표준 (Standardization)**:
+  - **Batch/CMD (.bat, .cmd)**: 반드시 **ANSI (CP949/EUC-KR)**로 저장합니다. UTF-8 배치 파일은 cmd.exe가 한글 경로/주석을 인식하지 못해 실행에 실패합니다.
+    ```powershell
+    $content | Set-Content -Path "run.bat" -Encoding String # 'String'은 시스템 기본 ANSI를 의미
+    ```
+  - **Source/PS1/MD/JSON**: 반드시 **UTF-8 no BOM**을 사용합니다. BOM이 포함되면 린터나 리눅스 기반 도구에서 첫 줄 파싱 에러를 유발합니다.
 - **권한 관리**: 스크립트 실행 전 `Unblock-File` 및 필요시 관리자 권한 여부를 사전 확인합니다.
-- **Self-Verification**: 주요 변경 전후로 `scripts/check-env.ps1`을 실행하거나 `tsc --noEmit` 등을 통해 시스템 무결성과 정적 타이핑을 **자가 검증**합니다.
-- **경로 정규화**: `Join-Path`를 사용하여 OS 종속적인 경로 구분자 문제를 원천 차단합니다.
+- **무결성 검증**: 주요 변경 전후로 `scripts/check-env.ps1`을 실행하여 시스템 일관성을 실시간 검증합니다.
+- **경로 정규화**: `Join-Path`를 사용하고, 와일드카드 탐색(`src\**\*`) 보다는 `Get-ChildItem -Recurse` 파이프라인을 구성하여 경로 해석 오류를 방지합니다.
 
 ## 4. 설계 아키텍처 및 상태 관리 (Architecture & State)
-- **3-Layer Architecture**: Definition(타입/에러), Repository(I/O/매핑), Service(프로세스/로직)를 준수합니다.
-- **Strict Typing**: `any` 사용을 금지하며 명시적 Interface 정의와 Type Guard를 필수로 적용합니다.
-- **Single Source of Truth**: 동일 데이터를 두 곳 이상에 저장하지 않으며, **파생 데이터는 계산**으로 처리합니다.
-- **Immutable State**: 상태 변경 시 데이터 원본을 훼손하지 않고 새로운 상태를 생성하여 불변성을 유지합니다.
+- **3-Layer Architecture**: Definition(타입/에러), Repository(I/O/매핑), Service(프로세스/로직)를 엄격히 준수합니다.
+- **Pure Presenter Pattern**: 순수 비즈니스 로직과 UI/출력 렌더링을 엄격히 분리합니다. 로직 함수는 오직 데이터만 반환하며, 출력 형식은 호출자가 결정하게 설계합니다.
+- **Strict Typing**: `any` 사용을 절대 금지하며 명시적 Interface 정의와 Type Guard를 필수로 적용합니다.
+- **Single Source of Truth (SSOT)**: 동일 데이터를 두 곳 이상에 저장하지 않습니다. 특히 **파생 데이터(Derived Data)**는 상태로 관리하지 않고 계산(Computed)으로 처리하십시오.
+- **Data Flow & State Management**: 인자(Props) 전달이 3단계를 초과하면 전역 상태 관리(Context/Store) 도입을 즉시 검토하십시오.
+- **Immutable State**: 상태 변경 시 데이터 원본을 훼손하지 않고 새로운 객체/배열을 생성하여 불변성을 유지합니다.
 
 ## 5. 클린 코드 및 기능 구현 수칙
-- **Surgical Edits**: 파일 수정 시 기존 `Import` 구문 및 코드 스타일을 완벽히 보존하며 필요한 부분만 정밀하게 수정합니다.
-- **Catch Block Hygiene (TS6133 방지)**: `try-catch` 추가 시 에러 객체를 사용하지 않는다면 반드시 변수 없는 catch 블록을 사용합니다. TS6133(Unused Variable)은 린트 규칙이 엄격한 프로젝트에서 빌드 파이프라인을 멈추는 치명적 실수입니다.
-  - `Bad`: `catch (e) { console.error("Failed"); }` — TS6133 에러 유발
-  - `Good`: `catch { console.error("Failed"); }` — 가장 깔끔한 현대적 방식
-  - `Alt`: `catch (_error) { ... }` — 선언은 필요하지만 사용하지 않을 때
-- **Import 보존 Zero-Tolerance**: 사용되지 않는 것처럼 보이는 `import` 구문을 자의적으로 삭제하지 않습니다. 현재 수정 중인 함수에서 미사용처럼 보여도 같은 파일 내 다른 함수에서 사용 중일 가능성이 99%입니다. 삭제 전 반드시 `Select-String -Recursive`로 프로젝트 전체 사용처를 기술적으로 증명해야 합니다.
+- **Surgical Edits (외과적 정밀 수정)**: 파일 수정 시 기존 `Import` 구문 및 코드 스타일을 완벽히 보존하며 필요한 부분만 정밀하게 수정합니다. 한 번에 수백 줄을 고치기보다 기능을 나누어 **Atomic Tasks** 단위로 진행합니다.
+- **Strict Type Guarding (TS2365 방지)**: `unknown`이나 `any` 타입 변수를 비교 연산(`>`, `<`, `===`)에 사용할 때는 반드시 사전에 `typeof` 또는 `instanceof`로 타입을 확정하십시오.
+  - `Bad`: `if (val < 0) { ... }` — `val`이 `unknown`일 경우 TS2365 발생
+  - `Good`: `if (typeof val === 'number' && val < 0) { ... }` — 타입 안전성 확보
+- **Catch Block Hygiene (TS6133 방지)**: `try-catch` 추가 시 에러 객체를 사용하지 않는다면 반드시 변수가 없는 **Catch Block Only** 문법을 사용합니다. TS6133(Unused Variable)은 빌드 파이프라인을 멈추는 치명적 실수입니다.
+  - `Modern Syntax`: `catch { console.error("Action failed"); }` — 가장 권장되는 방식
+- **Import 보존 Zero-Tolerance**: 사용되지 않는 것처럼 보이는 `import` 구문을 자의적으로 삭제하지 마십시오. 상단의 import 영역은 건드리지 않는 것이 원칙입니다. 삭제가 필요할 경우 반드시 `Select-String -Recursive`로 프로젝트 전체 사용처를 기술적으로 증명해야 합니다.
+- **자가 검증 Workflow (Self-Audit)**: JS/TS 파일 수정 직후 반드시 아래 명령으로 에러 여부를 체크합니다.
+  ```powershell
+  npx tsc --noEmit --target esnext --skipLibCheck <file_path>
+  ```
+- **Rollback First 전략**: 에러 발생 시 새로운 코드를 덧대어 해결하려 하지 말고, 즉시 해당 수정을 롤백한 뒤 설계 단계부터 다시 검토하십시오. "수술 후 거즈를 남겨두는 행위"는 절대 금물입니다.
 - **Early Return**: 조건절에서 **Early Return** 패턴을 활용하여 함수의 들여쓰기 깊이를 2단계 이내로 관리합니다.
 - **Idempotency**: 파일 쓰기 전 반드시 존재 여부(`Test-Path`)를 체크하여 중복 실행 부작용을 원천 차단합니다.
-- **Safe Raw IO**: `[System.IO.File]` 등 .NET 정적 메소드 사용 시 반드시 `Test-Path`로 존재 여부를 먼저 확인하고, 반환값이 `$null`일 경우를 대비해 인덱싱 전 Null 체크를 수행합니다.
-- **PowerShell Boolean Syntax**: PowerShell 조건문이나 변수 할당 시 반드시 `$true`, `$false` 형식을 사용하며, 프리픽스가 없는 `True`, `False`는 시스템 명령어나 문자열로 오인(`CommandNotFoundException`)될 수 있으므로 절대 사용하지 않습니다. (오용 사례: `if (True) { ... }`)
-- **Error Handling**: 모든 핵심 로직은 `Try { ... } Catch { ... } Finally { ... }` 구조로 예외를 제어합니다.
+- **전역 스코프 확인**: 특정 export 심볼이나 전역 변수를 삭제/수정하기 전, 반드시 프로젝트 전체 검색을 수행하여 잔여 사용처가 없음을 증명하십시오.
 
 ## 6. 프로젝트 컨텍스트 및 워크플로우
 - **Global Config**: 모든 경로는 `config/paths.ps1`을 **Dot-sourcing** 하여 사용하며 하드코딩을 절대 금지합니다.
@@ -109,20 +137,18 @@
 - **Rollback Protocol**: 오류 발생 시 `git checkout` 또는 백업을 통해 즉시 복구할 수 있는 절차를 상시 준비합니다.
 
 ## 8. 기술적 체크리스트 및 복구 (Technical Checklist & Recovery)
-- **전제 조건 검사**: 모든 작업은 `Test-Path`, `Get-Command`, `Unblock-File`을 통한 환경 검증 후 수행합니다.
+- **Pre-flight Validation**: 모든 작업 전 `Test-Path`, `Get-Command`로 의존 도구와 설정 파일(`tsconfig.json`, `package.json`) 존재를 확인합니다.
+  - 전역 CLI 존재 확인: `gh`, `docker`, `aws` 등을 호출하기 전 반드시 `Get-Command <도구> -ErrorAction SilentlyContinue`로 설치 여부를 확인하십시오. 미설치 도구의 무분별한 호출은 터미널 파서를 마비시킵니다.
+- **터미널 파싱 에러 및 노이즈 대응 SOP**:
+  1. **Echo Truncation (명령어 앞부분 잘림)**: 명령의 앞부분(예: `yContinue ...`)이 잘려 보인다면, 즉시 `Clear-Host`를 호출하여 터미널 프롬프트 대기 상태를 초기화하고 명령어를 다시 입력합니다.
+  2. **스트림 오염**: `Write-Output "=== TERMINAL_RECOVERY_MARKER ==="`를 출력하여 깨진 텍스트 스트림을 명시적으로 절단합니다.
+  3. **\e]633; 시퀀스 감지**: IDE 셸 통합 노이즈 감지 시, 이후 모든 명령에 `powershell.exe -NoProfile`을 접두어로 붙여 환경을 완벽히 격리합니다.
+  4. **출력 과다/인코딩 오염**: 결과를 임시 파일로 리다이렉션(`> build_log.txt 2>&1`)한 후 `Get-Content -Tail 30`으로 필요한 부분만 읽습니다.
 - **에러 복구 흐름**:
   1. 에러 발생 시 즉시 로컬 캐시/임시 파일을 정리합니다.
-  2. `git status`를 통해 변경 사항의 범위를 확인합니다.
-  3. 최소 기능 단위로 백업을 복구하고 다시 시도합니다.
-- **터미널 파싱 스트림 오염 시 긴급 복구 SOP**:
-  1. **버퍼 오염 시**: `Write-Output "=== TERMINAL_RECOVERY_MARKER ==="` 를 출력하여 깨진 텍스트 스트림을 명시적으로 절단합니다.
-  2. **`\e]633;` 시퀀스 감지 시**: 이후 모든 명령에 `powershell.exe -NoProfile` 접두어를 붙여 IDE 셸 통합 환경을 완전히 격리합니다.
-  3. **출력 과다·인코딩 반복 오염 시**: 결과를 임시 파일로 우회한 뒤 에이전트의 파일 읽기 기능으로 파싱합니다.
-     ```powershell
-     npm run build > build_log.txt 2>&1
-     Get-Content build_log.txt -Tail 30
-     ```
-- **무결성 체크**: 대규모 코드 수정 후에는 반드시 `tsc --noEmit` 또는 프로젝트별 검증 스크립트(`scripts/check-env.ps1`)를 실행하여 부수 효과를 확인합니다.
+  2. `git status`를 통해 변경 사항 범위를 확인하고, 필요시 `git checkout`으로 즉시 롤백합니다.
+  3. 실패 원인을 "코드 덧대기"가 아닌 "설계 수정"으로 해결합니다.
+  4. 대규모 코드 수정 후에는 반드시 `tsc --noEmit` 또는 프로젝트별 검증 스크립트(`scripts/check-env.ps1`)를 실행하여 부수 효과를 확인합니다.
 
 ---
 **Handoff**: 세션 종료 전 `memory.md` 최신화 및 `/go` 명령어를 통해 컨텍스트를 완벽히 이관합니다.
