@@ -26,7 +26,11 @@
 - **모듈화 기준**: 파일이 **300라인을 초과**하면 즉시 하위 모듈로의 기능 분리(Refactoring)를 수행합니다.
 
 ## 2. 터미널 및 런타임 제어 (Terminal & Runtime)
-- **세션 초기화**: 모든 PowerShell 실행은 사용자 프로필의 별칭이나 함수 간섭을 방지하기 위해 반드시 **-NoProfile** 플래그를 사용합니다. 터미널 시작 시 UTF8 인코딩 설정 및 `$ProgressPreference = 'SilentlyContinue'`를 강제하여 IDE와의 통신 품질을 확보합니다.
+- **Terminal Parsing Guard (TPG) Protocol**: 터미널 오해석 방지를 위한 **3대 격리 원칙**을 준수합니다.
+  - **Isolation**: 모든 명령어는 반드시 **`powershell.exe -NoProfile`** 접두사를 사용하여 환경을 완벽히 격리합니다.
+  - **Hygiene**: 명령어 실행 전 반드시 **`Clear-Host`**를 호출하여 이전 세션의 잔상(Echo Truncation)을 제거합니다.
+  - **Shell Syntax Guard**: 특수 문자(`()`, `[]`, `$`, `&`)가 포함된 경로나 인자는 반드시 **작은따옴표(' ')**로 감쌉니다.
+- **세션 초기화 및 인코딩**: 터미널 시작 시 UTF8 인코딩 설정 및 `$ProgressPreference = 'SilentlyContinue'`를 강제하여 IDE 에이전트와의 통신 무결성을 확보합니다.
   ```powershell
   # 1. 입출력 인코딩 고정 — CP949(기본값)와 UTF-8(에이전트 기대값) 간 괴리 해소
   $OutputEncoding = [System.Text.Encoding]::UTF8;
@@ -76,6 +80,8 @@
   - **Error Propagation**: `$ErrorActionPreference = 'Stop'`을 기본으로 설정하여 오류 발생 시 즉시 감지하고 제어 루프로 진입합니다.
   - **Variable Scoping**: 전역 변수 오염 방지를 위해 `$script:` 범위를 적극 활용하며, 가능한 `Local` 스코프를 기본값으로 사용하십시오.
   - **Output Streams**: 성공/정보 로그는 `Write-Output`, 경고는 `Write-Warning`, 에러는 `Write-Error`로 스트림을 명확히 분리하십시오.
+- **Shell Syntax Guard (TPG Detail)**: 경로에 `()`, `[]`, `$`, `&` 등 PowerShell 예약어나 특수 문자가 포함된 경우, 반드시 **작은따옴표(' ')**로 감싸서 변수 확장이나 명령 해석 오류를 방지합니다. 특히 파일 조작 Cmdlet 사용 시 와일드카드 해석을 방지하기 위해 `-Path` 대신 **`-LiteralPath`** 파라미터를 최우선으로 사용함을 원칙으로 합니다.
+- **Atomic Directory Provisioning**: 디렉토리를 생성하거나 파일을 준비할 때, 이미 존재할 경우의 에러를 방지하고 작업의 **멱등성(Idempotency)**을 보장하기 위해 반드시 **`-Force`** 플래그를 삽입합니다 (예: `New-Item -ItemType Directory -Force`).
 - **좀비 프로세스**: 작업 시작 전 미사용 중인 `node`, `tsc`, `cargo` 프로세스를 정리하여 리소스를 확보합니다.
 - **Linux→PowerShell 명령어 매핑**: 리눅스 별칭 사용을 금지하고 아래 PowerShell 표준 명령어를 반드시 사용합니다.
 
@@ -108,14 +114,17 @@
 - **Data Flow & State Management**: 인자(Props) 전달이 3단계를 초과하면 전역 상태 관리(Context/Store) 도입을 즉시 검토하십시오.
 - **Immutable State**: 상태 변경 시 데이터 원본을 훼손하지 않고 새로운 객체/배열을 생성하여 불변성을 유지합니다.
 
-## 5. 클린 코드 및 기능 구현 수칙
-- **Surgical Edits (외과적 정밀 수정)**: 파일 수정 시 기존 `Import` 구문 및 코드 스타일을 완벽히 보존하며 필요한 부분만 정밀하게 수정합니다. 한 번에 수백 줄을 고치기보다 기능을 나누어 **Atomic Tasks** 단위로 진행합니다.
+## 5. 클린 코드 및 기능 구현 수칙 (Clean Code & Integrity)
+- **Pseudocode First (의사코드 우선 원칙)**: 복잡한 로직 수정 전 반드시 **의사코드를 통해 구조적 변경 사항을 명시**하고 사용자의 승인을 득합니다. 실제 코드 작성은 승인된 설계에 기반하여 수행합니다.
+- **Surgical Edits (외과적 정밀 수정)**: 파일 수정 시 기존 코드 스타일을 완벽히 보존하며 필요한 부분만 정밀하게 수정합니다. 한 번에 수백 줄을 고치기보다 기능을 나누어 **Atomic Tasks** 단위로 진행합니다.
+- **Import Preservation (의존성 무결성)**: 핵심 의존성 및 사용 중인 `import` 구문을 자의적으로 삭제하지 마십시오. 상단의 import 영역은 건드리지 않는 것이 원칙입니다. 삭제가 필요할 경우 반드시 `Select-String -Recursive`로 프로젝트 전체 사용처를 기술적으로 증명해야 합니다.
+- **Architectural Hierarchy (계층 구조 준수)**: **3-Layer Architecture** (Definition, Repository, Service) 및 DDD 패턴을 엄격히 유지합니다. 계층을 가로지르는 직접적인 참조나 책임의 혼재를 방지합니다.
+- **State Waiting (상태 전이 승인)**: 주요 상태 변경이나 파괴적 작업 전, 에이전트의 현재 상태를 보고하고 사용자의 **명시적 승인**을 대기합니다.
 - **Strict Type Guarding (TS2365 방지)**: `unknown`이나 `any` 타입 변수를 비교 연산(`>`, `<`, `===`)에 사용할 때는 반드시 사전에 `typeof` 또는 `instanceof`로 타입을 확정하십시오.
   - `Bad`: `if (val < 0) { ... }` — `val`이 `unknown`일 경우 TS2365 발생
   - `Good`: `if (typeof val === 'number' && val < 0) { ... }` — 타입 안전성 확보
 - **Catch Block Hygiene (TS6133 방지)**: `try-catch` 추가 시 에러 객체를 사용하지 않는다면 반드시 변수가 없는 **Catch Block Only** 문법을 사용합니다. TS6133(Unused Variable)은 빌드 파이프라인을 멈추는 치명적 실수입니다.
   - `Modern Syntax`: `catch { console.error("Action failed"); }` — 가장 권장되는 방식
-- **Import 보존 Zero-Tolerance**: 사용되지 않는 것처럼 보이는 `import` 구문을 자의적으로 삭제하지 마십시오. 상단의 import 영역은 건드리지 않는 것이 원칙입니다. 삭제가 필요할 경우 반드시 `Select-String -Recursive`로 프로젝트 전체 사용처를 기술적으로 증명해야 합니다.
 - **자가 검증 Workflow (Self-Audit)**: JS/TS 파일 수정 직후 반드시 아래 명령으로 에러 여부를 체크합니다.
   ```powershell
   npx tsc --noEmit --target esnext --skipLibCheck <file_path>
@@ -149,6 +158,12 @@
   2. `git status`를 통해 변경 사항 범위를 확인하고, 필요시 `git checkout`으로 즉시 롤백합니다.
   3. 실패 원인을 "코드 덧대기"가 아닌 "설계 수정"으로 해결합니다.
   4. 대규모 코드 수정 후에는 반드시 `tsc --noEmit` 또는 프로젝트별 검증 스크립트(`scripts/check-env.ps1`)를 실행하여 부수 효과를 확인합니다.
+  5. **Path Resilience (자가 치유)**: `Test-Path`가 실패할 경우, 즉시 작업을 중단하지 말고 `Get-ChildItem -Recurse -Filter <파일명> -ErrorAction SilentlyContinue`를 통해 실제 경로를 재탐색하여 에이전트의 경로 식별 오류를 자동 복구합니다.
+
+## 9. Git 및 네이티브 가드 (Git & Native Command Guard)
+- **Exit Code Integrity**: `git`, `docker`, `npm` 등 네이티브 명령어 호출 직후에는 반드시 **`$LASTEXITCODE`**를 검사하여 성공 여부를 판별하십시오. PowerShell의 예외 처리는 네이티브 도구의 리턴 코드를 자동으로 감지하지 못합니다.
+- **NativeCommandError 무시**: 네이티브 명령어(`git status` 등)가 `stderr`에 정보를 출력할 때 발생하는 `NativeCommandError`는 무시할 수 있는 수준의 경고인 경우가 많습니다. 로그 파싱 시 오직 **Exit Code**가 0이 아닌 경우에만 실제 장애로 간주하십시오.
+- **Atomic Operation**: 모든 파일 및 디렉토리 생성(Provisioning)은 `-Force` 플래그를 사용하여 중복 실행 시에도 실패하지 않는 **멱등성(Idempotency)**을 완벽히 확보합니다.
 
 ---
 **Handoff**: 세션 종료 전 `memory.md` 최신화 및 `/go` 명령어를 통해 컨텍스트를 완벽히 이관합니다.

@@ -97,3 +97,34 @@
 97: - [x] Task 2: AI_GUIDELINES.md 내 .antigravityrules 역할 명시 완료.
 98: - [x] Task 3: 변경 사항 검증 및 memory.md 동기화 완료.
 99: - [x] SSOT Alignment: CRITICAL_LOGIC.md 내 .antigravityrules 위계 명시 완료.
+
+---
+
+## [2026-03-16] Terminal Parsing Guard (TPG) Reinforcement — 전역 통합 및 최종 무결성 검증 완료
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+| --- | --- |
+| `AI_GUIDELINES.md` | **TPG Protocol** 강화, **코드 무결성 워크플로우** 보강 및 **Git & Native Command Guard** 신규 섹션(Section 9) 추가 완료. |
+| `templates/AI_GUIDELINES.md` | 강화된 `AI_GUIDELINES.md`와 템플릿 동기화 완료 (Hash Sync PASS). |
+| `docs/plans/reinforce_tpg_guidelines.md` | Task 1~5 전체 태스크 성공적으로 완료 및 종료. |
+
+### 주요 반영 사항
+
+- **TPG Protocol & Shell Syntax Guard**: `powershell.exe -NoProfile` 강제, 명시적 `Clear-Host` 호출, 특수 문자 작음따옴표(`' '`) 가두기 원칙 수립.
+- **Workflow & Integrity**:
+  - **Pseudocode First**: 로직 수정 전 설계 승인 단계 강제.
+  - **State Waiting**: 파괴적 작업 전 사용자의 명시적 승인 대기.
+  - **Path Resilience**: `Test-Path` 실패 시 `Get-ChildItem -Recurse` 자동 전환 및 `-LiteralPath` 사용 강조.
+- **Native Command Guard**: `$LASTEXITCODE` 기반의 실행 결과 신뢰 및 `NativeCommandError` 예외 처리 로직 명문화.
+- **Integrity Verification**: `scripts/check-env.ps1` 실행을 통해 전역 환경 무결성 최종 검증 완료 (Guidelines Hash Sync 포함하여 100% Pass).
+
+### 진행 상황
+
+- [x] Task 1: AI_GUIDELINES.md 삽입 위치 정밀 분석 완료.
+- [x] Task 2: Section 2 터미널 가드 규칙 강화 완료.
+- [x] Task 3: Section 5 코드 무결성 및 워크플로우 보강 완료.
+- [x] Task 4: Section 9 Git & Native Command Guard 섹션 신설 및 Path Resilience 로직 이식 완료.
+- [x] Task 5: 전체 시스템 무결성 검증 및 `memory.md` 최종 동기화 완료.
+- [x] **Definition of Done**: TPG 6대 핵심 지침 통합 및 환경 검증 통과 완료.

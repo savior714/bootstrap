@@ -135,6 +135,9 @@ Antigravity 에이전트와 터미널 간의 안정적인 상호작용을 위한
 | **Pure Presenter**        | 비즈니스 로직과 UI/출력 렌더링을 엄격히 분리하여 로직 코드의 재사용성 및 무결성 확보                          |
 | **Self-Verification**     | 주요 변경 전후로 `tsc --noEmit` 또는 `check-env.ps1`을 통한 시스템 무결성 자가 검증 수행                   |
 | **Terminal Recovery**      | 파싱 불가 시 `TERMINAL_RECOVERY_MARKER` 구분자를 사용해 데이터 추출을 시도하며, 필요시 복구 SOP 가동      |
+| **Native Command Guard**  | `$LASTEXITCODE` 기반의 실행 결과 신뢰 및 `NativeCommandError` 예외 처리 로직 준수                      |
+| **Path Resilience**       | `Test-Path` 실패 시 `Get-ChildItem -Recurse` 자동 전환 및 `-LiteralPath` 사용으로 경로 해석 오류 방지  |
+| **Atomic Provisioning**   | `New-Item` 등 자원 생성 시 `-Force` 플래그를 필수 사용하여 덮어쓰기 및 중복 생성 부작용 차단           |
 
 ### 기술적 사양 (Technical Specification)
 

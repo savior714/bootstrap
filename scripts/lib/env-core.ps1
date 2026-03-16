@@ -82,7 +82,7 @@ function Test-GitConfigSetting {
         Add-ReportItem -Category $Category -Item $DisplayName -Status $false -Message "Missing Git config '${Key}'"
         return $false
     }
-    if ($null -ne $ExpectedValue -and $val.Trim() -ne $ExpectedValue) {
+    if (-not [string]::IsNullOrEmpty($ExpectedValue) -and $val.Trim() -ne $ExpectedValue) {
         Add-ReportItem -Category $Category -Item $DisplayName -Status $false -Message "Mismatch: $($val.Trim()) (Expected: $ExpectedValue)"
         return $false
     }
