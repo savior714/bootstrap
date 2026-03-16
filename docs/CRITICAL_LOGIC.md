@@ -91,7 +91,10 @@
 1. **AI 행동 지침 (Behavioral)**: `./AI_GUIDELINES.md` (Master), `templates/AI_GUIDELINES.md` (Deploy)
    - AI(Antigravity)가 코드를 작성하거나 디버깅할 때 반드시 준수해야 하는 행동 원칙.
    - Senior Architect 페르소나, Traffic Zero, Micro-task, 안정성 중심의 단계별 실행 지침 포함.
-2. **기술 린트 정책 (Technical)**: `shared_lint_rules.json`
+2. **사용자 제약 규칙 (Runtime Constraints)**: `./.antigravityrules`
+   - 에이전트의 물리적 활동 범위를 제한하는 런타임 제약 조건 파일.
+   - 행동 지침은 `AI_GUIDELINES.md`를 SSOT로 참조하며, 이 파일은 오직 물리적 차단 경로와 원자적 실행 수칙만을 정의함.
+3. **기술 린트 정책 (Technical)**: `shared_lint_rules.json`
    - ESLint 등 도구가 프로젝트 소스 코드를 기계적으로 검증하는 규칙 모음.
    - 플랫폼 호환성 및 인코딩 사고 방지를 위한 엄격한 규칙 적용.
 
@@ -120,12 +123,16 @@ Antigravity 에이전트와 터미널 간의 안정적인 상호작용을 위한
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | **세션 초기화 (SSOT)**     | `scripts/init-terminal.ps1`을 통한 UTF-8 인코딩 고정, `$ProgressPreference` 억제, 텔레메트리 차단 및 NO_COLOR 강제 |
 | **NoProfile Mode**         | 모든 에이전트 내부 PowerShell 호출 시 `-NoProfile` 스위치를 사용하여 로컬 프로필 간섭 배제                         |
+| **Loop Prevention**        | `.antigravityrules`를 통해 `node_modules`, `.git`, `dist` 등 대용량 경로에 대한 물리적 스캔을 원천 차단              |
+| **Atomic Execution**       | 1 Task = 1 Tool Call 원칙을 고수하며, 각 작업 후 사용자 승인을 대기하여 실행 경로의 투명성 확보                    |
 | **Shell Integration 차단** | 터미널 시퀀스(`\e]633;...`) 노이즈가 파싱을 방해하는 경우 환경 변수나 초기화 코드로 이를 명시적으로 억제           |
 | **Syntax Check**           | `.ps1` 파일 수정 후 실행 전 `[System.Management.Automation.Language.Parser]::ParseInput()`을 이용한 정밀 구문 검증 |
 | **Safe Execution**         | 100자 이상의 복잡한 명령이나 중첩 따옴표 포함 시 반드시 `.ps1` 임시 파일로 변환하여 실행                           |
 | **Traffic Zero**           | 모든 CLI 도구에 `--quiet` 플래그를 강제하고, `Select-Object` 등을 통해 터미널 출력량을 물리적으로 제한             |
 | **Get-Command Check**      | 외부 도구(`npm`, `git` 등) 호출 전 `Get-Command`로 가용성을 사전 확인하여 런타임 예외 방지                 |
 | **Chaining Prohibition**  | 입출력 버퍼 오염 방지를 위해 한 번의 Tool Call에서 `;`, `&&` 등 명령어 체이닝 금지                            |
+| **Strict Type Guarding**  | `unknown`, `any` 타입 변수 비교 전 `typeof`로 타입을 확정하여 **TS2365** 에러 사전 방지                      |
+| **Pure Presenter**        | 비즈니스 로직과 UI/출력 렌더링을 엄격히 분리하여 로직 코드의 재사용성 및 무결성 확보                          |
 | **Self-Verification**     | 주요 변경 전후로 `tsc --noEmit` 또는 `check-env.ps1`을 통한 시스템 무결성 자가 검증 수행                   |
 | **Terminal Recovery**      | 파싱 불가 시 `TERMINAL_RECOVERY_MARKER` 구분자를 사용해 데이터 추출을 시도하며, 필요시 복구 SOP 가동      |
 

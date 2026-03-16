@@ -1,33 +1,22 @@
-# Antigravity Terminal Interaction Rules
+# 🚨 CRITICAL: Antigravity Runtime Constraints & Path Isolation (SSOT-Only)
+# Primary Rules: Refer to c:\develop\bootstrap\AI_GUIDELINES.md
+# DO NOT replicate behavioral logic here. This file defines MANDATORY physical constraints.
 
-# 🚨 CRITICAL: Windows Terminal Interaction Protocol
-# 이 파일은 에이전트가 터미널 명령을 수행할 때 반드시 준수해야 하는 물리적 제약 사항을 정의합니다.
+# 1. Atomic Execution Workflow
+# - 1 Task = 1 Tool Call ONLY.
+# - Explicit User Approval REQUIRED after EACH atomic task.
+# - Maximum 10 tool calls per session unless specifically allowed.
 
-# 1. 터미널 환경 인식 (Environment Awareness)
-# - 기본 쉘: Windows PowerShell (powershell.exe)
-# - 인코딩: UTF-8 (no BOM for config, with BOM for .ps1)
-# - 에러 처리: 모든 명령은 'Quiet/Error-only' 모드를 지향하며, 방대한 출력은 Hard Truncation 처리한다.
+# 2. Strict Path Isolation (Silent Loop Prevention)
+# Physical scan, indexing, and recursive reading are FORBIDDEN for:
+# - Build/Cache: node_modules/**, **/target/**, .next/**, .turbo/**, dist/**, build/**, out/**
+# - Platform Specific: android/app/build/**, ios/App/build/**, src-tauri/gen/**, .pnpm-store/**
+# - Metadata/CI: .git/**, .vscode/**, .idea/**, .zed/**, coverage/**, .nyc_output/**
+# - Latency Risks: *-lock.yaml, package-lock.json, Cargo.lock, bun.lockb, *.map, *.sst, *.deps
 
-# 2. 복잡한 명령의 스크립트화 (Script-First Policy)
-# - 다음 조건 중 하나라도 해당할 경우, 인라인 명령 대신 임시 스크립트(.ps1)를 생성하여 실행한다:
-#   a) 명령의 길이가 100자를 초과하는 경우.
-#   b) 중첩된 따옴표('", "' 등)가 포함되어 파싱 에러 위험이 있는 경우.
-#   c) 다단계 파이프라인(Pipe) 또는 흐름 제어(if, for, foreach)가 포함된 경우.
-#   d) 특수문자($, &, |, <, >) 이스케이프가 복잡한 경우.
+# 3. Terminal Stability
+# - Encoding: Windows PowerShell (UTF-8 with BOM), Batch (ANSI/CP949).
+# - Traffic Control: Use `2>&1 | Select-Object -Last 30` or `| Out-Null` for all commands.
+# - Initializers: Mandatory `Clear-Host; $ProgressPreference = 'SilentlyContinue'` for new terminals.
 
-# 3. 터미널 입출력 보안 및 안정성
-# - 모든 명령 뒤에는 `2>&1 | Select-Object -Last 30` 또는 `| Out-Null`을 붙여 불필요한 트래픽을 방지한다.
-# - 배치 파일(.bat)은 ANSI(CP949) 인코딩을 유지하며, 그 외 모든 소스 및 설정은 UTF-8을 유지한다.
-# - 명령 실행 전 `Stop-Process`를 사용하여 좀비 프로세스(node, cargo 등)를 정리하는 것을 권장한다.
-
-# 4. 검증 절차
-# - 스크립트 실행 후 반드시 `$LASTEXITCODE`를 확인하거나, 생성된 결과 파일의 존재 여부를 검증한다.
-
-# 5. Strict Context Isolation (Loop Prevention)
-# - 다음의 대용량 및 시스템 경로는 물리적 스캔(Recursive Search/Indexing) 대상에서 절대적으로 제외한다:
-#   - 빌드/캐시: `node_modules/**`, `**/target/**`, `.next/**`, `.turbo/**`, `dist/**`, `build/**`, `out/**`
-#   - 플랫폼 특화: `android/app/build/**`, `ios/App/build/**`, `src-tauri/gen/**`, `.pnpm-store/**`
-#   - 시스템/메타: `.git/**`, `.vscode/**`, `.idea/**`, `.zed/**`, `coverage/**`, `.nyc_output/**`
-#   - 대용량 파일: `*-lock.yaml`, `package-lock.json`, `Cargo.lock`, `bun.lockb`, `*.map`, `*.sst`, `*.deps`
-# - 에이전트가 위 경로에 접근하려 할 경우 즉시 중단하고 사용자에게 보고한다.
-
+# 💡 For detailed AI Behavioral Guidelines, read: c:\develop\bootstrap\AI_GUIDELINES.md

@@ -18,7 +18,7 @@
   - **현상 (Symptoms)**: 확장 프로그램의 **PERMISSIONS** 카운트가 비정상적으로 급증하거나, **"Always run"** 팝업이 무한히 깜빡이며 열리고 닫히는 현상.
   - **원인 (Cause)**: 에이전트가 `node_modules`, `.git`, `dist` 등 대용량 디렉토리를 물리적으로 스캔하거나, `.antigravityrules` 설정이 미비하여 재귀적 인덱싱 루프에 빠지는 경우.
   - **방지법 (Prevention)**:
-    - **`.antigravityrules` 정의**: 프로젝트 루트에 `.antigravityrules`를 생성하거나 보완하여 대용량/빌드 경로를 명시적으로 제외하고 물리적 스캔 범위를 제한합니다.
+    - **`.antigravityrules` 정의**: 프로젝트 루트의 `.antigravityrules`는 **물리적 경로 차단 및 런타임 제약(Constraint)**만을 정의하는 '포인터' 역할을 수행합니다. 상세한 행동 규칙 및 지침은 본 문서(`AI_GUIDELINES.md`)를 **SSOT(Single Source of Truth)**로 참조합니다.
     - **지침 준수**: `Strict Context Isolation` 수칙을 위반하는 스캔 시도를 즉시 중단하고, 불필요한 파일 목록 조회를 최소화합니다.
     - **세션 초기화**: 루프 발생 시 즉시 **`Reload Window`** 또는 **`F1 > Developer: Reload Window`**를 수행하여 에이전트 세션을 초기화합니다.
 - **마이크로태스크 원칙**: 1회 응답당 오직 **하나의 Tool Call**만 수행하여 API 부하 및 오류를 최소화합니다.

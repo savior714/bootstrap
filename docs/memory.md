@@ -72,3 +72,28 @@
 - [x] Task 2: `.antigravityrules` 보완 및 설정 완료.
 - [x] Task 3: 환경 검증 및 세션 초기화 지침 확인 완료.
 - [x] Definition of Done: 모든 항목 충족 확인.
+75: - [x] Definition of Done: 모든 항목 충족 확인.
+76: 
+77: ---
+78: 
+79: ## [2026-03-16] Antigravity Rules 최적화 및 SSOT(AI_GUIDELINES.md) 정합성 확보
+80: 
+81: ### 작업 내용
+82: 
+83: | 파일 | 변경 내용 |
+84: | --- | --- |
+85: | `.antigravityrules` | 중복된 설명을 제거하고 런타임 제약과 물리적 차단 경로만 남김. 상세 규칙은 `AI_GUIDELINES.md`를 참조하도록 포인터 방식 도입. |
+86: | `docs/plans/optimize_antigravity_rules.md` | Task 1 실행 및 체크 완료 |
+87: 
+88: ### 주요 반영 사항
+89: 
+90: - **DRY Principle**: `.antigravityrules` 내 행동 지침을 제거하여 `AI_GUIDELINES.md`와의 중복 관리 비용 최소화.
+91: - **물리적 차단**: `node_modules`, `.git`, `dist` 등 Silent Loop의 핵심 원인인 경로들에 대한 물리적 차단은 유지.
+92: - **포인터 방식**: 에이전트가 상세 규칙 확인을 위해 `AI_GUIDELINES.md`를 주 문서로 인식하도록 유도.
+93: 
+94: ### 진행 상황
+95: 
+96: - [x] Task 1: .antigravityrules 재작성 (Optimization) 완료.
+97: - [x] Task 2: AI_GUIDELINES.md 내 .antigravityrules 역할 명시 완료.
+98: - [x] Task 3: 변경 사항 검증 및 memory.md 동기화 완료.
+99: - [x] SSOT Alignment: CRITICAL_LOGIC.md 내 .antigravityrules 위계 명시 완료.
