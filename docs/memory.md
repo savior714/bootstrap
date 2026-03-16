@@ -128,3 +128,31 @@
 - [x] Task 4: Section 9 Git & Native Command Guard 섹션 신설 및 Path Resilience 로직 이식 완료.
 - [x] Task 5: 전체 시스템 무결성 검증 및 `memory.md` 최종 동기화 완료.
 - [x] **Definition of Done**: TPG 6대 핵심 지침 통합 및 환경 검증 통과 완료.
+
+---
+
+## [2026-03-16] AI_GUIDELINES.md 가이드라인 최종 강화 및 TPG 통합 완료
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+| --- | --- |
+| `AI_GUIDELINES.md` | TPG 프로토콜 고도화, SQL 멱등성 가드 및 에러 대응 프로토콜 통합 (196줄) |
+| `docs/plans/reinforce_ai_guidelines.md` | Task 1~4 전체 태스크 성공적으로 완료 및 종료. |
+| `docs/memory.md` | 작업 로그 정밀화 및 세션 이관 준비 완료 |
+
+### 주요 반영 사항
+
+- **TPG & Terminal Hygiene**: `powershell.exe -NoProfile` 강제화 및 `Clear-Host`를 통한 Echo Truncation 방지, 터미널 노이즈 대응 SOP 정밀화.
+- **Path Resilience (자가 치유)**: `Test-Path` 실패 시 `Get-ChildItem -Recurse`를 통한 물리적 경로 자동 재탐색 로직 명문화.
+- **Code & Git Integrity**: Catch Block Hygiene(TS6133 방지), `git add` 전 `Multi-Pathspec Validation`, `$LASTEXITCODE` 기반 네이티브 명령 판단.
+- **DB & Error Guard**: SQL 멱등성(`DO` 블록, `IF NOT EXISTS`), Standardized RCA (현상-원인-해결), 에러 응답 표준 스키마 정의 및 검증 커맨드 의무화.
+
+### 진행 상황
+
+- [x] Task 1: 섹션 2(터미널) 및 8(복구) 강화 완료.
+- [x] Task 2: 섹션 5(클린 코드) 및 섹션 9(Git) 보완 완료.
+- [x] Task 3: 섹션 10(SQL) 및 섹션 11(에러 대응) 신설 완료.
+- [x] Task 4: 최종 검토 및 `memory.md` 동기화 완료.
+- [x] **Definition of Done**: 전역 가이드라인 강화 및 무결성 확보 PASS.
+

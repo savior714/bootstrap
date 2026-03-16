@@ -138,6 +138,9 @@ Antigravity 에이전트와 터미널 간의 안정적인 상호작용을 위한
 | **Native Command Guard**  | `$LASTEXITCODE` 기반의 실행 결과 신뢰 및 `NativeCommandError` 예외 처리 로직 준수                      |
 | **Path Resilience**       | `Test-Path` 실패 시 `Get-ChildItem -Recurse` 자동 전환 및 `-LiteralPath` 사용으로 경로 해석 오류 방지  |
 | **Atomic Provisioning**   | `New-Item` 등 자원 생성 시 `-Force` 플래그를 필수 사용하여 덮어쓰기 및 중복 생성 부작용 차단           |
+| **SQL Idempotency**      | 모든 DB DDL/DML에 `IF NOT EXISTS` 및 `DO` 블록 사용을 강제하여 실행 안전성 확보                    |
+| **Error RCA Protocol**   | 에러 발생 시 현상-원인-해결 3단계 분석 및 검증 커맨드 실행 의무화                                  |
+| **Standardized Schema**  | 에러 응답 시 `Code`, `Message`, `Path` 필드를 포함한 표준 객체 응답 준수                           |
 
 ### 기술적 사양 (Technical Specification)
 

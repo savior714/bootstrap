@@ -27,8 +27,8 @@
 
 ## 2. 터미널 및 런타임 제어 (Terminal & Runtime)
 - **Terminal Parsing Guard (TPG) Protocol**: 터미널 오해석 방지를 위한 **3대 격리 원칙**을 준수합니다.
-  - **Isolation**: 모든 명령어는 반드시 **`powershell.exe -NoProfile`** 접두사를 사용하여 환경을 완벽히 격리합니다.
-  - **Hygiene**: 명령어 실행 전 반드시 **`Clear-Host`**를 호출하여 이전 세션의 잔상(Echo Truncation)을 제거합니다.
+  - **Isolation (환경 격리)**: 모든 명령어는 반드시 **`powershell.exe -NoProfile`** 접두사를 사용하여 환경을 완벽히 격리합니다. 이는 사용자 프로필(`$PROFILE`)에 의한 사이드 이펙트를 원천 차단하고 불필요한 초기화 로딩 시간을 단축합니다.
+  - **Hygiene (세션 정제)**: 명령어 실행 전 반드시 **`Clear-Host`**를 호출하여 이전 세션의 잔상(Echo Truncation)을 제거합니다. 특히 긴 출력이 예상되는 명령 전후로 터미널 버퍼를 청소하여 에이전트의 파싱 실패율을 최소화합니다.
   - **Shell Syntax Guard**: 특수 문자(`()`, `[]`, `$`, `&`)가 포함된 경로나 인자는 반드시 **작은따옴표(' ')**로 감쌉니다.
 - **세션 초기화 및 인코딩**: 터미널 시작 시 UTF8 인코딩 설정 및 `$ProgressPreference = 'SilentlyContinue'`를 강제하여 IDE 에이전트와의 통신 무결성을 확보합니다.
   ```powershell
@@ -158,12 +158,38 @@
   2. `git status`를 통해 변경 사항 범위를 확인하고, 필요시 `git checkout`으로 즉시 롤백합니다.
   3. 실패 원인을 "코드 덧대기"가 아닌 "설계 수정"으로 해결합니다.
   4. 대규모 코드 수정 후에는 반드시 `tsc --noEmit` 또는 프로젝트별 검증 스크립트(`scripts/check-env.ps1`)를 실행하여 부수 효과를 확인합니다.
-  5. **Path Resilience (자가 치유)**: `Test-Path`가 실패할 경우, 즉시 작업을 중단하지 말고 `Get-ChildItem -Recurse -Filter <파일명> -ErrorAction SilentlyContinue`를 통해 실제 경로를 재탐색하여 에이전트의 경로 식별 오류를 자동 복구합니다.
+  5. **Path Resilience (자가 치유)**: `Test-Path`가 실패할 경우, 즉시 작업을 중단하거나 사용자에게 묻지 말고 **`Get-ChildItem -Recurse -Filter <FileName>`**를 통해 실제 물리적 경로를 재탐색하십시오.
+     - **프로토콜**: [Path Check] -> [Fail] -> [Recursive Search] -> [Path Update] -> [Resume Task] 순으로 자가 치유를 시도하여 불필요한 대화 턴을 방지하고 컨택스트 무결성을 유지합니다.
 
 ## 9. Git 및 네이티브 가드 (Git & Native Command Guard)
 - **Exit Code Integrity**: `git`, `docker`, `npm` 등 네이티브 명령어 호출 직후에는 반드시 **`$LASTEXITCODE`**를 검사하여 성공 여부를 판별하십시오. PowerShell의 예외 처리는 네이티브 도구의 리턴 코드를 자동으로 감지하지 못합니다.
 - **NativeCommandError 무시**: 네이티브 명령어(`git status` 등)가 `stderr`에 정보를 출력할 때 발생하는 `NativeCommandError`는 무시할 수 있는 수준의 경고인 경우가 많습니다. 로그 파싱 시 오직 **Exit Code**가 0이 아닌 경우에만 실제 장애로 간주하십시오.
+- **Multi-Pathspec Validation**: `git add` 명령을 수행하기 전, 스테이징할 파일이나 디렉토리의 존재 여부를 **`Test-Path`**로 반드시 선검증합니다. 파일이 삭제되었거나 경로가 변경된 상태에서 잘못된 경로로 `git add`를 호출하여 발생하는 "pathspec did not match any files" 에러를 사전에 차단합니다.
 - **Atomic Operation**: 모든 파일 및 디렉토리 생성(Provisioning)은 `-Force` 플래그를 사용하여 중복 실행 시에도 실패하지 않는 **멱등성(Idempotency)**을 완벽히 확보합니다.
+
+## 10. SQL 멱등성 가드 (Idempotent SQL)
+- **Idempotency Guard**: 모든 데이터베이스 스키마 변경(`DDL`) 및 데이터 조작(`DML`) 스크립트는 여러 번 실행해도 동일한 결과를 보장하는 **멱등성**을 가져야 합니다.
+  - **Table/Column**: 생성 시 `IF NOT EXISTS`, 삭제 시 `IF EXISTS` 구문을 반드시 포함합니다.
+  - **Index/Constraint**: 인덱스나 제약 조건 추가 전 해당 개체의 존재 여부를 시스템 카탈로그에서 먼저 확인합니다.
+- **Procedural Logic (DO Block)**: 복잡한 로직이 필요한 경우 PostgreSQL의 **`DO $$ BEGIN ... END $$;`** 블록을 사용하여 트랜잭션 안전성을 확보하고, 예외 발생 시 조건부 롤백이 가능하도록 설계합니다.
+  ```sql
+  DO $$
+  BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='last_login') THEN
+          ALTER TABLE users ADD COLUMN last_login TIMESTAMP;
+      END IF;
+  END $$;
+  ```
+- **Data Integrity**: `UPDATE`나 `DELETE` 수행 전 반드시 `SELECT`로 대상 범위를 먼저 확인하고, 대규모 변경 시에는 임시 테이블에 원본을 백업하는 **Safety net** 전략을 취합니다.
+
+## 11. 에러 대응 및 장애 복구 프로토콜 (Error Response & Recovery)
+- **Standardized Root Cause Analysis (RCA)**: 에러 발생 시 단순히 현상을 고치는 데 그치지 않고, 아래 **3단계 분석 지침**에 따라 근본 원인을 설명합니다.
+  1. **현상(Symptom)**: 터미널 에러 로그 또는 린트 메시지 원문 제시.
+  2. **원인(Cause)**: 왜 이 에러가 발생했는지(예: 환경 변수 누락, 타입 불일치 등) 기술적 근거 제시.
+  3. **해결(Resolution)**: 수정 방향과 재발 방지를 위한 검증 계획 수립.
+- **Verification First**: 수정한 코드를 제출하기 전, 반드시 해당 에러를 재현했던 조건을 제거했음을 입증하는 **검증 커맨드**를 실행하고 그 결과를 보고합니다.
+- **Error Response Schema**: 시스템 에러 응답 작성 시 반드시 `Code`(식별자), `Message`(사용자 친화적 요약), `Path`(발생 지점) 필드를 포함하여 문제 추적을 용이하게 합니다.
+- **Failure-Safe Feedback**: 에이전트가 처리할 수 없는 치명적 장애 발생 시, 모호한 추측성 답변을 피하고 현재까지의 진행 상황과 **차단된 원인(Blocker)**을 명확히 리포트하여 사용자의 개입을 요청합니다.
 
 ---
 **Handoff**: 세션 종료 전 `memory.md` 최신화 및 `/go` 명령어를 통해 컨텍스트를 완벽히 이관합니다.
