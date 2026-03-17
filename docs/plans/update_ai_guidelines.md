@@ -1,44 +1,47 @@
-# 🗺️ Project Blueprint: AI 행동 지침 심화 버전 반영 (`AI_GUIDELINES.md`)
+# 🗺️ Project Blueprint: AI_GUIDELINES.md 고도화 및 강화
 
-> 생성 일시: 2026-03-17 14:32 | 상태: 완료
+> 생성 일시: 2026-03-17 17:39 | 상태: 설계 승인 대기
 
 ## 🎯 Architectural Goal
 
-- `AI_GUIDELINES.md`를 시니어 아키텍트의 심화 버전으로 전면 개정하여 에이전트의 기술적 판단 기준을 고도화합니다.
-- **SSOT**: 본 문서는 모든 행동 규칙의 근간이며, `docs/memory.md`와 상호 보완적으로 작동해야 합니다.
+- **AI_GUIDELINES.md**를 시니어 아키텍트 관점의 'Deep-Dive Version'으로 전면 개정하여 에이전트의 안정성, 정합성, 그리고 장애 대응 능력을 극대화함.
+- **핵심 가치**: Stale(구형 데이터) 버그 차단, 터미널 환경 격리강화, 그리고 `docs/CRITICAL_LOGIC.md`와의 SSOT 동기화 프로세스 정립.
 
 ## 🛠️ Step-by-Step Execution Plan
 
 ### 📦 Task List
 
-- [x] **Task 1: AI_GUIDELINES.md 읽기 — 현재 가이드라인 분석**
-  - **Tool**: `Read`
-  - **Target**: `c:\develop\bootstrap\AI_GUIDELINES.md`
-  - **Goal**: 기존 지침 중 유지해야 할 맥락과 심화 버전과의 차이점 식별 (완료)
+- [x] **Task 1: AI_GUIDELINES.md 백업 및 초기 분석**
+  - **Tool**: `run_command`
+  - **CommandLine**: `Copy-Item -Path 'c:\develop\bootstrap\AI_GUIDELINES.md' -Destination 'c:\develop\bootstrap\AI_GUIDELINES.md.bak'`
+  - **Goal**: 원본 파일 보존 및 구조적 변경점 최종 확정.
+  - **Dependency**: None
 
-- [x] **Task 2: AI_GUIDELINES.md 전면 개정**
-  - **Tool**: `Write` (Overwrite)
-  - **Target**: `c:\develop\bootstrap\AI_GUIDELINES.md`
-  - **Goal**: 요청받은 심화 버전의 기술 지침을 적용하여 문서를 최신화함.
-  - **Instruction**: 제공된 마크다운 텍스트를 `UTF-8 no BOM` 인코딩으로 저장.
+- [x] **Task 2: AI_GUIDELINES.md 내용 전면 개정**
+  - **Tool**: `write_to_file`
+  - **TargetFile**: `c:\develop\bootstrap\AI_GUIDELINES.md`
+  - **Goal**: 사용자 제공 'Deep-Dive Version'의 모든 섹션을 반영하여 파일 갱신.
+  - **Pseudocode**:
+    ```markdown
+    # 🤖 AI Behavioral Guidelines (Senior Architect’s Deep-Dive Version)
+    ... (사용자 제공 섹션 0~5 및 Handoff 반영) ...
+    ```
+  - **Dependency**: Task 1
 
-- [x] **Task 3: .antigravityrules 정렬 및 검증**
-  - **Tool**: `Read` & `Edit`
-  - **Target**: `c:\develop\bootstrap\.antigravityrules`
-  - **Goal**: 가이드라인 개정에 따라 런타임 제약 설정이 필요한 부분이 있는지 검토하고 업데이트함.
-
-- [x] **Task 4: SSOT 동기화 (memory.md)**
-  - **Tool**: `Edit`
-  *   **Target**: `c:\develop\bootstrap\docs\memory.md`
-  - **Goal**: 가이드라인 대개정 사실을 기록하고 다음 세션으로 기술 부채가 전이되지 않도록 요약함.
+- [x] **Task 3: 개정된 가이드라인 무결성 검증**
+  - **Tool**: `run_command`
+  - **CommandLine**: `powershell.exe -NoProfile -Command "Get-Content 'c:\develop\bootstrap\AI_GUIDELINES.md' | Select-Object -First 10"`
+  - **Goal**: 파일 인코딩(UTF-8 no BOM) 및 첫 섹션 정상 기록 여부 확인.
+  - **Dependency**: Task 2
 
 ## ⚠️ 기술적 제약 및 규칙 (SSOT)
 
-- **Encoding**: `UTF-8 no BOM`을 반드시 준수합니다.
-- **Consistency**: 수정 후 반드시 `scripts/check-env.ps1` (존재 시)을 실행하여 시스템 일관성을 확인합니다.
+- **Encoding**: UTF-8 no BOM (PowerShell에서는 UTF-8로 처리).
+- **SSOT Alignment**: `docs/CRITICAL_LOGIC.md`가 존재하지 않을 경우, 향후 생성 제안을 포함함.
+- **Microtask**: 각 태스크는 독립적으로 실행하며 사용자 승인을 득함.
 
 ## ✅ Definition of Done
 
-1. [x] `AI_GUIDELINES.md`가 요청된 'Deep-Dive Version'으로 완벽하게 교체됨.
-2. [x] 관련 런타임 규칙 파일(`.antigravityrules`)과의 충돌 없음.
-3. [x] `memory.md`에 변경 사항 및 결정 근거가 기록됨.
+1. [ ] `AI_GUIDELINES.md`가 새로운 'Deep-Dive Version'으로 완전히 교체됨.
+2. [ ] 새로운 규칙에 따라 `node_modules`, `.git` 등 격리 경로가 명시됨.
+3. [ ] `memory.md`에 가이드라인 업데이트 사실이 기록됨.

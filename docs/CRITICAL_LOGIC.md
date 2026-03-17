@@ -89,11 +89,12 @@
 ### 행동 및 품질 규칙 구성
 
 1. **AI 행동 지침 (Behavioral)**: `./AI_GUIDELINES.md` (Master), `templates/AI_GUIDELINES.md` (Deploy)
-   - AI(Antigravity)가 코드를 작성하거나 디버깅할 때 반드시 준수해야 하는 행동 원칙.
-   - Senior Architect 페르소나, Traffic Zero, Micro-task, 안정성 중심의 단계별 실행 지침 포함.
+   - **Senior Architect Deep-Dive Version** (v2.0) 수립. AI가 코드를 작성하거나 디버깅할 때 반드시 준수해야 하는 행동 원칙.
+   - **TPG Protocol v2.0**, **Stale Context Invalidation**, **SQL Idempotency**, **Surgical Edits** 등 고도화된 프로토콜 포함.
 2. **사용자 제약 규칙 (Runtime Constraints)**: `./.antigravityrules`
    - 에이전트의 물리적 활동 범위를 제한하는 런타임 제약 조건 파일.
    - 행동 지침은 `AI_GUIDELINES.md`를 SSOT로 참조하며, 이 파일은 오직 물리적 차단 경로와 원자적 실행 수칙만을 정의함.
+
 3. **기술 린트 정책 (Technical)**: `shared_lint_rules.json`
    - ESLint 등 도구가 프로젝트 소스 코드를 기계적으로 검증하는 규칙 모음.
    - 플랫폼 호환성 및 인코딩 사고 방지를 위한 엄격한 규칙 적용.

@@ -94,4 +94,42 @@
 - [x] Task 2: `AI_GUIDELINES.md` 내 SSOT 파일명 오기 수정 완료.
 - [x] **Stability Check**: 모든 SSOT 파일 간 상호 참조 무결성 확인 완료.
 
-**결과**: AI 거버넌스 프레임워크의 마지막 퍼즐인 런타임 제약 파일의 정밀도를 확보하고, 문서 간 참조 모순을 해결함.
+## [2026-03-17 17:40] AI Behavioral Guidelines 개정 프로세스 시작
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+| --- | --- |
+| `AI_GUIDELINES.md.bak` | 원본 가이드라인 백업 파일 생성(`Task 1`). |
+| `docs/plans/update_ai_guidelines.md` | Task 1 상태 업데이트 예정. |
+
+### 주요 진행 상황
+
+- [x] **Task 1**: `AI_GUIDELINES.md` 백업 및 초기 상태 보존 완료.
+- [x] **Task 2**: `AI_GUIDELINES.md` 내용 전면 개정 완료.
+- [x] **Task 3**: `AI_GUIDELINES.md` 무결성 검증(`Get-Content` UTF-8) 완료.
+
+### 검증 결과
+- `Test-Path 'c:\develop\bootstrap\AI_GUIDELINES.md.bak'` -> `True` 확인.
+- `AI_GUIDELINES.md` 첫 10줄 UTF-8 인코딩 확인 완료.
+
+## [2026-03-18 01:15] AI Behavioral Guidelines 강화 및 Deep-Dive Ver. 정립
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+| --- | --- |
+| `AI_GUIDELINES.md` | 시니어 아키텍트의 **Deep-Dive Version** 제언을 수용하여 전면 개정 및 강화. |
+
+### 주요 강화 사항
+
+- **TPG Protocol v2.0**: 터미널 명령어 절단 방지를 위한 마커(`---START---`) 및 `powershell.exe -NoProfile` 강제화.
+- **Context Resilience**: `LastWriteTime` 기반의 Stale Context 무효화 및 `Path Self-Healing` 로직 명문화.
+- **SQL 무결성**: `Idempotency` 가드 및 `Safety Net`(트랜잭션 블록) 수칙 추가.
+- **정밀 수정(Surgical Edits)**: 수정 후 전체 파일을 다시 읽어 메모리 싱크를 맞추는 의무 조항 신설.
+
+### 진행 상황
+
+- [x] **Task 1**: `AI_GUIDELINES.md` 내용 수정, 보완, 강화 완료.
+- [x] **Task 2**: `memory.md` 최신 작업 로그 업데이트 완료.
+- [x] **Stability Check**: Senior Architect 톤 및 한국어 표준 준수 확인.
