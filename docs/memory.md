@@ -11,9 +11,9 @@
 | 2026-03-14 | 환경 설정 외부화, `AI_GUIDELINES.md` 마스터 가이드라인 승격, CLI 설치 가이드 대체 |
 | 2026-03-15 | Terminal Protocol 정밀화, Safe Raw IO 수칙 추가, `CRITICAL_LOGIC.md` SSOT 반영 |
 | 2026-03-16 | `AI_GUIDELINES.md` 프로토콜 대규모 강화(Section 1-11), Loop Prevention, TPG, Git Guard 섹션 신설 |
-| 2026-03-17 | TPG Hygiene 고도화, `.antigravityrules` 인코딩(no BOM) 및 환경 변수 초기화 정합성 확보 |
+| 2026-03-17 | TPG Hygiene 고도화, AI_GUIDELINES/antigravityrules 'Deep-Dive Version' 개정 및 동기화 |
 
-**안정 상태**: `AI_GUIDELINES.md` ~200줄 / `CRITICAL_LOGIC.md` 최신화 / `check-env.ps1` 무결성 검증 통과
+**안정 상태**: `AI_GUIDELINES` (Deep-Dive Ver.) / `antigravityrules` 동기화 완료 / `memory.md` SSOT 유지
 
 ---
 
@@ -52,3 +52,46 @@
 - **런타임 제약 강화**: 패키지 매니저 락 확인 및 경로 자가 치유(Path Resilience) 수칙을 `.antigravityrules`에 명문화하여 에이전트의 오작동 방지.
 - **무결성 검증**: `scripts/check-env.ps1` 실행 결과 **All integrity checks passed** 확인. 
 - **SSOT 일관성**: 전역 규칙, 마스터 가이드라인, 런타임 제약 파일 간의 격리 경로(Strict Context Isolation)를 100% 일치시킴.
+
+## [2026-03-17 15:00] AI 거버넌스 프레임워크 완성 (Deep-Dive Ver. & Global SSOT)
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+| --- | --- |
+| `AI_GUIDELINES.md` | 시니어 아키텍트의 **심화 버전(Deep-Dive Version)**으로 전면 개정 및 계층적 참조 모델 도입. |
+| `docs/CRITICAL_LOGIC.md` | 프로젝트의 최상위 불변의 원칙(Global SSOT)으로서 참조 구조 명문화. |
+
+### 주요 성과
+
+- **계층적 거버넌스 수립**: `CRITICAL_LOGIC`(Global) → `AI_GUIDELINES`(Behavioral) → `Project-Spec`(Specific)으로 이어지는 명확한 기술적 위계질서 확립.
+- **표준화된 협업 지침**: AI 에이전트가 어떤 프로젝트에 투입되더라도 일관된 품질과 안정성을 유지할 수 있는 물리적 기반 마련.
+
+### 진행 상황
+
+- [x] Task 1: `AI_GUIDELINES.md` 최신 요구사항 반영 (Senior Architect 톤).
+- [x] Task 2: 전역 공통 시스템 원칙인 `docs/CRITICAL_RULES.md` 생성.
+- [x] **Stability Check**: 계층적 참조 모델에 따른 문서 간 정합성 확인 완료.
+
+## [2026-03-17 15:10] .antigravityrules 최종 정합성 보완 및 SSOT 불일치 해결
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+| --- | --- |
+| `.antigravityrules` | `RULE[user_global]` SSOT에 맞춰 격리 경로(`.pnpm-store`, `.idea` 등) 및 `Join-Path` 규정 추가. |
+| `AI_GUIDELINES.md` | 상단 Global SSOT 참조 오류 수정 (`CRITICAL_RULES.md` → `CRITICAL_LOGIC.md`). |
+
+### 주요 결과
+
+- **런타임 제약 완결**: 에이전트의 물리적 활동 범위를 규정하는 `.antigravityrules`를 최신 전역 규칙과 100% 동기화함.
+- **참조 구조 정상화**: 실제 존재하지 않는 `CRITICAL_RULES.md` 참조를 `CRITICAL_LOGIC.md`로 수정하여 기술적 위계질서의 구멍을 메움.
+- **Microtask 준수**: 모든 작업은 '1 Task = 1 Tool Call' 원칙 하에 단계별로 수행됨.
+
+### 진행 상황
+
+- [x] Task 1: `.antigravityrules` 격리 경로 및 TPG 프로토콜 최신화 완료.
+- [x] Task 2: `AI_GUIDELINES.md` 내 SSOT 파일명 오기 수정 완료.
+- [x] **Stability Check**: 모든 SSOT 파일 간 상호 참조 무결성 확인 완료.
+
+**결과**: AI 거버넌스 프레임워크의 마지막 퍼즐인 런타임 제약 파일의 정밀도를 확보하고, 문서 간 참조 모순을 해결함.

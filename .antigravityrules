@@ -1,30 +1,59 @@
 # 🚨 CRITICAL: Antigravity Runtime Constraints & Path Isolation (SSOT-Only)
+
 # Primary Rules: Refer to c:\develop\bootstrap\AI_GUIDELINES.md
+
 # DO NOT replicate behavioral logic here. This file defines MANDATORY physical constraints.
 
-# 1. Atomic Execution Workflow
-# - 1 Task = 1 Tool Call ONLY.
+# 1. Atomic Execution & Microtask Workflow
+
+# - 1 Response = 1 Tool Call ONLY. (Microtask Principle)
+
 # - Explicit User Approval REQUIRED after EACH atomic task.
+
 # - Maximum 10 tool calls per session unless specifically allowed.
 
-# 2. Strict Path Isolation (Silent Loop Prevention)
+# 2. Strict Path Isolation (Loop & Traffic Guard)
+
 # Physical scan, indexing, and recursive reading are FORBIDDEN for:
+
 # - Build/Cache: node_modules/**, **/target/**, .next/**, .turbo/**, dist/**, build/**, out/**
+
 # - Platform Specific: android/app/build/**, ios/App/build/**, src-tauri/gen/**, .pnpm-store/**
+
 # - Metadata/CI: .git/**, .vscode/**, .idea/**, .zed/**, coverage/**, .nyc_output/**
-# - Latency Risks: *-lock.yaml, package-lock.json, Cargo.lock, bun.lockb, *.map, *.sst, *.deps
 
-# 3. Terminal Stability
-# - Encoding: Windows PowerShell (UTF-8 no BOM), Batch (ANSI/CP949).
-# - Traffic Control: Use `2>&1 | Select-Object -Last 30` or `| Out-Null` for all commands.
-# - Initializers: Mandatory `Clear-Host; $env:TERM='dumb'; $env:NO_COLOR='1'; $ProgressPreference = 'SilentlyContinue'` for new terminals.
+# - Latency Risks/Large: _-lock._, package-lock.json, Cargo.lock, bun.lockb, _.map, _.sst, \*.deps
 
-# 4. Tool & Path Resilience
-# - Package Guard: Check Lock files (*-lock.yaml, etc.) BEFORE using npm/pnpm/bun to prevent conflicts.
-# - Path Resilience: If Test-Path fails, use `Get-ChildItem -Recurse -Filter` to self-heal instead of asking.
+# 3. Terminal & Shell Integrity (TPG Protocol)
 
-# 5. Context Hygiene
-# - Memory SSOT: Always sync with `docs/memory.md`.
+# - Environment: ALL commands MUST use `powershell.exe -NoProfile` to bypass profile interference.
+
+# - Integrity: PowerShell(UTF-8 with BOM), Source/MD(UTF-8 no BOM), Batch(ANSI/CP949).
+
+# - Initializers: Mandatory `Clear-Host; $env:TERM='dumb'; $env:NO_COLOR='1'; $ProgressPreference = 'SilentlyContinue'`.
+
+# - Stability: Use `Join-Path` for OS-independent path construction; avoid hardcoded slashes.
+
+# - Traffic: Always use `2>&1 | Select-Object -Last 30` or `| Out-Null` to prevent buffer overflow.
+
+# - Syntax: Use `-LiteralPath` for ALL file operations to prevent wildcard interpretation errors.
+
+# 4. Resilience & Integrity Verification
+
+# - Environment Sync: Dot-source `config/paths.ps1` for standard constants; NO hardcoding.
+
+# - Integrity Check: Run `scripts/check-env.ps1` before and after major changes.
+
+# - Path Self-Healing: If Test-Path fails, use `Get-ChildItem -Recurse -Filter` to auto-locate files.
+
+# - Permission Guard: Use `Unblock-File` on scripts before execution to prevent execution policy errors.
+
+# 5. Context & Architecture Hygiene
+
+# - Modularization: If a file exceeds 300 lines, MUST perform functional refactoring immediately.
+
+# - Memory SSOT: Sync with `docs/memory.md`; Summarize (200L -> 50L) to preserve context window.
+
 # - Window Management: Focus strictly on the CURRENT task; ignore historical implementation noise.
 
 # 💡 For detailed AI Behavioral Guidelines, read: c:\develop\bootstrap\AI_GUIDELINES.md
