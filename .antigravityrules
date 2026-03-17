@@ -15,8 +15,8 @@
 # - Latency Risks: *-lock.yaml, package-lock.json, Cargo.lock, bun.lockb, *.map, *.sst, *.deps
 
 # 3. Terminal Stability
-# - Encoding: Windows PowerShell (UTF-8 with BOM), Batch (ANSI/CP949).
+# - Encoding: Windows PowerShell (UTF-8 no BOM), Batch (ANSI/CP949).
 # - Traffic Control: Use `2>&1 | Select-Object -Last 30` or `| Out-Null` for all commands.
-# - Initializers: Mandatory `Clear-Host; $ProgressPreference = 'SilentlyContinue'` for new terminals.
+# - Initializers: Mandatory `Clear-Host; $env:TERM='dumb'; $env:NO_COLOR='1'; $ProgressPreference = 'SilentlyContinue'` for new terminals.
 
 # 💡 For detailed AI Behavioral Guidelines, read: c:\develop\bootstrap\AI_GUIDELINES.md

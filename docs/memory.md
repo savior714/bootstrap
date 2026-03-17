@@ -156,3 +156,52 @@
 - [x] Task 4: 최종 검토 및 `memory.md` 동기화 완료.
 - [x] **Definition of Done**: 전역 가이드라인 강화 및 무결성 확보 PASS.
 
+---
+
+## [2026-03-17] AI Behavioral Guidelines 강화 및 TPG 고도화 완료
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+| --- | --- |
+| `AI_GUIDELINES.md` | TPG Protocol 강화, Task Checklist Integrity 도입, SQL/Git 가드 정밀 보완 완료 (179줄) |
+| `docs/plans/update_ai_guidelines.md` | Task 1~3 전체 실행 완료 및 Blueprint 업데이트 |
+
+### 주요 반영 사항
+
+- **TPG Hygiene 강화**: `powershell -Command` 내 변수(`$var`) 백틱(`` ` ``) 이스케이프 및 `[System.Text.UTF8Encoding]($false)`를 통한 No-BOM UTF-8 쓰기 원칙 명문화.
+- **Task Checklist Integrity**: 각 마이크로 태스크 완료 시 Blueprint 파일의 체크박스를 즉시 업데이트(`[x]`)하여 작업 가시성을 확보하는 지침 도입 (Section 6).
+- **Git & Native Guard**: `$LASTEXITCODE` 검증 시 에러 로그 마지막 10~20줄 분석 의무화, `git commit` 전 충돌 마커(`<<<<<<< HEAD`) 전수 검사 추가.
+- **SQL Verification**: `IF NOT EXISTS` 뿐만 아니라 실행 직후 카탈로그 조회를 통한 **Verification Loop** 실행 지침 추가.
+
+### 진행 상황
+
+- [x] Task 1: TPG Protocol 강화 및 셸 중첩 가드 추가 완료.
+- [x] Task 2: Task Checklist Integrity 및 워크플로우 지침 강화 완료.
+- [x] Task 3: SQL 및 Git 가드 보완 (Exit Code, Verification Query) 완료.
+- [x] **Definition of Done**: 모든 항목 완료 및 가이드라인 179라인 유지(300라인 제한 준수).
+
+---
+
+## [2026-03-17] .antigravityrules 정합성 최신화 (Encoding & TPG Protocol)
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+| --- | --- |
+| `.antigravityrules` | 인코딩 수칙을 **UTF-8 no BOM**으로 수정하고, TPG 필수 환경 변수(`TERM`, `NO_COLOR`)를 초기화 항목에 추가. |
+| `docs/plans/sync_antigravity_rules.md` | Task 1~2 전체 실행 및 완료. |
+
+### 주요 반영 사항
+
+- **Encoding Alignment**: `AI_GUIDELINES.md`의 표준에 맞춰 PowerShell 인코딩 문구를 `UTF-8 no BOM`으로 정정하여 도구 간 호환성 확보.
+- **TPG Initializer 강화**: 에이전트 세션 시작 시 제어 문자 및 색상 코드에 의한 파싱 오류를 방지하기 위해 `env:TERM='dumb'` 및 `env:NO_COLOR='1'` 주입을 명문화.
+- **Consistency**: `.antigravityrules`가 `AI_GUIDELINES.md`의 물리적 제약 계층으로서 완벽히 기능하도록 정합성 검증 완료.
+
+### 진행 상황
+
+- [x] Task 1: `.antigravityrules` 내 인코딩 및 환경 변수 보반 완료.
+- [x] Task 2: `AI_GUIDELINES.md`와의 SSOT 정합성 최종 검증 완료.
+- [x] **Definition of Done**: 모든 항목 충족 확인 및 Blueprint 상태 업데이트 완료.
+
+

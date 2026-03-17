@@ -80,7 +80,7 @@
   - **Error Propagation**: `$ErrorActionPreference = 'Stop'`을 기본으로 설정하여 오류 발생 시 즉시 감지하고 제어 루프로 진입합니다.
   - **Variable Scoping**: 전역 변수 오염 방지를 위해 `$script:` 범위를 적극 활용하며, 가능한 `Local` 스코프를 기본값으로 사용하십시오.
   - **Output Streams**: 성공/정보 로그는 `Write-Output`, 경고는 `Write-Warning`, 에러는 `Write-Error`로 스트림을 명확히 분리하십시오.
-- **Shell Syntax Guard (TPG Detail)**: 경로에 `()`, `[]`, `$`, `&` 등 PowerShell 예약어나 특수 문자가 포함된 경우, 반드시 **작은따옴표(' ')**로 감싸서 변수 확장이나 명령 해석 오류를 방지합니다. 특히 파일 조작 Cmdlet 사용 시 와일드카드 해석을 방지하기 위해 `-Path` 대신 **`-LiteralPath`** 파라미터를 최우선으로 사용함을 원칙으로 합니다.
+- **Shell Syntax Guard (TPG Detail)**: 경로에 `()`, `[]`, `$`, `&` 등 PowerShell 예약어나 특수 문자가 포함된 경우, 반드시 **작은따옴표(' ')**로 감싸서 변수 확장이나 명령 해석 오류를 방지합니다. 또한, `powershell -Command` 내에서 변수(`$var`)를 사용할 때는 백틱(`` ` ``)을 사용하여 의도치 않은 확장을 방지해야 합니다. 특히 파일 조작 Cmdlet 사용 시 와일드카드 해석을 방지하기 위해 `-Path` 대신 **`-LiteralPath`** 파라미터를 최우선으로 사용함을 원칙으로 합니다.
 - **Atomic Directory Provisioning**: 디렉토리를 생성하거나 파일을 준비할 때, 이미 존재할 경우의 에러를 방지하고 작업의 **멱등성(Idempotency)**을 보장하기 위해 반드시 **`-Force`** 플래그를 삽입합니다 (예: `New-Item -ItemType Directory -Force`).
 - **좀비 프로세스**: 작업 시작 전 미사용 중인 `node`, `tsc`, `cargo` 프로세스를 정리하여 리소스를 확보합니다.
 - **Linux→PowerShell 명령어 매핑**: 리눅스 별칭 사용을 금지하고 아래 PowerShell 표준 명령어를 반드시 사용합니다.
@@ -137,6 +137,7 @@
 ## 6. 프로젝트 컨텍스트 및 워크플로우
 - **Global Config**: 모든 경로는 `config/paths.ps1`을 **Dot-sourcing** 하여 사용하며 하드코딩을 절대 금지합니다.
 - **Memory Sync**: `docs/memory.md`는 진행 상황을 동기화하는 가장 중요한 SSOT 문서입니다. 로그가 200줄 도달 시 즉시 요약(50줄 이내)을 수행합니다.
+- **Task Checklist Integrity**: 각 마이크로 태스크 완료 후, 반드시 해당 Blueprint 파일의 체크박스를 [x]로 업데이트하여 진척도를 동기화합니다.
 - **Atomic Changes**: 한 번에 너무 많은 파일을 수정하지 않으며, 의미 있는 단위로 끊어서 작업을 진행합니다.
 
 ## 7. 보안, 감사 및 성능 최적화
@@ -148,6 +149,7 @@
 ## 8. 기술적 체크리스트 및 복구 (Technical Checklist & Recovery)
 - **Pre-flight Validation**: 모든 작업 전 `Test-Path`, `Get-Command`로 의존 도구와 설정 파일(`tsconfig.json`, `package.json`) 존재를 확인합니다.
   - 전역 CLI 존재 확인: `gh`, `docker`, `aws` 등을 호출하기 전 반드시 `Get-Command <도구> -ErrorAction SilentlyContinue`로 설치 여부를 확인하십시오. 미설치 도구의 무분별한 호출은 터미널 파서를 마비시킵니다.
+  - **Nested Shell & Encoding Guard**: 셸 내에서 또 다른 셸 명령을 실행할 경우 이중 쿼트(`"`)와 백틱(`` ` ``) 처리를 엄격히 관리합니다. 특히 파일 스트림 조작 시에는 `[System.Text.UTF8Encoding]($false)`를 명시적으로 사용하여 **BOM이 없는 UTF-8** 형식을 보장함으로써 타 도구와의 호환성을 유지합니다.
 - **터미널 파싱 에러 및 노이즈 대응 SOP**:
   1. **Echo Truncation (명령어 앞부분 잘림)**: 명령의 앞부분(예: `yContinue ...`)이 잘려 보인다면, 즉시 `Clear-Host`를 호출하여 터미널 프롬프트 대기 상태를 초기화하고 명령어를 다시 입력합니다.
   2. **스트림 오염**: `Write-Output "=== TERMINAL_RECOVERY_MARKER ==="`를 출력하여 깨진 텍스트 스트림을 명시적으로 절단합니다.
@@ -162,14 +164,15 @@
      - **프로토콜**: [Path Check] -> [Fail] -> [Recursive Search] -> [Path Update] -> [Resume Task] 순으로 자가 치유를 시도하여 불필요한 대화 턴을 방지하고 컨택스트 무결성을 유지합니다.
 
 ## 9. Git 및 네이티브 가드 (Git & Native Command Guard)
-- **Exit Code Integrity**: `git`, `docker`, `npm` 등 네이티브 명령어 호출 직후에는 반드시 **`$LASTEXITCODE`**를 검사하여 성공 여부를 판별하십시오. PowerShell의 예외 처리는 네이티브 도구의 리턴 코드를 자동으로 감지하지 못합니다.
-- **NativeCommandError 무시**: 네이티브 명령어(`git status` 등)가 `stderr`에 정보를 출력할 때 발생하는 `NativeCommandError`는 무시할 수 있는 수준의 경고인 경우가 많습니다. 로그 파싱 시 오직 **Exit Code**가 0이 아닌 경우에만 실제 장애로 간주하십시오.
-- **Multi-Pathspec Validation**: `git add` 명령을 수행하기 전, 스테이징할 파일이나 디렉토리의 존재 여부를 **`Test-Path`**로 반드시 선검증합니다. 파일이 삭제되었거나 경로가 변경된 상태에서 잘못된 경로로 `git add`를 호출하여 발생하는 "pathspec did not match any files" 에러를 사전에 차단합니다.
-- **Atomic Operation**: 모든 파일 및 디렉토리 생성(Provisioning)은 `-Force` 플래그를 사용하여 중복 실행 시에도 실패하지 않는 **멱등성(Idempotency)**을 완벽히 확보합니다.
+- **Exit Code Integrity**: `git`, `docker`, `npm` 등 네이티브 명령어 호출 직후에는 반드시 **`$LASTEXITCODE`**가 `0`인지 확인하십시오. 실패 시(`-ne 0`) 작업을 자동으로 계속하지 말고, 즉시 중단 후 에러 로그의 **마지막 10~20줄**을 분석하여 사용자에게 보고해야 합니다. PowerShell의 `Try-Catch`는 네이티브 도구의 리턴 코드를 자동으로 포착하지 못함을 명심하십시오.
+- **NativeCommandError & Pipe Hygiene**: 네이티브 명령어(`git status` 등)가 `stderr`에 정보를 출력할 때 발생하는 `NativeCommandError`는 에러 행동(`$ErrorActionPreference`)에 따라 흐름을 끊을 수 있습니다. 무분별한 `2>&1` 병합은 파싱 실패를 유발하므로, 에러를 분석해야 할 때는 표준 출력과 분리하여 처리하십시오.
+- **Git Conflict & Pathspec Validation**: `git add` 전 **`Test-Path`**로 경로 유효성을 확인하고, `git commit` 전에는 파일 내부에 **`<<<<<<< HEAD`**와 같은 충돌 마커가 잔류하는지 `Select-String`으로 전수 검사하여 소스 무결성을 보장합니다.
+- **Atomic Operation**: 모든 파일/디렉토리 생성은 `-Force` 플래그를 사용하여 중복 실행 시에도 실패하지 않는 **멱등성(Idempotency)**을 완벽히 확보합니다.
 
 ## 10. SQL 멱등성 가드 (Idempotent SQL)
 - **Idempotency Guard**: 모든 데이터베이스 스키마 변경(`DDL`) 및 데이터 조작(`DML`) 스크립트는 여러 번 실행해도 동일한 결과를 보장하는 **멱등성**을 가져야 합니다.
   - **Table/Column**: 생성 시 `IF NOT EXISTS`, 삭제 시 `IF EXISTS` 구문을 반드시 포함합니다.
+  - **Verification Loop**: DDL/DML 실행 직후에는 반드시 카탈로그(예: `information_schema.tables`)를 재조회하거나 영향받은 행의 수(`ROW_COUNT`)를 확인하여 결과가 의도대로 반영되었음을 **기술적으로 입증**해야 합니다.
   - **Index/Constraint**: 인덱스나 제약 조건 추가 전 해당 개체의 존재 여부를 시스템 카탈로그에서 먼저 확인합니다.
 - **Procedural Logic (DO Block)**: 복잡한 로직이 필요한 경우 PostgreSQL의 **`DO $$ BEGIN ... END $$;`** 블록을 사용하여 트랜잭션 안전성을 확보하고, 예외 발생 시 조건부 롤백이 가능하도록 설계합니다.
   ```sql
