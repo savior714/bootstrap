@@ -19,4 +19,12 @@
 # - Traffic Control: Use `2>&1 | Select-Object -Last 30` or `| Out-Null` for all commands.
 # - Initializers: Mandatory `Clear-Host; $env:TERM='dumb'; $env:NO_COLOR='1'; $ProgressPreference = 'SilentlyContinue'` for new terminals.
 
+# 4. Tool & Path Resilience
+# - Package Guard: Check Lock files (*-lock.yaml, etc.) BEFORE using npm/pnpm/bun to prevent conflicts.
+# - Path Resilience: If Test-Path fails, use `Get-ChildItem -Recurse -Filter` to self-heal instead of asking.
+
+# 5. Context Hygiene
+# - Memory SSOT: Always sync with `docs/memory.md`.
+# - Window Management: Focus strictly on the CURRENT task; ignore historical implementation noise.
+
 # 💡 For detailed AI Behavioral Guidelines, read: c:\develop\bootstrap\AI_GUIDELINES.md

@@ -12,7 +12,7 @@
 - **Strict Context Isolation**: 아래 경로는 절대 인덱싱, 읽기, 검색 또는 터미널 출력을 수행하지 않습니다.
   - 빌드/캐시: `node_modules/**`, `**/target/**`, `.next/**`, `.turbo/**`, `dist/**`, `build/**`, `out/**`, `.pnpm-store/**`
   - 플랫폼 특화: `android/app/build/**`, `ios/App/build/**`, `src-tauri/gen/**`
-  - 시스템/메타: `.git/**`, `.vscode/**`, `.idea/**`, `.zed/**`, `coverage/**`
+  - 시스템/메타: `.git/**`, `.vscode/**`, `.idea/**`, `.zed/**`, `coverage/**`, `.nyc_output/**`
   - 대용량 파일: `*-lock.yaml`, `package-lock.json`, `Cargo.lock`, `bun.lockb`, `*.map`, `*.sst`, `*.deps`
 - **Antigravity Loop Prevention (안티그라비티 루프 방지)**:
   - **현상 (Symptoms)**: 확장 프로그램의 **PERMISSIONS** 카운트가 비정상적으로 급증하거나, **"Always run"** 팝업이 무한히 깜빡이며 열리고 닫히는 현상.
@@ -64,6 +64,7 @@
   - `tsc` 실행 전: 루트 또는 해당 디렉토리에 `tsconfig.json` 존재 확인
   - `npm run <script>` 실행 전: `package.json` 내 해당 스크립트 정의 확인
   - 빌드 명령 전: `node_modules` 유효성 확인, 미비 시 `npm install` 제안 우선
+- **패키지 매니저 혼용 방지 (Package Manager Lock)**: 프로젝트 루트의 **Lock 파일**(`package-lock.json`, `pnpm-lock.yaml`, `bun.lockb` 등)을 우선 확인하여 해당 프로젝트의 **표준 패키지 매니저**(`npm`, `pnpm`, `bun` 등)만 사용하십시오.
 - **PowerShell AST Parsing**: 단순 `[scriptblock]::Create()` 대신 아래의 **AST Parser**를 사용하여 스크립트 실행 전 구문을 정밀 검증하고, 파라미터 무결성을 확인합니다.
   ```powershell
   $Errors = $null; [System.Management.Automation.Language.Parser]::ParseInput((Get-Content "file.ps1" -Raw), [ref]$null, [ref]$Errors)
@@ -131,12 +132,14 @@
   ```
 - **Rollback First 전략**: 에러 발생 시 새로운 코드를 덧대어 해결하려 하지 말고, 즉시 해당 수정을 롤백한 뒤 설계 단계부터 다시 검토하십시오. "수술 후 거즈를 남겨두는 행위"는 절대 금물입니다.
 - **Early Return**: 조건절에서 **Early Return** 패턴을 활용하여 함수의 들여쓰기 깊이를 2단계 이내로 관리합니다.
+- **비동기 상태 추적 (Async State Tracking)**: 비동기 로직 수정 시 **Cleanup Function** 처리 및 **Loading/Error State**의 누락 여부를 반드시 점검하십시오.
 - **Idempotency**: 파일 쓰기 전 반드시 존재 여부(`Test-Path`)를 체크하여 중복 실행 부작용을 원천 차단합니다.
 - **전역 스코프 확인**: 특정 export 심볼이나 전역 변수를 삭제/수정하기 전, 반드시 프로젝트 전체 검색을 수행하여 잔여 사용처가 없음을 증명하십시오.
 
 ## 6. 프로젝트 컨텍스트 및 워크플로우
 - **Global Config**: 모든 경로는 `config/paths.ps1`을 **Dot-sourcing** 하여 사용하며 하드코딩을 절대 금지합니다.
 - **Memory Sync**: `docs/memory.md`는 진행 상황을 동기화하는 가장 중요한 SSOT 문서입니다. 로그가 200줄 도달 시 즉시 요약(50줄 이내)을 수행합니다.
+- **컨텍스트 누적 관리 (Context Window Hygiene)**: 대화가 길어질 경우, 에이전트의 기억이 오염될 수 있습니다. `memory.md`를 참조하여 현재까지의 **핵심 의사결정 내역**을 제외한 과거의 세부 구현 로그는 컨텍스트에서 명시적으로 무시하고 **현재 태스크**에만 집중하십시오.
 - **Task Checklist Integrity**: 각 마이크로 태스크 완료 후, 반드시 해당 Blueprint 파일의 체크박스를 [x]로 업데이트하여 진척도를 동기화합니다.
 - **Atomic Changes**: 한 번에 너무 많은 파일을 수정하지 않으며, 의미 있는 단위로 끊어서 작업을 진행합니다.
 
