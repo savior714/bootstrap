@@ -168,3 +168,20 @@
 - [x] **Task 1**: `AI_GUIDELINES.md` 내용 수정, 보완, 강화 완료.
 - [x] **Task 2**: `memory.md` 최신 작업 로그 업데이트 완료.
 - [x] **Stability Check**: Senior Architect 톤 및 한국어 표준 준수 확인.
+
+## [2026-03-18] Tool-First Policy 절대 금기(Taboo) 수준 강화 및 환경 호환성 확보
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+| --- | --- |
+| `CLAUDE.md` | `Tool-First Policy` → `[CRITICAL] Tool-First & Zero-Shell Discovery`로 격상. 3대 근거(Context Hygiene / Determinism / Type-Safety) 인라인 추가. Verification Protocol에 3개 검증 항목 신설. |
+| `AI_GUIDELINES.md` | 동일 정책 반영 + 도구명을 환경 무관 표현으로 추상화. `Path Self-Healing`의 `Get-ChildItem` 단독 사용 모순 해소. |
+| `docs/AI_COMMAND_PROTOCOL.md` | Section 0 헤더를 "전면 금지 원칙"으로 격상. 도구 대조표를 **Claude Code / Cursor·Antigravity 2컬럼**으로 분리하여 환경 호환성 확보. |
+| `.antigravityrules` | Section 3에 `[CRITICAL] Zero-Shell Discovery` 블록 추가. Cursor/Antigravity 전용 도구명(`find_by_name`, `grep_search` 등)으로 정정. |
+| `templates/AI_GUIDELINES.md` | 동일 정책 및 수정된 `Path Self-Healing` 템플릿에 동기화. |
+
+### 진행 상황
+
+- [x] 5개 SSOT 파일 전면 동기화 완료.
+- [x] **환경 호환성**: Antigravity / Claude Code / Cursor AI 3개 환경에서 도구명 불일치 없이 적용 가능한 구조 확립.

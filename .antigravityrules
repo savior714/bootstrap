@@ -26,6 +26,14 @@
 
 # 3. Terminal & Shell Integrity (TPG Protocol)
 
+# [CRITICAL] Zero-Shell Discovery: File search/listing/read via OS shell (dir, ls, find, Get-ChildItem, grep) is STRICTLY FORBIDDEN.
+# MUST use IDE native tools ONLY:
+#   find_by_name (file/folder search), grep_search (text search), list_dir (folder listing),
+#   view_file (read content), write_to_file / replace_file_content (write/edit).
+# Reason: Shell output is unstructured noise that pollutes Context Window, is non-deterministic across environments,
+#         and causes fatal Side Effects (wrong-file delete/modify) from path mis-parsing.
+# Exception: Build (npm run), type-check (tsc), package management ONLY. Even then, ls/dir MUST NOT be mixed in.
+
 # - Environment: ALL commands MUST use `powershell.exe -NoProfile` to bypass profile interference.
 
 # - Integrity: PowerShell(UTF-8 with BOM), Source/MD(UTF-8 no BOM), Batch(ANSI/CP949).
