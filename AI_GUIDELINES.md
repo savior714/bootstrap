@@ -28,6 +28,15 @@
 - **CLI Argument Guard (인자 보호)**:
   - `lint .`와 같이 명령어가 경로로 오인될 수 있는 경우, **`--` (Double Dash)**를 사용하여 대상과 명령을 명확히 분리합니다. (예: `npx next lint -- .`)
   - 경로 인자 사용 시 `.` 대신 `$PWD` 또는 **절대 경로**를 사용하여 컨텍스트 모호성을 제거합니다.
+- **Known Error Patterns (실증 오류 목록)**: 아래 패턴은 실제 에러 로그에서 반복 확인된 안티패턴입니다.
+
+  | 오류 유형 | 잘못된 명령 | 올바른 명령 |
+  |-----------|-------------|-------------|
+  | 파일에 `cd` 시도 | `cd docs\memory.md` | `Get-Content -LiteralPath 'docs\memory.md'` |
+  | 파이프라인 바인딩 실패 | `Join-Path "a" "b" \| Get-Content` | `Get-Content (Join-Path "a" "b")` |
+  | `next lint` 인자 오해석 | `npm run lint -- frontend` (루트 실행) | `cd frontend; npm run lint` |
+  | `npx` 로컬 패키지 미설치 | `npx tsc --noEmit` | `npx -p typescript tsc --noEmit` |
+
 - **Standard Mapping (Linux → PowerShell)**:
   - `rm -rf` → `Remove-Item -Recurse -Force -LiteralPath '...'`
   - `grep` → `Select-String`, `find` → `Get-ChildItem -Recurse`

@@ -37,6 +37,10 @@
 # - Traffic: Always use `2>&1 | Select-Object -Last 30` or `| Out-Null` to prevent buffer overflow.
 
 # - Syntax: Use `-LiteralPath` for ALL file operations to prevent wildcard interpretation errors.
+# - File Guard: NEVER use Set-Location (cd) on file paths. Files → Get-Content -LiteralPath '...'.
+# - Pipeline Guard: NEVER pipe Join-Path to Get-Content. Use subexpression: Get-Content (Join-Path ...).
+# - CLI Arg Guard: NEVER append extra args to 'npm run lint' in monorepo roots. cd to target dir first.
+# - npx Guard: NEVER use bare 'npx tsc'. Use 'npx -p typescript tsc' or define 'npm run type-check'.
 
 # 4. Resilience & Integrity Verification
 

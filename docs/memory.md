@@ -12,8 +12,9 @@
 | 2026-03-15 | Terminal Protocol 정밀화, Safe Raw IO 수칙 추가, `CRITICAL_LOGIC.md` SSOT 반영 |
 | 2026-03-16 | `AI_GUIDELINES.md` 프로토콜 대규모 강화(Section 1-11), Loop Prevention, TPG, Git Guard 섹션 신설 |
 | 2026-03-17 | TPG Hygiene 고도화, AI_GUIDELINES/antigravityrules 'Deep-Dive Version' 개정 및 동기화 |
+| 2026-03-18 | AI 실증 오류 4종 문서화: `.antigravityrules` 4 Guard 추가, `AI_GUIDELINES.md` Known Error Patterns 테이블 삽입, `docs/AI_COMMAND_PROTOCOL.md` 신규 생성 |
 
-**안정 상태**: `AI_GUIDELINES` (Deep-Dive Ver.) / `antigravityrules` 동기화 완료 / `memory.md` SSOT 유지
+**안정 상태**: `AI_GUIDELINES` (Deep-Dive Ver.) / `antigravityrules` 동기화 완료 / `AI_COMMAND_PROTOCOL.md` 신규 / `memory.md` SSOT 유지
 
 ---
 
