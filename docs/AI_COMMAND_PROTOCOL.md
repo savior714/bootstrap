@@ -113,6 +113,50 @@ npx -p typescript tsc --noEmit --project frontend/tsconfig.json
 
 ---
 
+## 5. File I/O Guard — 프로필 보안 정책에 의해 차단된 Cmdlet
+
+### 증상
+```
+[Security] Add-Content 사용이 금지되었습니다. [System.IO.File]::AppendAllText를 사용하십시오.
+```
+
+### 원인
+PowerShell `$PROFILE`에 `Add-Content`, `Set-Content`, `Out-File`에 대한 **보안 훅(Hook)**이 설정되어 있습니다.
+이 cmdlet들은 호출 즉시 `RuntimeException`을 throw하고 작업이 중단됩니다.
+
+### 올바른 명령
+
+```powershell
+# ❌ 잘못된 예시 (프로필 보안에 의해 차단됨)
+Add-Content -Path 'docs\memory.md' -Value "`n새 로그 항목"
+Set-Content -Path 'docs\memory.md' -Value $content
+$output | Out-File -FilePath 'docs\memory.md'
+
+# ✅ 파일 끝에 내용 추가 (Add-Content 대체)
+[System.IO.File]::AppendAllText(
+    'c:\develop\project\docs\memory.md',
+    "`n새 로그 항목",
+    [System.Text.Encoding]::UTF8
+)
+
+# ✅ 파일 전체 덮어쓰기 (Set-Content / Out-File 대체)
+[System.IO.File]::WriteAllText(
+    'c:\develop\project\docs\memory.md',
+    $content,
+    [System.Text.Encoding]::UTF8
+)
+```
+
+> **주의**: 경로는 반드시 **절대 경로** 문자열로 전달해야 합니다. `$PSScriptRoot` 또는 `Join-Path`로 조합한 뒤 변수로 전달하세요.
+
+```powershell
+# ✅ 경로 조합 후 변수 사용 (권장 패턴)
+$memoryPath = Join-Path 'c:\develop\project' 'docs\memory.md'
+[System.IO.File]::AppendAllText($memoryPath, "`n로그 내용", [System.Text.Encoding]::UTF8)
+```
+
+---
+
 ## 요약 대조표
 
 | # | 오류 유형 | 핵심 원인 | 즉각 해결책 |
@@ -121,6 +165,7 @@ npx -p typescript tsc --noEmit --project frontend/tsconfig.json
 | 2 | **파이프라인 바인딩** | 타입/바인딩 불일치 | `Get-Content (Join-Path ...)` |
 | 3 | **`next lint` 인자** | CLI가 인자를 경로로 오해 | `cd target; npm run lint` |
 | 4 | **`npx` 차단** | 로컬 패키지 미설치 | `npx -p typescript tsc` |
+| 5 | **`Add-Content` 차단** | 프로필 보안 정책 | `[System.IO.File]::AppendAllText()` |
 
 ---
 

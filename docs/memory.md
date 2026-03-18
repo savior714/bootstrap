@@ -114,6 +114,40 @@
 - `Test-Path 'c:\develop\bootstrap\AI_GUIDELINES.md.bak'` -> `True` 확인.
 - `AI_GUIDELINES.md` 첫 10줄 UTF-8 인코딩 확인 완료.
 
+## [2026-03-18] 문서 위계 확립 및 지침 문서 역할 분리 리팩터링
+
+### 작업 내용
+
+| 파일 | 변경 내용 |
+| --- | --- |
+| `CLAUDE.md` | 12섹션 → 2섹션으로 슬림화. 페르소나·Fatal Guard·문서 위계 선언만 유지, 나머지는 하위 문서 위임. |
+| `AI_GUIDELINES.md` | **What** 전담 문서로 재정의. Known Error Patterns 표·Standard Mapping·금지 cmdlet 표 제거, `AI_COMMAND_PROTOCOL.md` 위임 명시. |
+| `docs/AI_COMMAND_PROTOCOL.md` | **Section 5 신규 추가**: `Add-Content`/`Set-Content`/`Out-File` 프로필 보안 차단 패턴 및 `.NET` 대체 메서드 실증 가이드. |
+| `templates/AI_GUIDELINES.md` | 신규 프로젝트 복사 템플릿임을 명시, `{{PLACEHOLDER}}` 도입, 현행 룰과 분리. |
+
+### 확립된 문서 위계
+
+| 우선순위 | 파일 | 역할 |
+| :---: | --- | --- |
+| 1 | `CLAUDE.md` | 진입점 & Fatal Guard |
+| 2 | `AI_GUIDELINES.md` | 행동 원칙 (What) |
+| 3 | `docs/AI_COMMAND_PROTOCOL.md` | 터미널 실행 가이드 (How) — 오류 패턴 SSOT |
+| 4 | `docs/CRITICAL_LOGIC.md` | 프로젝트 설계 결정 |
+| 5 | `docs/memory.md` | 세션 상태 SSOT |
+
+### 글로벌 슬래시 커맨드 개선 (`~/.claude/commands/`)
+
+- **`go.md`**: 문서 위계 참조 표 추가, 코드 정적 분석·300라인 초과·SSOT 교차 검증 단계 신설, 린트 Blocker 복원.
+- **`plan.md`**: Stale Context 방지·영향 범위 분석·롤백 전략·Task별 Verify 필드·BLUEPRINT CHECKLIST 출력 형식 추가.
+- **`git.md`**: 환경 호환성 노트 추가, `AI_COMMAND_PROTOCOL.md` SSOT 목록 편입.
+
+### 진행 상황
+
+- [x] 문서 위계 설계 및 역할 분담 확정.
+- [x] 3개 지침 문서 리팩터링 완료 (`CLAUDE.md`, `AI_GUIDELINES.md`, `templates/`).
+- [x] `AI_COMMAND_PROTOCOL.md` Section 5 추가 및 요약 대조표 갱신.
+- [x] 글로벌 슬래시 커맨드 3종 환경 호환성 및 무결성 보강.
+
 ## [2026-03-18 01:15] AI Behavioral Guidelines 강화 및 Deep-Dive Ver. 정립
 
 ### 작업 내용
