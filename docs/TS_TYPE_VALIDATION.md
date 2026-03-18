@@ -46,22 +46,60 @@ npx -p typescript tsc --noEmit 2>&1 | grep -E "error TS[0-9]+" | head -30
 }
 ```
 
-### 1-3. tsconfig.json 필수 설정
+### 1-3. tsconfig.json 공용 템플릿
 
-```json
+신규 프로젝트 온보딩 시 아래 두 블록을 기준으로 구성합니다.
+
+**① 공통 기반 — 모든 프로젝트에 그대로 적용**
+
+```jsonc
 {
   "compilerOptions": {
+    // [성능] 빌드 결과물 없이 타입 체크만 수행
+    "noEmit": true,
+    // [성능] 외부 라이브러리(.d.ts) 타입 체크 생략 — 가장 효과적인 속도 개선
+    "skipLibCheck": true,
+    // [성능] 변경된 파일만 재계산하여 반복 실행 부하 감소
+    "incremental": true,
+
+    // [품질] strict 모드 — LLM이 수정할 에러를 명시적으로 드러냄
     "strict": true,
+    // [품질] 암묵적 any 통과로 인한 후속 에러 폭발 방지
     "noImplicitAny": true,
-    "strictNullChecks": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true
-  }
+    "strictNullChecks": true
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
 }
 ```
 
-> **근거**: strict 모드를 사전에 켜두면 LLM이 수정해야 할 에러가 명시적으로 드러나며,
-> 암묵적 `any` 통과로 인한 후속 에러 폭발을 방지합니다.
+**② 선택 추가 — 프로젝트 구조에 맞게 커스터마이징**
+
+```jsonc
+{
+  "compilerOptions": {
+    // [범위] 스캔 루트 지정 — 없으면 전체 루트 스캔으로 incremental 효과 반감
+    "baseUrl": ".",
+    // [별칭] Barrel Export 경로 alias (types-extractor.ts 사용 시 필수)
+    "paths": {
+      "@domain/*": ["src/domain/*"],   // 프로젝트별 조정
+      "@/*": ["src/*"]
+    }
+  },
+  // [범위] src 외 불필요한 파일 스캔 차단 — 대형 프로젝트일수록 필수
+  "include": ["src/**/*"]
+}
+```
+
+> **이식 체크포인트**:
+> - `include` 없이 `incremental`만 설정하면 효과 50% 이하로 저하됨
+> - `paths` alias 사용 시 `baseUrl`은 필수 쌍
+> - 기존 프로젝트에 strict 추가 시 에러가 폭발할 수 있음 → `noImplicitAny`부터 단계적 활성화 권장
 
 ---
 
