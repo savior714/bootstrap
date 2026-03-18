@@ -1,0 +1,74 @@
+{
+  // ──────────────────────────────────────────────────────────
+  // TypeScript Language Service — 타입 검증 최적화
+  // 목적: IDE 내장 Language Server가 에러를 먼저 잡아
+  //       LLM 토큰 소모 없이 타입 문제를 사전 차단한다.
+  // ──────────────────────────────────────────────────────────
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "typescript.validate.enable": true,
+  "typescript.preferences.quoteStyle": "single",
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "typescript.suggest.autoImports": true,
+  "typescript.inlayHints.parameterNames.enabled": "literals",
+  "typescript.surveys.enabled": false,
+
+  // ──────────────────────────────────────────────────────────
+  // 저장 시 자동 수정 — 린트 & 임포트 정리
+  // ──────────────────────────────────────────────────────────
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit",
+    "source.fixAll.eslint": "explicit"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  // ──────────────────────────────────────────────────────────
+  // 파일 인코딩 — UTF-8 no BOM 강제 (SSOT: CRITICAL_LOGIC.md §10)
+  // ──────────────────────────────────────────────────────────
+  "files.encoding": "utf8",
+  "files.autoGuessEncoding": false,
+  "files.insertFinalNewline": true,
+
+  // ──────────────────────────────────────────────────────────
+  // 컨텍스트 오염 방지 — AI 인덱싱 제외 경로
+  // Fatal Constraints와 동일한 경로 목록 (SSOT: CLAUDE.md §1)
+  // ──────────────────────────────────────────────────────────
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/out": true,
+    "**/.next": true,
+    "**/.turbo": true,
+    "**/coverage": true,
+    "**/.nyc_output": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/.next": true,
+    "**/coverage": true,
+    "**/*.map": true
+  },
+
+  // ──────────────────────────────────────────────────────────
+  // 에디터 기본 설정
+  // ──────────────────────────────────────────────────────────
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.rulers": [100],
+  "editor.bracketPairColorization.enabled": true,
+
+  // ──────────────────────────────────────────────────────────
+  // ESLint — 실시간 타입 오류와 연동
+  // ──────────────────────────────────────────────────────────
+  "eslint.validate": ["typescript", "typescriptreact", "javascript", "javascriptreact"],
+  "eslint.run": "onSave"
+}

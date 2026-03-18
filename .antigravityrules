@@ -68,4 +68,37 @@
 
 # - Window Management: Focus strictly on the CURRENT task; ignore historical implementation noise.
 
+# 6. TypeScript Type Validation Protocol (Token Optimization)
+# Ref: docs/TS_TYPE_VALIDATION.md (SSOT for full strategy)
+#
+# [MANDATORY] LLM MUST NOT perform type checking. tsc is the type checker.
+# - ALWAYS run `npm run type-check` BEFORE asking LLM to fix types.
+# - ONLY send to LLM: tsc error lines + ±5 surrounding code lines (Error-Only Context).
+# - FORBIDDEN: sending entire .ts files for type analysis.
+# - FORBIDDEN: using `any`, `@ts-ignore` or type assertions to bypass errors.
+# - FORBIDDEN: writing nested Conditional Types (T extends U ? A : B extends C ? D).
+# - Schema-First: Zod schema MUST precede TypeScript interface definitions.
+# - Minimum Context Hierarchy: error code → failing line → direct type import chain (1 level).
+# - DDD Layer: inject ONLY src/domain/index.ts (Barrel Export) as type context. Never inject services/ or repositories/.
+# - Symbol Reference: reference @interface/@type symbols only, NOT @Files. Never read node_modules source — use .d.ts only.
+# - Type Flatten: decompose complex infer/extends chains into named intermediate types before sending to LLM.
+# - Verification: after LLM fix, re-run `npm run type-check` to confirm 0 errors.
+# - Error-Slice Command (PowerShell):
+#   npx -p typescript tsc --noEmit 2>&1 | Select-String "error TS" | Select-Object -First 20
+# - Type Definition Extractor: scripts/types-extractor.ts (ts-morph based, definition-only output)
+
+# 7. Vibe Coding Protocol — Validate-and-Prune (Token-Light)
+# Ref: docs/VIBE_CODING_PROTOCOL.md (SSOT)
+#
+# [MANDATORY] CLI-First: 에러 판단은 tsc/npm test 결과가 유일한 Ground Truth.
+# - FORBIDDEN: @Codebase indexing — use @Symbols (interface/type name) only.
+# - Context Slicing: L1(skeleton) FIRST. Add L2(function body) ONLY if L1 insufficient.
+# - Short-Circuit: ask "list 3 risky spots" BEFORE asking for a fix.
+# - Implementation Hiding: replace irrelevant function bodies with "// ... implementation hidden".
+# - Agent-to-Agent Protocol: declare context constraints at TOP of every type-fix prompt:
+#     "DO NOT read files outside @symbols. USE CLI stderr as ground truth. Return fixed snippet ONLY."
+# - node_modules: NEVER read source files. Reference .d.ts ONLY.
+
 # 💡 For detailed AI Behavioral Guidelines, read: c:\develop\bootstrap\AI_GUIDELINES.md
+# 💡 For TypeScript Validation Strategy, read: c:\develop\bootstrap\docs\TS_TYPE_VALIDATION.md
+# 💡 For Vibe Coding Protocol, read: c:\develop\bootstrap\docs\VIBE_CODING_PROTOCOL.md

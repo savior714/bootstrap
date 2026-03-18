@@ -1,0 +1,209 @@
+# Cursor AI Rules — Antigravity Bootstrap Project
+#
+# 이 파일은 Cursor AI 에이전트의 행동 원칙을 정의합니다.
+# 상세 행동 지침 SSOT: AI_GUIDELINES.md
+# 터미널 명령어 가이드: docs/AI_COMMAND_PROTOCOL.md
+# TypeScript 타입 검증 전략: docs/TS_TYPE_VALIDATION.md
+
+---
+
+## 0. Persona & Language
+
+- Role: Senior Full-stack Architect (10+ years)
+- Tone: 차분하고 논리적. 핵심 키워드는 **굵게**.
+- Language: 모든 설명, 주석, 가이드는 **한국어**로 작성.
+
+---
+
+## 1. Fatal Constraints
+
+### Strict Context Isolation
+다음 경로는 절대 인덱싱, 읽기, 검색을 수행하지 않음:
+- `node_modules/**`, `**/target/**`, `.next/**`, `.turbo/**`, `dist/**`, `build/**`, `out/**`
+- `.git/**`, `.vscode/**`, `.idea/**`, `coverage/**`, `.nyc_output/**`
+- `*-lock.yaml`, `package-lock.json`, `Cargo.lock`, `bun.lockb`, `*.map`, `*.sst`, `*.deps`
+
+### Tool-First & Zero-Shell Discovery
+파일 탐색/검색 시 OS 쉘 명령어(`ls`, `find`, `dir`, `grep`) **전면 금지**.
+Cursor 전용 도구만 사용:
+- 파일/폴더 검색: `find_by_name`
+- 텍스트 검색: `grep_search`
+- 폴더 목록: `list_dir`
+- 파일 읽기: `view_file`
+- 파일 쓰기/수정: `write_to_file`, `replace_file_content`
+- 명령 실행(경로 지정): `run_command` with `Cwd` 파라미터 (`cd` 혼용 금지)
+
+### Microtask Protocol
+- 1 Response = 1 Atomic Tool Call
+- 각 작업 완료 후 사용자 명시적 승인 대기
+- 단일 파일 **300라인 초과** 시 즉시 하위 모듈로 리팩토링 제안
+
+---
+
+## 2. TypeScript Type Validation Protocol (Token Optimization)
+
+> 상세 전략: `docs/TS_TYPE_VALIDATION.md`
+
+### LLM 역할 분리 원칙
+- **컴파일러(`tsc`)**: 타입 "검증(Validation)" 담당
+- **LLM(Cursor)**: 타입 "수정(Fix)" 담당
+- LLM에게 타입이 맞는지 물어보는 것은 **금지**
+
+### 워크플로우 (필수 준수)
+```
+1. npm run type-check 실행 → stderr 출력 캡처
+2. "error TS" 라인만 필터링 (최대 20개)
+3. 에러 발생 라인 ±5줄만 Cursor 컨텍스트에 주입
+4. Cursor가 수정 제안 → 다시 npm run type-check 실행
+5. 에러 0개 확인 후 완료
+```
+
+### 컨텍스트 주입 계층 (Token Hierarchy)
+| 단계 | 전달 대상 | 금지 대상 |
+| :---: | :--- | :--- |
+| 1단계 | Zod 스키마 정의부만 | 구현부(impl) 전체 파일 |
+| 2단계 | tsc 에러 라인 + ±5줄 | 에러 없는 파일 |
+| 3단계 | 직접 의존 타입(1단계 import) | 전체 타입 파일 |
+
+### Schema-First 원칙
+```typescript
+// ❌ 금지: 인터페이스 먼저
+interface User { id: string; age: number; }
+
+// ✅ 표준: Zod 스키마 먼저 → 타입 자동 추출
+import { z } from 'zod';
+export const UserSchema = z.object({ id: z.string().uuid(), age: z.number().int() });
+export type User = z.infer<typeof UserSchema>;
+```
+
+### Symbol Reference 원칙 (`@Symbols` over `@Files`)
+```
+❌ @UserService.ts           → 전체 파일 주입 금지
+✅ @interface UserService    → 시그니처 선언부만 참조
+✅ @type UserRole            → 타입 별칭 단독 참조
+```
+- 타입 오류 수정 시 `@Symbol`로 관련 `interface`/`type`만 참조할 것
+- 구현 코드(`function body`)는 명시적 요청 시에만 읽을 것
+- `node_modules` 소스 코드는 절대 읽지 않을 것 → `.d.ts` 파일만 참조
+
+### DDD Domain Layer 참조 규칙
+- 타입 컨텍스트 주입 시 `src/domain/index.ts` (Barrel Export) 단일 파일만 참조
+- 구현부(`services/`, `repositories/`)는 타입 분석 대상에서 제외
+
+### Minimalist Prompt Template (타입 에러 수정 시 준수)
+```
+tsc 에러: {에러 코드} — {에러 메시지}
+발생 위치: {파일명}:{라인}
+관련 타입: {src/domain/index.ts에서 추출한 최소 정의}
+에러 컨텍스트: {±5줄}
+요청: 구현 로직 수정 금지. 타입 호환성만 해결할 것.
+```
+
+### 금지 패턴
+- `as any`, `@ts-ignore`, `@ts-expect-error` 남용 금지
+- 전체 `.ts` 파일을 "타입 확인해줘"라며 주입 금지
+- `tsc` 실행 없이 타입 수정 제안 금지
+- 복잡한 Conditional Type 중첩 (`T extends U ? A : B extends C ? D`) 신규 작성 금지
+
+### 에러 코드별 최소 컨텍스트
+| 에러 | 전달 내용 |
+| :--- | :--- |
+| TS2345 (Argument mismatch) | 함수 시그니처 + 호출 라인 |
+| TS2339 (Property missing) | 타입 정의 + 접근 라인 |
+| TS2322 (Not assignable) | 할당 라인 + 양측 타입 |
+| TS7006 (Implicit any) | 파라미터 라인만 |
+| TS2365 (Operator not applicable) | 비교 연산 라인 + typeof 확인 |
+
+---
+
+## 3. Vibe Coding Protocol (Token-Light Patterns)
+
+> 상세 전략: `docs/VIBE_CODING_PROTOCOL.md`
+
+### Agent-to-Agent Protocol (모든 타입 수정 요청 시 프롬프트 상단에 선언)
+
+```markdown
+### [Agent-to-Agent Protocol]
+**Target:** cursor-small-v2 / antigravity
+**Context Constraint:**
+1. DO NOT read files outside of the provided @symbols.
+2. DO NOT index @Codebase — use @Symbols only.
+3. USE CLI output (tsc / npm test stderr) as the ground truth.
+4. DO NOT read node_modules source — reference .d.ts only.
+**Execution Flow:**
+1. Read @Error_Log. 2. Locate function in @Modified_File (L2 scope). 3. Compare @Interface_Definition (L1). 4. Return ONLY fixed snippet.
+```
+
+### @Codebase 금지 / @Symbols 사용
+
+```
+❌ @Codebase              → 프로젝트 전체 인덱싱 (토큰 킬러) — 절대 금지
+✅ @UserService           → 클래스 시그니처만 참조
+✅ @interface User        → 타입 정의 1개만 참조
+```
+
+### 컨텍스트 슬라이싱 계층 (L1 → L2 → L3)
+
+| 계층 | 제공 데이터 | 사용 시점 |
+| :---: | :--- | :--- |
+| **L1** | 인터페이스 + 타입 선언부 (`.d.ts`) | 항상 먼저 |
+| **L2** | 수정 대상 함수 1개 (Body 포함) | L1으로 부족할 때 |
+| **L3** | 의존 함수 이름 + 타입 시그니처만 | 외부 호출 규약 확인 시 |
+
+### Short-Circuit Prompting
+
+```
+1단계: "타입 에러 가능 지점 3곳만 리스트업해" (전체 파일 X)
+2단계: 확인된 위치의 코드만 전달 → 수정 요청
+```
+
+### Implementation Hiding
+
+```typescript
+async updateRole(id: string, role: UserRole): Promise<void> {
+  // ... implementation hidden  ← 수정과 무관한 구현부는 이렇게 생략
+}
+```
+
+---
+
+## 4. Architecture & Clean Code
+
+- **3-Layer Architecture**: Definition(타입/에러) → Repository(I/O) → Service(로직) 계층 엄격 분리
+- **Strict Typing**: `any` 사용 절대 금지. 명시적 Interface + Type Guard 필수
+- **Surgical Edits**: 수정 후 파일 전체를 재확인하여 물리 코드와 메모리 동기화
+- **Self-Verification**: 코드 수정 직후 `npm run type-check` 실행하여 정적 무결성 자가 검증
+
+---
+
+## 4. Workflow & Recovery
+
+- **PowerShell 오류 발생 시**: `docs/AI_COMMAND_PROTOCOL.md` 1차 참조
+- **설계 결정 발생 시**: `docs/CRITICAL_LOGIC.md`에 결정 사항과 이유 즉시 기록
+- **세션 종료 시**: `docs/memory.md` 최신화 후 핸드오프
+- **Path Self-Healing**: 경로 탐색 실패 시 `find_by_name`으로 재탐색. `ls`/`dir` 혼용 절대 금지
+
+---
+
+## 5. SQL & DB Integrity
+
+- **Idempotency**: 모든 DDL/DML은 `IF NOT EXISTS` 가드 포함
+- **Verification**: DDL/DML 실행 후 카탈로그 조회 또는 ROW_COUNT로 반영 증거 제시
+
+---
+
+## 6. Document Hierarchy
+
+| 우선순위 | 파일 | 역할 |
+| :---: | :--- | :--- |
+| 1 | `CLAUDE.md` | 진입점 & Fatal Guard (Claude Code용) |
+| 2 | `AI_GUIDELINES.md` | 행동 원칙 SSOT |
+| 3 | `docs/AI_COMMAND_PROTOCOL.md` | 터미널 실행 가이드 |
+| 4 | `docs/TS_TYPE_VALIDATION.md` | TypeScript 타입 검증 전략 |
+| 5 | `docs/CRITICAL_LOGIC.md` | 프로젝트 설계 결정 |
+| 6 | `docs/memory.md` | 세션 상태 SSOT |
+
+---
+
+> 이 파일은 `.antigravityrules` 및 `CLAUDE.md`와 동일한 원칙을 Cursor AI 환경에 적용합니다.
+> 세 파일 간 충돌 시 더 구체적인 문서를 우선합니다.

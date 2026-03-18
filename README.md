@@ -97,16 +97,28 @@ powershell -ExecutionPolicy Bypass -File scripts/check-env.ps1
 
 ```
 bootstrap/
-├── bootstrap.bat          # 더블클릭 런처 (powershell.exe 실행)
-├── Bootstrap-DevEnv.ps1   # 설치 로직 본체
+├── bootstrap.bat               # 더블클릭 런처 (powershell.exe 실행)
+├── Bootstrap-DevEnv.ps1        # 설치 로직 본체
+├── CLAUDE.md                   # AI 에이전트 진입점 & Fatal Guard
+├── AI_GUIDELINES.md            # AI 행동 원칙 SSOT
+├── .antigravityrules           # Antigravity 에이전트 런타임 제약
+├── .cursorrules                # Cursor AI 전용 규칙
 ├── scripts/
-│   ├── check-env.ps1      # 환경 무결성 검증 엔진
-│   └── init-terminal.ps1  # 터미널 세션 초기화 프로토콜
-├── shared_lint_rules.json # 전역 공유 린트 정책
-├── eslint.config.js       # 프로젝트 표준 린트 설정
-├── .antigravityrules      # 에이전트 터미널 상호작용 규칙
+│   ├── check-env.ps1           # 환경 무결성 검증 엔진
+│   ├── init-terminal.ps1       # 터미널 세션 초기화 프로토콜
+│   ├── type-check-slice.ps1    # TypeScript Error-Only Context 추출기
+│   └── types-extractor.ts      # ts-morph 기반 타입 정의 추출기
+├── shared_lint_rules.json      # 전역 공유 린트 정책
+├── eslint.config.js            # 프로젝트 표준 린트 설정
+├── .vscode/
+│   ├── tasks.json              # TypeScript 타입 체크 태스크
+│   └── settings.json           # Language Service + 컨텍스트 오염 방지
 ├── README.md
 └── docs/
-    ├── CRITICAL_LOGIC.md  # 설계 결정 SSOT
-    └── memory.md          # 작업 로그
+    ├── CRITICAL_LOGIC.md       # 설계 결정 SSOT
+    ├── memory.md               # 작업 로그 (세션 상태 SSOT)
+    ├── AI_COMMAND_PROTOCOL.md  # 터미널 실행 가이드 & 오류 패턴
+    ├── TS_TYPE_VALIDATION.md   # TypeScript 타입 검증 전략 (3-IDE)
+    ├── TS_ADVANCED_PATTERNS.md # DDD 타입 분리 / Symbol Ref / Flatten
+    └── VIBE_CODING_PROTOCOL.md # Validate-and-Prune / L1/L2/L3
 ```

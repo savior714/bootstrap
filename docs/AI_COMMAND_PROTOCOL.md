@@ -5,21 +5,22 @@
 
 ---
 
-## 0. [CRITICAL] Tool-First & Zero-Shell Discovery (절대 금지 원칙)
+## 0. [CRITICAL] Tool-First & Zero-Shell Discovery & Navigation (전면 금지)
 
-파일 탐색, 검색, 목록 조회 시 OS 쉘 명령어의 **사용을 전면 금지**합니다. 에이전트는 반드시 **IDE 전용 구조화 도구**만을 사용해야 합니다.
+파일 탐색, 검색, 목록 조회 및 **경로 이동** 시 OS 쉘 명령어의 **사용을 전면 금지**합니다. 에이전트는 반드시 **IDE 전용 구조화 도구**만을 사용해야 합니다.
 
-> **금지 근거**: 쉘 출력물은 비정형 텍스트로 Context Window를 오염시키고(Context Hygiene), 환경별로 결과가 달라지며(Determinism), 경로 오파싱으로 인한 치명적 Side Effect(오삭제, 오수정)를 유발합니다(Type-Safety).
+> **금지 근거**: 쉘 출력물은 비정형 텍스트로 Context Window를 오염시키고(Context Hygiene), 환경별로 결과가 달라지며(Determinism), 경로 오파싱으로 인한 치명적 Side Effect(오삭제, 오수정)를 유발합니다(Type-Safety). 특히 `cd`를 통한 상태 변경은 작업 환경의 불확실성을 가중시킵니다.
 
-| 작업 유형           | 쉘 명령어 (**전면 금지**)                 | Claude Code              | Cursor / Antigravity                      |
-| ------------------- | ----------------------------------------- | ------------------------ | ----------------------------------------- |
-| 파일/폴더 검색      | `dir /s`, `find`, `Get-ChildItem -Recurse`| **`Glob`**               | **`find_by_name`**                        |
-| 파일 내 텍스트 검색 | `grep`, `Select-String`, `dir /s \| grep` | **`Grep`**               | **`grep_search`**                         |
-| 폴더 목록 조회      | `ls`, `dir`                               | **`Glob`**               | **`list_dir`**                            |
-| 파일 내용 읽기      | `cat`, `type`, `Get-Content`              | **`Read`**               | **`view_file`**                           |
-| 파일 생성/수정      | `Set-Content`, `echo >`, `Add-Content`    | **`Write`, `Edit`**      | **`write_to_file`, `replace_file_content`**|
+| 작업 유형           | 쉘 명령어 (**전면 금지**)                  | Claude Code         | Cursor / Antigravity                        | 설계 전략 (SSOT)                       |
+| ------------------- | ------------------------------------------ | ------------------- | ------------------------------------------- | -------------------------------------- |
+| 파일/폴더 검색      | `dir /s`, `find`, `Get-ChildItem -Recurse` | **`Glob`**          | **`find_by_name`**                          | **데이터 인지**(Data Perception)       |
+| 파일 내 텍스트 검색 | `grep`, `Select-String`, `dir /s \| grep`  | **`Grep`**          | **`grep_search`**                           | **컨텍스트 위생**(Context Hygiene)     |
+| 폴더 목록 조회      | `ls`, `dir`                                | **`Glob`**          | **`list_dir`**                              | **결정론 보장**(Determinism)           |
+| 파일 내용 읽기      | `cat`, `type`, `Get-Content`               | **`Read`**          | **`view_file`**                             | **토큰 효율성**(Token Efficiency)      |
+| 파일 생성/수정      | `Set-Content`, `echo >`, `Add-Content`     | **`Write`, `Edit`** | **`write_to_file`, `replace_file_content`** | **부수 효과 차단**(No Side Effects)    |
+| **경로 이동**       | **`cd`, `Set-Location`, `pushd`, `popd`**  | **`run` (`Cwd`)**   | **`run_command` (`Cwd`)**                   | **환경 물리 격리**(Physical Isolation) |
 
-> **예외**: 프로젝트 빌드(`npm run`), 타입 체크(`tsc`), 패키지 관리(`npm install`) 등 **전용 도구가 물리적으로 존재하지 않는 경우**에만 Section 1~7의 안전 수칙을 준수하여 PowerShell을 사용합니다. 이 경우에도 `ls`/`dir` 등 **탐색형 명령어는 절대 혼용 금지**합니다.
+> **예외**: 프로젝트 빌드(`npm run`), 타입 체크(`tsc`), 패키지 관리(`npm install`) 등 **전용 도구가 물리적으로 존재하지 않는 경우**에만 Section 1~7의 안전 수칙을 준수하여 PowerShell을 사용합니다. 이 경우에도 **실행 위치는 도구의 `Cwd` 매개변수로 지정**하며, `ls`/`dir` 등 **탐색형 명령어는 절대 혼용 금지**합니다.
 
 ---
 
@@ -83,26 +84,28 @@ Get-Content -LiteralPath $path -TotalCount 30
 ### 증상
 
 ```
-Invalid project directory provided, it must be an absolute path: C:\...\frontend\lint
+Invalid project directory provided, no such directory: C: \...\frontend\lint
 ```
 
 ### 원인
 
-`npm run lint`를 루트에서 실행하면 내부적으로 `next lint`가 호출됩니다. 이때 `--` 이후의 인자를 Next.js가 **"검사할 디렉토리 경로"**로 해석하여 `frontend/lint` 폴더를 찾으려다 실패합니다.
+1. `npm run lint` 실행 시 `lint`라는 추가 인자가 전달됨 (예: `npm run lint lint`).
+2. 또는 루트에 `package.json`이 없는 상태에서 쉘이 명령어 자체를 인자로 오인함.
+3. **가장 빈번한 사례**: 에이전트가 `cd frontend; npm run lint`와 같이 쉘 명령어를 조합하여 실행하면서, 인자 파싱 과정에서 `lint`가 중복 전달됨.
 
 ### 올바른 명령
 
-```powershell
-# ❌ 잘못된 예시 (루트에서 실행, 인자 충돌)
-npm run lint -- frontend
-
-# ✅ 대상 디렉토리로 먼저 이동 후 실행
-Set-Location frontend; npm run lint
-
-# ✅ package.json scripts에 경로 고정 (근본 해결)
-# frontend/package.json:
-# "scripts": { "lint": "next lint", "type-check": "tsc --noEmit" }
+```json
+// Antigravity run_command 호출 예시
+{
+  "CommandLine": "npm run lint",
+  "Cwd": "c:\\develop\\eco_pediatrics\\frontend"
+}
 ```
+
+> **핵심**: `Set-Location`이나 `cd`를 절대 사용하지 마십시오. IDE 도구의 **`Cwd` 매개변수**를 사용하여 작업 디렉토리를 물리적으로 고정하는 것이 유일하고 안전한 해결책입니다.
+
+> **실증 사례**: `Cwd`를 지정했음에도 `next lint`가 `\lint` 경로를 찾는 오류는 에이전트가 내부적으로 `npm run lint`에 실행 문맥상의 키워드를 인자로 중복 전달하거나, 쉘 환경 변수 오염으로 인해 발생할 수 있습니다. 이 경우 `npm run lint` 대신 `npx next lint`와 같이 바이너리를 직접 호출하거나, 환경 변수를 초기화하는 `npm run lint` (예: PowerShell에서 `$env:NODE_DEBUG=""; npm run lint`) 방식을 고려하십시오.
 
 > **추천**: 서브패키지의 `package.json`에 `lint`, `type-check` 스크립트를 명시하여 루트에서 인자를 전달할 필요를 없애는 것이 가장 안전합니다.
 
@@ -250,15 +253,73 @@ $count = (Get-Content -LiteralPath 'src\lib\api.ts').Count; if ($count -gt 300) 
 
 ## 요약 대조표
 
-| #   | 오류 유형              | 핵심 원인                    | 즉각 해결책                         |
-| --- | ---------------------- | ---------------------------- | ----------------------------------- |
-| 1   | **파일에 `cd`**        | `cd`는 폴더 전용             | `Get-Content -LiteralPath`          |
-| 2   | **파이프라인 바인딩**  | 타입/바인딩 불일치           | `Get-Content (Join-Path ...)`       |
-| 3   | **`next lint` 인자**   | CLI가 인자를 경로로 오해     | `cd target; npm run lint`           |
-| 4   | **`npx` 차단**         | 로컬 패키지 미설치           | `npx -p typescript tsc`             |
-| 5   | **`Add-Content` 차단** | 프로필 보안 정책             | `[System.IO.File]::AppendAllText()` |
-| 6   | **`dir /s /b`**        | PowerShell에서 CMD 옵션 사용 | `Get-ChildItem -Recurse`            |
-| 7   | **라인 수 오판**       | 수동 계산 오류               | `(Get-Content <file>).Count`        |
+| #   | 오류 유형                                                                                                                            | 핵심 원인          | 즉각 해결책                   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------ | ----------------------------- |
+| 1   | **파일에 `cd`**                                                                                                                      | `cd`는 폴더 전용   | `Get-Content -LiteralPath`    |
+| 2   | **파이프라인 바인딩**                                                                                                                | 타입/바인딩 불일치 | `Get-Content (Join-Path ...)` |
+| 3   | **`next- **Status\*\*: SSOT 반영 및 검증 완료. 린트 환경 이슈는 `Cwd` 준수에도 불구하고 발생할 수 있음을 확인하고 대응 지침 보강. ✅ |
+
+- **결과**: `npm test`를 통한 로직 무결성 확인 및 린트 지침 고도화 완료.
+  |
+  | 4 | **`npx` 차단** | 로컬 패키지 미설치 | `npx -p typescript tsc` |
+  | 5 | **`Add-Content` 차단** | 프로필 보안 정책 | `[System.IO.File]::AppendAllText()` |
+  | 6 | **`dir /s /b`** | PowerShell에서 CMD 옵션 사용 | `Get-ChildItem -Recurse` |
+  | 7 | **라인 수 오판** | 수동 계산 오류 | `(Get-Content <file>).Count` |
+
+---
+
+## 8. TypeScript Type Check Guard — Error-Only Context 패턴
+
+> 상세 전략: [`docs/TS_TYPE_VALIDATION.md`](TS_TYPE_VALIDATION.md)
+
+### 증상
+
+```
+LLM이 타입 에러를 고치는 데 토큰을 과도하게 소비하거나,
+전체 파일을 다시 제출해도 동일한 에러가 반복 발생하는 경우.
+```
+
+### 원인
+
+- 전체 `.ts` 파일을 LLM 컨텍스트에 주입하여 불필요한 구현부까지 분석하게 함
+- `tsc` 없이 LLM에게 "이 코드 타입 맞아?"라고 질문 (LLM을 컴파일러로 오용)
+- 에러 없는 파일까지 컨텍스트에 포함
+
+### 올바른 명령 — Error-Only 슬라이싱
+
+```powershell
+# ✅ 에러 라인만 추출하여 LLM에 전달 (PowerShell)
+powershell -NoProfile -Command "npx -p typescript tsc --noEmit 2>&1 | Select-String 'error TS' | Select-Object -First 20"
+
+# ✅ 에러 수 카운트만 확인 (빠른 검증)
+powershell -NoProfile -Command "(npx -p typescript tsc --noEmit 2>&1 | Select-String 'error TS').Count"
+
+# ✅ 특정 파일만 타입 체크
+powershell -NoProfile -Command "npx -p typescript tsc --noEmit --isolatedModules src/lib/api.ts 2>&1 | Select-String 'error TS'"
+
+# ✅ Antigravity run_command 호출 예시
+# {
+#   "CommandLine": "powershell -NoProfile -Command \"npx -p typescript tsc --noEmit 2>&1 | Select-String 'error TS' | Select-Object -First 20\"",
+#   "Cwd": "c:\\your-project"
+# }
+```
+
+### 에러 코드별 최소 컨텍스트 전략
+
+| 에러 코드 | 에러 명 | LLM에 전달할 최소 컨텍스트 |
+| :--- | :--- | :--- |
+| `TS2345` | Argument type mismatch | 함수 시그니처 + 호출 라인만 |
+| `TS2339` | Property does not exist | 타입 정의 + 접근 라인만 |
+| `TS2322` | Type not assignable | 할당 라인 + 양측 타입 정의 |
+| `TS7006` | Implicit any | 파라미터 라인만 |
+| `TS2365` | Operator not applicable | 비교 연산 라인 + typeof 확인 |
+
+### 자동화 스크립트 활용
+
+```powershell
+# scripts/type-check-slice.ps1 — Error-Only Context 추출기
+# 사용법: powershell -NoProfile -File scripts/type-check-slice.ps1 -ProjectPath "c:\your-project"
+```
 
 ---
 
