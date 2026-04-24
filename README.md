@@ -1,124 +1,47 @@
-# Dev Environment Bootstrap
+# Agentic Development System Bootstrap
 
-Windows 11 개발환경 일괄 설치 스크립트. **winget** 기반으로 동작하며, 설치할 도구를 인터랙티브하게 선택할 수 있습니다.
+이 디렉토리는 현재 프로젝트의 핵심 개발 시스템(정책, 실행 루틴, TDD 게이트 등)을 다른 프로젝트로 이식하기 위한 '설치 패키지'입니다.
 
-## 대상 프로젝트 스택
+## 🔄 동기화 워크플로우 (`/bootstrap`)
 
-`eco_pediatrics`, `cheonggu`, `law`, `golf_scoring`, `stock_vercel`, `blog`, `fmkorea`, `mail`, `myllm` 등 전체 개발 프로젝트를 커버합니다.
+현재 프로젝트(EMR)의 지침이 변경되었을 때, 이를 템플릿에 반영하려면 에이전트에게 다음 명령을 내리십시오.
 
-## 사용법
+> "현재 시스템의 변경사항을 부트스트랩에 반영해줘 (/bootstrap)"
 
-### 포맷된 새 PC에서 처음 설치
+이 워크플로우는 현재의 `AGENTS.md`, `PROJECT_RULES.md`, TDD 게이트 로직 등을 자동으로 일반화하여 `templates/` 폴더를 최신 상태로 유지합니다.
 
-```bash
-# 1. 이 레포를 클론
-git clone https://github.com/savior714/bootstrap.git
-cd bootstrap
+## 📦 구성 요소
 
-# 2. bootstrap.bat 우클릭 → "관리자 권한으로 실행"
-bootstrap.bat
-```
 
-> ⚠️ **반드시 관리자 권한으로 실행해야 합니다.**
->
-> 더블클릭으로 실행하면 창이 바로 꺼지는 현상이 발생합니다.
-> 이는 오류가 아니라, 스크립트가 내부적으로 관리자 권한 재실행을 시도하면서
-> 원본 창이 닫히고 UAC 프롬프트가 뜨는 정상 동작입니다.
-> **UAC 창에서 "예"를 누르면 새 창에서 계속 실행됩니다.**
->
-> 창이 뜨지 않거나 즉시 종료된다면 아래 방법으로 직접 실행하세요:
->
-> ```powershell
-> # 관리자 권한 PowerShell에서 실행
-> powershell -ExecutionPolicy Bypass -File Bootstrap-DevEnv.ps1
-> ```
+1. **`bootstrap.sh`**: 대상 프로젝트에 시스템을 주입하는 메인 설치 스크립트.
+2. **`templates/`**: 이식될 핵심 파일들의 템플릿.
+   - `AGENTS.md`: 에이전트의 행동 지침 (TDD 강제).
+   - `PROJECT_RULES.md`: 프로젝트 정책 및 기술 스택 SSOT.
+   - `verify.sh`: TDD 게이트 및 로컬 검증 스크립트.
+   - `tools/tdd_gate_plugin.py`: pytest용 TDD 게이트 플러그인.
+   - `tests/`: 초기 실패 테스트 및 설정 파일.
 
-## 설치 가능한 도구
+## 🚀 사용 방법
 
-실행 시 아래 목록에서 숫자 키로 토글 → `Enter`로 설치 시작합니다.
-`A` = 전체 선택, `N` = 전체 해제
-
-| #   | 항목                                                        | 기본 선택 |
-| --- | ----------------------------------------------------------- | :-------: |
-| 1   | **Core** — Git, Python 3.14, Node.js LTS, Rust (rustup), uv |    ✅     |
-| 2   | **VS Build Tools 2022** (MSVC + Windows SDK)                |    ✅     |
-| 3   | **Windows Terminal**                                        |    ✅     |
-| 4   | Go                                                          |    ⬜     |
-| 5   | Java (Temurin JDK 17 LTS)                                   |    ⬜     |
-| 6   | Android Studio                                              |    ⬜     |
-| 7   | Docker Desktop                                              |    ⬜     |
-| --- | ----------------------------------------------------------- | :-------: |
-
-## 설치 후 추가 설정
-
-별도로 직접 설치해야 하는 도구:
-
-- **Antigravity IDE**
-- **VS Code** / **Cursor AI**
-- **Supabase CLI**: `npm install -g supabase` 명령어로 직접 설치하십시오. (winget 미지원)
-
-> Android Studio(6번) 선택 시 `ANDROID_HOME` 및 PATH(`platform-tools`, `emulator`)가 **자동으로 설정**됩니다.
-> 단, SDK 실제 파일은 Android Studio 최초 실행 후 다운로드됩니다.
-
-## 설치 완료 후
+새로운 프로젝트 디렉토리에서 아래 명령어를 실행하십시오.
 
 ```bash
-# 새 터미널을 열어 PATH 적용 후
-# 프로젝트 레포 클론 → 해당 프로젝트의 eco.bat 실행
-eco.bat   # [2] Environment Setup
+# 1. 이 bootstrap 디렉토리를 새 프로젝트로 복사하거나, 경로를 지정하여 실행
+./bootstrap.sh
 ```
 
-## 환경 무결성 검증 (Integrity Check)
+또는 에이전트에게 다음과 같이 지시하십시오.
 
-설치가 완료되었거나 기존 환경의 정합성을 확인하려면 아래 명령어를 실행하세요:
+> "현재 프로젝트에 상위 디렉토리 `../bootstrap`에 있는 개발 시스템을 부트스트랩하라."
 
-```powershell
-# 환경 무결성 검사 및 보고서 생성
-powershell -ExecutionPolicy Bypass -File scripts/check-env.ps1
-```
+## ⚙️ 작동 원리
 
-이 스크립트는 Node.js, Git, Lint 설정, 파일 인코딩 등을 검사하고 `env_report.json`을 생성합니다.
+1. **환경 감지**: `pyproject.toml` 등을 통해 언어(Python 등)를 감지합니다.
+2. **구조 생성**: `docs/`, `tests/`, `tools/` 등 필수 디렉토리를 생성합니다.
+3. **시스템 주입**: TDD 게이트 로직이 포함된 `verify.sh`와 정책 문서들을 복사합니다.
+4. **TDD 활성화**: 의도적으로 실패하는 첫 번째 테스트를 생성하여 TDD 사이클을 시작하게 합니다.
 
-## Zero-Config 자동화 (Aritgravity 최적화)
+## ⚠️ 주의 사항
 
-`bootstrap.bat` 실행 시 아래 설정이 전역적으로 자동 적용됩니다:
-
-- **터미널 세션 고정**: `$PROFILE`에 `init-terminal.ps1`이 주입되어 모든 PowerShell 세션의 인코딩이 UTF-8로 고정됩니다.
-- **전역 지침 연결**: `ANTIGRAVITY_BOOTSTRAP_PATH` 환경 변수가 등록되어, 에이전트가 다른 프로젝트에서도 이 레포의 `AI_GUIDELINES.md`를 참조할 수 있습니다.
-- **Git/NPM 표준화**: `core.autocrlf = false`, `init.defaultBranch = main` 등의 전역 설정이 강제 적용됩니다.
-
-## 요구사항
-
-- Windows 11 (winget 내장)
-- 인터넷 연결
-- 관리자 권한 (스크립트 실행 시 자동 요청)
-
-## 파일 구조
-
-```
-bootstrap/
-├── bootstrap.bat               # 더블클릭 런처 (powershell.exe 실행)
-├── Bootstrap-DevEnv.ps1        # 설치 로직 본체
-├── CLAUDE.md                   # AI 에이전트 진입점 & Fatal Guard
-├── AI_GUIDELINES.md            # AI 행동 원칙 SSOT
-├── .antigravityrules           # Antigravity 에이전트 런타임 제약
-├── .cursorrules                # Cursor AI 전용 규칙
-├── scripts/
-│   ├── check-env.ps1           # 환경 무결성 검증 엔진
-│   ├── init-terminal.ps1       # 터미널 세션 초기화 프로토콜
-│   ├── type-check-slice.ps1    # TypeScript Error-Only Context 추출기
-│   └── types-extractor.ts      # ts-morph 기반 타입 정의 추출기
-├── shared_lint_rules.json      # 전역 공유 린트 정책
-├── eslint.config.js            # 프로젝트 표준 린트 설정
-├── .vscode/
-│   ├── tasks.json              # TypeScript 타입 체크 태스크
-│   └── settings.json           # Language Service + 컨텍스트 오염 방지
-├── README.md
-└── docs/
-    ├── CRITICAL_LOGIC.md       # 설계 결정 SSOT
-    ├── memory.md               # 작업 로그 (세션 상태 SSOT)
-    ├── AI_COMMAND_PROTOCOL.md  # 터미널 실행 가이드 & 오류 패턴
-    ├── TS_TYPE_VALIDATION.md   # TypeScript 타입 검증 전략 (3-IDE)
-    ├── TS_ADVANCED_PATTERNS.md # DDD 타입 분리 / Symbol Ref / Flatten
-    └── VIBE_CODING_PROTOCOL.md # Validate-and-Prune / L1/L2/L3
-```
+- 기존 파일이 존재할 경우 덮어쓰지 않고 경고를 표시합니다.
+- `verify.sh` 내부의 경로 설정(`src`, `app` 등)은 프로젝트의 실제 구조에 맞게 수정이 필요할 수 있습니다.

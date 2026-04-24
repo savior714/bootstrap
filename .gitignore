@@ -1,22 +1,26 @@
-node_modules/
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+
+# Distribution / packaging
 dist/
 build/
-.next/
-*.log
-env_report.json
+*.egg-info/
 
-# Security: 시크릿 및 환경 설정 파일
-.env
-.env.local
-.env.*.local
-*.secret
-*.key
-.pnpm-store/
-.turbo/
-out/
-coverage/
-.nyc_output/
-*.map
-*.sst
-*.deps
-*.incremental
+# Logs
+*.log
