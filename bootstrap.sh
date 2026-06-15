@@ -1,103 +1,83 @@
 #!/usr/bin/env bash
-set -e
+# Install ../bootstrap/templates into a target project root (bootstrap SSOT).
+set -euo pipefail
 
-# ==========================================
-# Agentic Development System Bootstrap
-# ==========================================
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEMPLATE_ROOT="${SCRIPT_DIR}/templates"
+TARGET_ROOT="${1:-.}"
 
-echo -e "\033[0;34m🚀 Initializing Agentic Development System...\033[0m"
+# Seeded only when absent — do not overwrite project-owned SSOT files.
+SEED_ONLY_PATHS=(
+  "docs/design.md"
+  "docs/agent-context/memory/MEMORY.md"
+  "docs/agent-context/memory/changelog/README.md"
+  "docs/agent-context/memory/PROJECT_REFACTORING_BACKLOG.md"
+)
 
-# 1. Environment Detection
-if [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
-    LANG="Python"
-elif [ -f "package.json" ]; then
-    LANG="Node"
-else
-    LANG="Unknown"
+if [[ ! -d "${TEMPLATE_ROOT}" ]]; then
+  echo "[FAIL] templates not found at ${TEMPLATE_ROOT}" >&2
+  echo "Run from EMR repo sibling: just bootstrap-sync apply=1" >&2
+  exit 1
 fi
 
-echo -e "Detected Language: \033[0;32m$LANG\033[0m"
+TARGET_ROOT="$(cd "${TARGET_ROOT}" && pwd)"
+echo "Installing bootstrap kernel into ${TARGET_ROOT}"
 
-# 1.5 Tool Check (Allowlist)
-echo -e "🔍 Checking recommended tools..."
-for tool in uv ruff nu just nix; do
-    if command -v $tool > /dev/null 2>&1; then
-        echo -e "  - $tool: \033[0;32mFound\033[0m"
-    else
-        echo -e "  - $tool: \033[0;33mNot Found\033[0m (Recommended)"
-    fi
+if [[ -f "${TARGET_ROOT}/AGENTS.md" || -f "${TARGET_ROOT}/verify.sh" ]]; then
+  echo "[WARN] Target already has AGENTS.md or verify.sh — files will be overwritten."
+  echo "Press Ctrl+C to abort, or wait 5 seconds..."
+  sleep 5
+fi
+
+rsync_excludes=(--exclude '.gitkeep')
+for rel in "${SEED_ONLY_PATHS[@]}"; do
+  rsync_excludes+=(--exclude "$rel")
 done
 
-# 2. Directory Creation
-echo -e "📦 Creating directory structure..."
-mkdir -p docs/{specs,rules,memory,knowledge}
-mkdir -p tests
-mkdir -p tools
-mkdir -p .agents/workflows
+rsync -a "${rsync_excludes[@]}" "${TEMPLATE_ROOT}/" "${TARGET_ROOT}/"
 
-# 3. Inject Templates
-TEMPLATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/templates" && pwd)"
-
-echo -e "💉 Injecting system files..."
-
-# Helper to copy if not exists or prompt
-safe_copy() {
-    local src="$1"
-    local dest="$2"
-    if [ -f "$dest" ]; then
-        echo -e "\033[0;33m⚠️  $dest already exists. Skipping.\033[0m"
-    else
-        cp "$src" "$dest"
-        echo -e "✅ Created $dest"
-    fi
+seed_if_missing() {
+  local rel="$1"
+  local dest="${TARGET_ROOT}/${rel}"
+  local src="${TEMPLATE_ROOT}/${rel}"
+  if [[ -f "$dest" ]]; then
+    echo "[SKIP] ${rel} already exists"
+    return
+  fi
+  if [[ ! -f "$src" ]]; then
+    echo "[WARN] seed template missing: ${rel}" >&2
+    return
+  fi
+  mkdir -p "$(dirname "$dest")"
+  cp "$src" "$dest"
+  echo "[SEED] Created ${rel}"
 }
 
-safe_copy "$TEMPLATE_DIR/AGENTS.md" "AGENTS.md"
-safe_copy "$TEMPLATE_DIR/PROJECT_RULES.md" "PROJECT_RULES.md"
-safe_copy "$TEMPLATE_DIR/verify.sh" "verify.sh"
-safe_copy "$TEMPLATE_DIR/tools/tdd_gate_plugin.py" "tools/tdd_gate_plugin.py"
-safe_copy "$TEMPLATE_DIR/flake.nix" "flake.nix"
-safe_copy "$TEMPLATE_DIR/Justfile" "Justfile"
-safe_copy "$TEMPLATE_DIR/dev.nu" "dev.nu"
-safe_copy "$TEMPLATE_DIR/.pre-commit-config.yaml" ".pre-commit-config.yaml"
+echo ""
+echo "Project SSOT (seed if missing)..."
+for rel in "${SEED_ONLY_PATHS[@]}"; do
+  seed_if_missing "$rel"
+done
 
-if [ "$LANG" == "Python" ]; then
-    safe_copy "$TEMPLATE_DIR/pytest.ini" "pytest.ini"
-    safe_copy "$TEMPLATE_DIR/tests/conftest.py" "tests/conftest.py"
-    safe_copy "$TEMPLATE_DIR/tests/test_initial.py" "tests/test_initial.py"
+# Legacy handoff path — recommend migration to agent-context/memory
+if [[ -d "${TARGET_ROOT}/docs/memory" && ! -f "${TARGET_ROOT}/docs/agent-context/memory/MEMORY.md" ]]; then
+  echo "[WARN] docs/memory/ found without docs/agent-context/memory/MEMORY.md"
+  echo "       Migrate handoff notes into MEMORY.md, then remove docs/memory/."
 fi
 
-# 4. Environment Sync
-echo -e "🔄 Syncing environment..."
-if command -v uv > /dev/null 2>&1; then
-    uv sync
+if [[ -f "${TARGET_ROOT}/pyproject.toml" ]] && command -v uv >/dev/null 2>&1; then
+  echo ""
+  echo "[SETUP] uv sync (dev dependencies)..."
+  (cd "${TARGET_ROOT}" && uv sync)
 fi
 
-# 5. Permissions
-chmod +x verify.sh
+echo ""
+echo "Next steps:"
+echo "  1. Merge templates/Justfile.snippet into your Justfile (verify / ci / lint-turn-end)"
+echo "  2. Replace {{PLACEHOLDER}} in AGENTS.md / PROJECT_RULES.md / MEMORY.md / docs/design.md"
+echo "  3. Retire docs/memory/ if present — use docs/agent-context/memory/MEMORY.md"
+echo "  4. Run: just verify   (or: uv run pytest tests && ./verify.sh)"
+echo ""
+echo "[NOTE] Use pytest via 'uv run pytest' — plain 'pip install pytest' is not required."
 
-# 6. Failure Simulation (Enforcement Check)
-echo -e "🧪 Simulating failure (TDD Gate Check)..."
-mkdir -p src
-touch src/failure_trigger.py
-git add src/failure_trigger.py || true
-
-if ./verify.sh > /dev/null 2>&1; then
-    echo -e "\033[0;31m❌ TDD Gate FAIL: 시스템이 테스트 없는 코드 변경을 차단하지 못했습니다.\033[0m"
-    rm src/failure_trigger.py
-    exit 1
-else
-    echo -e "\033[0;32m✅ TDD Gate OK: 테스트 없는 코드 변경이 정상적으로 차단되었습니다.\033[0m"
-    rm src/failure_trigger.py
-fi
-
-# 7. Summary
-echo -e "\n\033[0;32m✨ Bootstrap Complete!\033[0m"
-echo -e "------------------------------------------------"
-echo -e "Next steps to activate TDD Gate:"
-if [ "$LANG" == "Python" ]; then
-    echo -e "1. Install pytest: \033[0;36mpip install pytest\033[0m"
-    echo -e "2. Run verification: \033[0;36m./verify.sh\033[0m"
-    echo -e "3. See the initial test fail, then implement your logic!"
-fi
-echo -e "------------------------------------------------"
+echo "[PASS] bootstrap install complete"

@@ -1,47 +1,109 @@
-# Agentic Development System Bootstrap
+# Bootstrap Kernel Package (SSOT)
 
-이 디렉토리는 현재 프로젝트의 핵심 개발 시스템(정책, 실행 루틴, TDD 게이트 등)을 다른 프로젝트로 이식하기 위한 '설치 패키지'입니다.
+`Desktop/Dev/bootstrap`는 **설치 키트의 단일 원본(SSOT)** 입니다.  
+EMR 저장소(`../emr`)의 거버넌스·검증 커널을 `templates/`로 동기화해, `game` 등 다른 프로젝트에 이식합니다.
 
-## 🔄 동기화 워크플로우 (`/bootstrap`)
+## 디렉터리 역할
 
-현재 프로젝트(EMR)의 지침이 변경되었을 때, 이를 템플릿에 반영하려면 에이전트에게 다음 명령을 내리십시오.
+| 경로 | 역할 |
+| :--- | :--- |
+| `manifest.json` | 동기화 대상·placeholder 정책 SSOT |
+| `templates/` | `bootstrap.sh`가 복사하는 설치 키트 |
+| `bootstrap.sh` | 대상 프로젝트 루트에 템플릿 설치 |
+| `Justfile.snippet` | `templates/` 안 — 대상 `Justfile`에 병합 |
 
-> "현재 시스템의 변경사항을 부트스트랩에 반영해줘 (/bootstrap)"
+> EMR repo 안의 `emr/dev/bootstrap`는 **사용하지 않습니다** (제거됨). symlink 없음.
 
-이 워크플로우는 현재의 `AGENTS.md`, `PROJECT_RULES.md`, TDD 게이트 로직 등을 자동으로 일반화하여 `templates/` 폴더를 최신 상태로 유지합니다.
-
-## 📦 구성 요소
-
-
-1. **`bootstrap.sh`**: 대상 프로젝트에 시스템을 주입하는 메인 설치 스크립트.
-2. **`templates/`**: 이식될 핵심 파일들의 템플릿.
-   - `AGENTS.md`: 에이전트의 행동 지침 (TDD 강제).
-   - `PROJECT_RULES.md`: 프로젝트 정책 및 기술 스택 SSOT.
-   - `verify.sh`: TDD 게이트 및 로컬 검증 스크립트.
-   - `tools/tdd_gate_plugin.py`: pytest용 TDD 게이트 플러그인.
-   - `tests/`: 초기 실패 테스트 및 설정 파일.
-
-## 🚀 사용 방법
-
-새로운 프로젝트 디렉토리에서 아래 명령어를 실행하십시오.
+## 유지보수 (EMR 저장소에서 실행)
 
 ```bash
-# 1. 이 bootstrap 디렉토리를 새 프로젝트로 복사하거나, 경로를 지정하여 실행
-./bootstrap.sh
+cd ../emr
+
+# 변경 예상만 보기
+just bootstrap-sync
+
+# ../bootstrap/templates 갱신
+just bootstrap-sync apply=1
+
+# CI/PR — drift 검사
+just bootstrap-sync check=1
 ```
 
-또는 에이전트에게 다음과 같이 지시하십시오.
+동기화 실행기: [`../emr/scripts/bootstrap/sync.py`](../emr/scripts/bootstrap/sync.py)  
+소스: EMR live (`AGENTS.md`, `.agents/core/`, `verify.sh` 등) → 출력: `../bootstrap/templates/`
 
-> "현재 프로젝트에 상위 디렉토리 `../bootstrap`에 있는 개발 시스템을 부트스트랩하라."
+## 새 프로젝트에 설치
 
-## ⚙️ 작동 원리
+```bash
+/path/to/Dev/bootstrap/bootstrap.sh /path/to/new-project
+cd /path/to/new-project
+# Justfile.snippet 병합 + {{PLACEHOLDER}} 치환 후
+just verify
+```
 
-1. **환경 감지**: `pyproject.toml` 등을 통해 언어(Python 등)를 감지합니다.
-2. **구조 생성**: `docs/`, `tests/`, `tools/` 등 필수 디렉토리를 생성합니다.
-3. **시스템 주입**: TDD 게이트 로직이 포함된 `verify.sh`와 정책 문서들을 복사합니다.
-4. **TDD 활성화**: 의도적으로 실패하는 첫 번째 테스트를 생성하여 TDD 사이클을 시작하게 합니다.
+예: game 프로젝트
 
-## ⚠️ 주의 사항
+```bash
+../bootstrap/bootstrap.sh ../game
+```
 
-- 기존 파일이 존재할 경우 덮어쓰지 않고 경고를 표시합니다.
-- `verify.sh` 내부의 경로 설정(`src`, `app` 등)은 프로젝트의 실제 구조에 맞게 수정이 필요할 수 있습니다.
+> **주의**: 대상 repo 루트의 **옛 `bootstrap.sh`(safe_copy 스캐폴드)** 는 쓰지 마세요.  
+> SSOT는 `../bootstrap/bootstrap.sh` (rsync + `uv sync`) 입니다.  
+> pytest는 `uv run pytest` — `pip install pytest` 불필요.
+
+## 포함 범위
+
+| 영역 | 설명 |
+| :--- | :--- |
+| `AGENTS.md`, `PROJECT_RULES.md` | 거버넌스 진입점 (placeholder) |
+| `.agents/core` | 실행 규칙 |
+| `.agents/registry/` (4종 md) | 커널 subset 색인 — 미동기화 워크플로·스킬 참조 없음 |
+| `verify.sh`, `scripts/verify/` | 검증 커널 |
+| `tools/tdd_gate_plugin.py` | Red-first TDD 게이트 |
+| `docs/design.md` | 디자인 토큰 starter (없을 때만 seed) |
+
+**미포함**: EMR 의료 도메인, `PROJECT_SKILL_ROUTING.json`, 앱 소스.
+
+## 설치 후 체크리스트
+
+### 1. Placeholder 치환
+
+| Placeholder | 예시 |
+| :--- | :--- |
+| `{{PROJECT_NAME}}` | `AidenGame` |
+| `{{FRONTEND_APP_PATH}}` | 프로젝트 프론트 경로 |
+| `{{BACKEND_PORT}}` | `8000` |
+
+```bash
+rg '\{\{[A-Z_]+\}\}' AGENTS.md PROJECT_RULES.md Justfile.snippet docs/ .agents/ || echo "placeholder 없음"
+```
+
+### 2. Justfile.snippet 병합
+
+`verify` / `ci` / `lint-turn-end` 레시피를 프로젝트 `Justfile`에 합칩니다.
+
+### 3. 검증
+
+```bash
+just verify
+```
+
+## 주의
+
+- 민감 정보는 `sync.py`가 export 전 차단합니다.
+- 큰 diff 시 EMR `/bootstrap` 워크플로에 따라 사용자 확인 후 `apply=1` 하세요.
+
+## 프로젝트 SSOT (seed-only)
+
+설치 시 **파일이 없을 때만** seed 됩니다 — 기존 프로젝트 파일은 덮어쓰지 않습니다.
+
+| 경로 | 설명 |
+| :--- | :--- |
+| `docs/design.md` | 디자인 토큰 starter (범용 팔레트·호출 규칙 — EMR 와이어프레임 미포함) |
+| `docs/agent-context/memory/MEMORY.md` | 세션 SSOT 인덱스 (≤200줄) |
+| `docs/agent-context/memory/changelog/` | 오래된 세션 로그 아카이브 |
+| `docs/agent-context/memory/PROJECT_REFACTORING_BACKLOG.md` | discuss 앵커용 백로그 |
+
+소스: EMR `scripts/bootstrap/scaffold/docs/design.md` (live `docs/design.md` 아님).
+
+`docs/memory/` (구버전)가 있으면 내용을 `MEMORY.md`로 옮긴 뒤 삭제하세요.
