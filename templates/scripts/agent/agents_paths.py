@@ -3,18 +3,11 @@ from pathlib import Path
 
 AGENTS_REL = "agents"
 SCAFFOLD_AGENTS_REL = "scripts/bootstrap/scaffold/agents"
-LEGACY_AGENTS_REL = ".agents"  # compatibility symlink target name
 
 
 def agents_dir(repo_root: Path) -> Path:
-    """Return agents/ dir; prefer agents/, fallback .agents/ (symlink compat)."""
-    primary = repo_root / AGENTS_REL
-    if primary.is_dir():
-        return primary
-    legacy = repo_root / LEGACY_AGENTS_REL
-    if legacy.is_dir():
-        return legacy
-    return primary  # expected location even if missing
+    """Return agents/ directory under repo root."""
+    return repo_root / AGENTS_REL
 
 
 def agents_rel(path_under_agents: str) -> str:

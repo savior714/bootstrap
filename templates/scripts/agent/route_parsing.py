@@ -7,14 +7,13 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 from scripts.agent.agents_paths import (
-    LEGACY_AGENTS_REL,
     PROJECT_SKILL_ROUTING_FILE,
     ROUTING_FILE,
     agents_rel,
 )
 
 _PROJECT_SKILL_PATH = re.compile(
-    r"((?:agents|\.agents)/skills/[\w./-]+/SKILL\.md)",
+    r"(agents/skills/[\w./-]+/SKILL\.md)",
     re.IGNORECASE,
 )
 
@@ -28,13 +27,10 @@ def normalize_repo_rel(path: str) -> str:
 
 
 def find_repo_root(start: Path | None = None) -> Path:
-    """Directory that contains `agents/registry/CONTEXT_ROUTING.md` (legacy `agents/` ok)."""
+    """Directory that contains `agents/registry/CONTEXT_ROUTING.md`."""
     here = (start or Path.cwd()).resolve()
-    legacy_routing = f"{LEGACY_AGENTS_REL}/registry/CONTEXT_ROUTING.md"
     for p in [here, *here.parents]:
         if (p / ROUTING_FILE).is_file():
-            return p
-        if (p / legacy_routing).is_file():
             return p
     return here
 
