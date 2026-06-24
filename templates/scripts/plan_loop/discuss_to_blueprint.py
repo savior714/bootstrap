@@ -15,6 +15,7 @@ from pathlib import Path
 
 from scripts.plan_loop.plan_lint.structural import verify_structural_sequence
 from scripts.docs.plan_yaml_frontmatter import prepend_plan_yaml_frontmatter
+from scripts.plan_loop.blueprint_tail_tasks import render_review_closeout_tail
 
 # DISCUSS 4섹션 패턴
 DISCUSS_SECTIONS = [
@@ -123,6 +124,15 @@ def generate_blueprint_skeleton(note: DiscussNote) -> str:
     linear_issue = "TEM-279"
     template_ref = "TEMPLATE_blueprint.md"
     anti_pattern_ref = "ANTI_PATTERN_FORMAT.md"
+    plan_path = f"docs/plans/PLAN_{note.slug}.md"
+
+    review_closeout_tail = render_review_closeout_tail(
+        plan_path=plan_path,
+        last_impl_task_id="DTB-001",
+        linear_issue=linear_issue,
+        review_task_id="DTB-098",
+        closeout_task_id="DTB-099",
+    )
 
     skeleton = f"""<!-- Language: ko -->
 
@@ -174,9 +184,9 @@ def generate_blueprint_skeleton(note: DiscussNote) -> str:
 
 | Task | 선행 | 내용 |
 | :--- | :--- | :--- |
-| 1.1 | None | 핵심 로직 구현 |
-| 1.2 | 1.1 | CLI 진입점 + Justfile 레시피 |
-| 2.1 | 1.2 | 통합 테스트 |
+| 0.1 | None | DISCUSS 파서 + Blueprint 골격 생성 |
+| DTB-098 | DTB-001 | Implementation Review — review/SKILL diff-first |
+| DTB-099 | DTB-098 | Roll-up · plan-close |
 
 ## 🔍 Diagnosis & Findings
 
@@ -226,7 +236,7 @@ def main():
 
 ## Agent Completion Contract
 
-본 Blueprint Task를 실행하는 세션(`@PLAN_* task N.M`, `/plan` 후 구현)에서 사용자가 별도 금지하지 않는 한, 아래는 **해당 Task 범위에 포함**된다 ([planning.md](../../.agents/core/planning.md) §2.2 · [plan.md](../../.agents/workflows/plan.md) §1.10).
+본 Blueprint Task를 실행하는 세션(`@PLAN_* task N.M`, `/plan` 후 구현)에서 사용자가 별도 금지하지 않는 한, 아래는 **해당 Task 범위에 포함**된다 ([planning.md](../../agents/core/planning.md) §2.2 · [plan.md](../../agents/workflows/plan.md) §1.10).
 
 | 허용 | 금지 |
 | :--- | :--- |
@@ -238,16 +248,16 @@ def main():
 
 ## 🛠️ Step-by-Step Execution Plan
 
-> **에이전트 스코프**: Task 1개씩. `Verify` PASS → `just plan-task-close plan=... task=... conclusion=\"...\"` → `just plan-lint docs/plans/PLAN_{note.slug}.md`.
+> **에이전트 스코프**: Task 1개씩. `Verify` PASS → `just plan-task-close plan=... task=... conclusion=\"...\"` → `just plan-lint docs/plans/PLAN_{note.slug}.md`. Review Task(DTB-098)에서 review/SKILL Pre-read 후 `just plan-review-gate`. Closeout Task(DTB-099)에서 Roll-up 후 `just plan-close`.
 
 ### Phase 0 — 핵심 로직
 
 #### Task 0.1: DISCUSS 파서와 Blueprint 골격 생성 함수 구현 [Unit: Atomic]
 - Task-ID: [DTB-001] | Linear-Issue: {linear_issue} | Status: todo | Priority: 1 | Labels: tooling | RetryPolicy: none
 - **Pre-read**: 이 Task만 — `write`/`patch` 전 **전부** Read
-  1. `[rule]` `.agents/domains/infra/seeding.md`
+  1. `[rule]` `agents/domains/infra/seeding.md`
   2. `[script]` `scripts/plan_loop/discuss_to_blueprint.py`
-  3. `[project_skill]` `.agents/skills/discuss/SKILL.md`
+  3. `[project_skill]` `agents/skills/discuss/SKILL.md`
 - **Action**: Create File | **Target**: `scripts/plan_loop/discuss_to_blueprint.py`
 - **Closeout**: `docs/plans/PLAN_{note.slug}.md` (Task DTB-001 `Conclusion`·`Status`)
 - **Goal**: 먼저 `tests/test_discuss_to_blueprint.py`에 DISCUSS 파싱 실패 테스트를 작성하고, `scripts/plan_loop/discuss_to_blueprint.py`에 DISCUSS 4섹션 파서(`parse_discuss`)로 Blueprint 골격 생성기(`generate_blueprint_skeleton`)를 구현하여 12개 필수 섹션 포함 마크다운을 출력한다 | **Diagnostics**: 0
@@ -255,6 +265,7 @@ def main():
 - **Conclusion**: [판정 — 비개발자용 요약. 검증 결과]
 - **Dependency**: None
 
+{review_closeout_tail}
 ## 🔁 Conclusion & Summary
 
 - **Roll-up**: 미완료 — 1개 Task 모두 todo

@@ -38,6 +38,7 @@ from scripts.plan_loop.preread_render import (  # noqa: E402
 )
 
 # Also re-export internal symbols used by tests / callers.
+from scripts.plan_loop.label_sync import sync_labels_in_plan_text  # noqa: E402
 from scripts.plan_loop.stack_utils import (  # noqa: E402,F401
     _actionable_missing,
     infer_stack_labels,
@@ -103,12 +104,19 @@ def main(argv: list[str] | None = None) -> int:
             repo_root=root,
             intents=manifest["intents"],
         )
+        updated, label_fixes = sync_labels_in_plan_text(
+            updated,
+            repo_root=root,
+            plan_path=plan_path,
+        )
         plan_path.write_text(updated, encoding="utf-8")
         print(
             f"Updated {plan_path} — Context Pre-read Gate "
             f"({len(manifest['bundle']['must_read_paths'])} installed paths), "
             f"Task Pre-read blocks: {task_count}"
         )
+        if label_fixes:
+            print(f"  Linear domain Labels synced: {'; '.join(label_fixes)}")
     elif not args.json:
         print(manifest["section_markdown"])
         print("\n(dry-run: pass --write to upsert into the plan file)")

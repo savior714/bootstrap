@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Estimate Cursor T0 always-applied context size (token budget)."""
+"""Estimate Cursor T0 always-applied context size (token budget).
+
+T0 = PROJECT_RULES.md + AGENTS.md + core stub 3 (principles, error_patterns, orchestration).
+"""
 from __future__ import annotations
 
 import argparse
@@ -15,12 +18,14 @@ if str(REPO) not in sys.path:
 from scripts.agent.route_budget import estimate_tokens  # noqa: E402
 
 T0_FILES = (
+    "PROJECT_RULES.md",
     "AGENTS.md",
-    ".agents/core/principles.md",
-    ".agents/core/error_patterns.md",
+    "agents/core/principles.md",
+    "agents/core/error_patterns.md",
+    "agents/core/orchestration.md",
 )
 
-DEFAULT_TARGET_TOKENS = 8000
+DEFAULT_TARGET_TOKENS = 11000  # bumped 2026-06: orchestration promoted to T0 (~10k tok)
 
 
 def estimate_t0(repo_root: Path, *, target_tokens: int = DEFAULT_TARGET_TOKENS) -> dict:

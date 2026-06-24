@@ -1,0 +1,28 @@
+{
+  "msw": [
+    { "method": "GET", "path": "/api/v1/billing/claim-export-readiness" },
+    { "method": "POST", "path": "/api/v1/billing/export-claim-file" },
+    { "method": "GET", "path": "/api/v1/billing/claim-preparation-check/:accountId" },
+    { "method": "GET", "path": "/api/v1/billing/ai-insights" },
+    { "method": "GET", "path": "/api/v1/billing/revenue/weekly" },
+    { "method": "POST", "path": "/api/v1/billing/day-close" },
+    { "method": "POST", "path": "/api/v1/billing/pay" },
+    { "method": "GET", "path": "/api/v1/billing/summary/today" },
+    { "method": "GET", "path": "/api/v1/dashboard/stats/today" },
+    { "method": "GET", "path": "/api/v1/dashboard/stats/system-health" },
+    { "method": "GET", "path": "/api/v1/fhir/Encounter/today-queue" },
+    { "method": "POST", "path": "/api/v1/fhir/ClinicalMedia/patient/:patientId" },
+    { "method": "GET", "path": "/api/v1/fhir/ClinicalMedia/encounter/:encounterId" },
+    { "method": "GET", "path": "/api/v1/integration/failures" },
+    { "method": "GET", "path": "/api/v1/fhir/ServiceRequest/patient/:patientId" },
+    { "method": "POST", "path": "/api/v1/intake/encounter/materialize" }
+  ],
+  "bff_routes": [
+    "{{FRONTEND_APP_PATH}}/src/app/api/bff/catalog/price-versions/schedule-full/route.ts",
+    "{{FRONTEND_APP_PATH}}/src/app/api/bff/catalog/price-versions/upcoming/route.ts",
+    "{{FRONTEND_APP_PATH}}/src/app/api/bff/catalog/price-versions/pending-notices/route.ts",
+    "{{FRONTEND_APP_PATH}}/src/app/api/bff/catalog/price-versions/pending-notices/ack/route.ts",
+    "{{FRONTEND_APP_PATH}}/src/app/api/auth/refresh/route.ts",
+    "{{FRONTEND_APP_PATH}}/src/app/api/auth/logout/route.ts"
+  ]
+}

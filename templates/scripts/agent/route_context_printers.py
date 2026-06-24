@@ -11,7 +11,7 @@ from scripts.agent.route_matching import project_skill_path
 
 def _print_project_skills_block(repo_root: Path, skills: Sequence[str]) -> None:
     """Print project skill entries with installation status."""
-    print("Project skills (.agents/skills/<name>/SKILL.md, non-ecc):")
+    print("Project skills (agents/skills/<name>/SKILL.md, non-ecc):")
     if not skills:
         print("  (none)")
         return

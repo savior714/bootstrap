@@ -17,7 +17,7 @@ SECTION_RE = re.compile(
 
 _REPO_PATH = re.compile(
     r"(?<![\w./])"
-    r"((?:apps|src|tests|scripts|packages|\.agents|docs)/[\w./-]+\."
+    r"((?:apps|src|tests|scripts|packages|agents|docs)/[\w./-]+\."
     r"(?:py|ts|tsx|jsx|js|md|json|yaml|yml|sql|toml|gradle|kt|java|rs|go))"
 )
 
@@ -58,7 +58,7 @@ def _strip_preread_gate(text: str) -> str:
 
 def _is_incidental_repo_path(rel: str) -> bool:
     """Paths cited in prose/gate lists — not edit targets for this blueprint."""
-    return rel.startswith(".agents/") or "docs/specs/" in rel
+    return rel.startswith("agents/") or "docs/specs/" in rel
 
 
 def _target_field_values(block: str) -> list[str]:
@@ -83,6 +83,28 @@ def _paths_from_target_payload(raw: str, repo_root: Path) -> list[str]:
         if rel and not _is_incidental_repo_path(rel):
             out.append(rel)
     return out
+
+
+_BLUEPRINT_PLAN_TARGET_RE = re.compile(
+    r"^docs/plans/.*PLAN_[\w.-]+\.md$",
+    re.IGNORECASE,
+)
+
+
+def extract_blueprint_plan_target(block: str, repo_root: Path) -> str | None:
+    """Return docs/plans/PLAN_*.md when Task Target is blueprint self-edit (not archive)."""
+    for raw in _target_field_values(block):
+        quoted = re.findall(r"`([^`]+)`", raw)
+        parts = quoted if quoted else re.split(r"[,;\xb7]\s*", raw)
+        for part in parts:
+            rel = _to_repo_rel(part, repo_root)
+            if rel is None:
+                normalized = normalize_repo_rel(part.strip().strip("`").replace("\\", "/"))
+                if _BLUEPRINT_PLAN_TARGET_RE.match(normalized):
+                    rel = normalized
+            if rel and _BLUEPRINT_PLAN_TARGET_RE.match(rel):
+                return rel
+    return None
 
 
 def extract_task_paths(block: str, repo_root: Path) -> list[str]:

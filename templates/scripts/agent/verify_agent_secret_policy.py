@@ -8,6 +8,8 @@ Exit 1 and report missing phrases otherwise.
 import sys
 from pathlib import Path
 
+from scripts.agent.agents_paths import agents_dir
+
 ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Required substrings — the minimum set that must remain in agent-secret docs.
@@ -21,7 +23,7 @@ REQUIRED_PHRASES = [
 ]
 
 TARGET_FILES = [
-    ROOT / ".agents" / "core" / "security.md",
+    agents_dir(ROOT) / "core" / "security.md",
     ROOT / "AGENTS.md",
 ]
 

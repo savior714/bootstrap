@@ -61,12 +61,12 @@ def get_rule_priority(rule: str) -> int:
     if "memory.md" in path:
         return 30
 
-    if "core/" in path or ".agents/core/" in path:
+    if "core/" in path or "agents/core/" in path:
         return 40
 
     if (
         "domains/" in path
-        or ".agents/domains/" in path
+        or "agents/domains/" in path
         or any(
             d in path
             for d in [
@@ -82,10 +82,10 @@ def get_rule_priority(rule: str) -> int:
     ):
         return 50
 
-    if "workflows/" in path or ".agents/workflows/" in path:
+    if "workflows/" in path or "agents/workflows/" in path:
         return 60
 
-    if "adaptive/" in path or ".agents/adaptive/" in path:
+    if "adaptive/" in path or "agents/adaptive/" in path:
         return 70
 
     return 100

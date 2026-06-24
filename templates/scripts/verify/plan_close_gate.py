@@ -35,7 +35,10 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 from scripts.linear_sync.lib.plan_metadata import is_conclusion_placeholder
-from scripts.plan_loop.plan_lint.verification import check_rollup_summary_for_close
+from scripts.plan_loop.plan_lint.verification import (
+    check_implementation_review_for_close,
+    check_rollup_summary_for_close,
+)
 
 PLACEHOLDER = "[완료 시 기입]"
 KOREAN_PLACEHOLDER = "[해결 건수/잔여 건수 요약]"
@@ -459,6 +462,7 @@ def main() -> int:
     plan_text = plan_path.read_text(encoding="utf-8")
     issues: list[str] = []
     issues.extend(check_placeholders(plan_text))
+    issues.extend(check_implementation_review_for_close(plan_text))
     issues.extend(check_rollup_summary_for_close(plan_text))
     issues.extend(check_done_has_conclusion(plan_text.splitlines()))
 

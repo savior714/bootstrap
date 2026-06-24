@@ -10,6 +10,15 @@ COLLABORATION_SUBSECTIONS: tuple[tuple[str, str], ...] = (
     (r"^### 끝났을 때 확인할 것\s*$", "끝났을 때 확인할 것"),
 )
 
+# Blueprint design/narrative zones — plain Korean only (same rules as 업무 요약).
+NATURAL_LANGUAGE_SECTION_HEADINGS: tuple[tuple[str, str], ...] = (
+    (r"##\s*📋\s*업무\s*요약\s*\(\s*협업용\s*\)", "업무 요약"),
+    (r"##\s*🎯\s*Origin Intent", "Origin Intent"),
+    (r"##\s*⚠️\s*Edge Case Trace", "Edge Case Trace"),
+    (r"##\s*🔍\s*Diagnosis\s*&\s*Findings", "Diagnosis & Findings"),
+    (r"##\s*🛡️\s*Risk\s*&\s*Strategy", "Risk & Strategy"),
+)
+
 AGENT_COMPLETION_CONTRACT_RE = re.compile(
     r"^## Agent Completion Contract\s*$",
     re.MULTILINE,
@@ -22,6 +31,16 @@ EXECUTION_PLAN_HEADING_RE = re.compile(
 
 AGENT_SCOPE_BLOCKQUOTE_RE = re.compile(
     r"^>\s*\*\*에이전트 스코프\*\*",
+    re.MULTILINE,
+)
+
+EXECUTION_PACK_RE = re.compile(
+    r"^## Agent Execution Pack\s*$",
+    re.MULTILINE,
+)
+
+IMPACT_SCOPE_HEADING_RE = re.compile(
+    r"^##\s*🔍\s*Impact Scope",
     re.MULTILINE,
 )
 
@@ -68,25 +87,51 @@ def _lint_task_heading_numeric_phase_task(content: str) -> list[str]:
     return issues
 
 
-def _lint_collaboration_summary(content: str) -> list[str]:
-    """: Blueprint 상단 자연어 구역 — 비개발자 톤·기술 식별자 격리."""
-    block = _extract_collaboration_block(content)
-    if block is None:
-        return []
+def _extract_h2_section_block(content: str, heading_pattern: str) -> str | None:
+    match = re.search(rf"^{heading_pattern}\s*$", content, re.MULTILINE)
+    if not match:
+        return None
+    start = match.end()
+    next_h2 = re.search(r"\n## [^#]", content[start:])
+    end = start + next_h2.start() if next_h2 else len(content)
+    return content[start:end]
+
+
+def _natural_language_zone_violations(block: str, section_label: str) -> list[str]:
     issues: list[str] = []
-    for pattern, name in COLLABORATION_SUBSECTIONS:
-        if not re.search(pattern, block, re.MULTILINE):
-            issues.append(f"업무 요약: missing subsection '### {name}'")
     if "`" in block:
         issues.append(
-            "업무 요약: backtick/code in natural-language zone — "
+            f"{section_label}: backtick/code in natural-language zone — "
             "use plain Korean; paths/commands belong below Context Pre-read Gate"
         )
     if re.search(r"(?:^|\s)(?:src|apps)/[\w./-]+", block, re.MULTILINE):
         issues.append(
-            "업무 요약: file path in natural-language zone — move to technical sections"
+            f"{section_label}: file path in natural-language zone — "
+            "move to technical sections"
         )
     return issues
+
+
+def _lint_design_natural_language_zones(content: str) -> list[str]:
+    """Lint narrative/design sections for plain Korean (no backticks/paths)."""
+    if not is_blueprint_markdown(content):
+        return []
+    issues: list[str] = []
+    for pattern, label in NATURAL_LANGUAGE_SECTION_HEADINGS:
+        block = _extract_h2_section_block(content, pattern)
+        if block is None:
+            continue
+        if label == "업무 요약":
+            for sub_pattern, sub_name in COLLABORATION_SUBSECTIONS:
+                if not re.search(sub_pattern, block, re.MULTILINE):
+                    issues.append(f"업무 요약: missing subsection '### {sub_name}'")
+        issues.extend(_natural_language_zone_violations(block, label))
+    return issues
+
+
+def _lint_collaboration_summary(content: str) -> list[str]:
+    """: Blueprint 상단 자연어 구역 — 비개발자 톤·기술 식별자 격리."""
+    return _lint_design_natural_language_zones(content)
 
 
 def _is_active_root_blueprint_path(path: Optional[Path]) -> bool:
@@ -143,26 +188,46 @@ def _lint_dod_checkbox_format(text: str, file_path: Optional[Path]) -> tuple[lis
 
 
 def _lint_active_root_blueprint_governance(
-    content: str, file_path: Optional[Path]
+    content: str, file_path: Optional[Path], *, check_strict: bool = False
 ) -> tuple[list[str], list[str]]:
     """Reference template + 3 mandatory blocks for active root blueprints."""
     if not _is_active_root_blueprint_path(file_path):
         return ([], [])
     issues: list[str] = []
     warnings: list[str] = []
+    pack_match = EXECUTION_PACK_RE.search(content)
+    impact_match = IMPACT_SCOPE_HEADING_RE.search(content)
+    if not pack_match:
+        issues.append(
+            "Active root blueprint missing section: "
+            "## Agent Execution Pack (before Impact Scope — "
+            "see docs/templates/TEMPLATE_blueprint.md §필수 4항)"
+        )
+    elif impact_match and pack_match.start() > impact_match.start():
+        issues.append(
+            "## Agent Execution Pack must appear before ## 🔍 Impact Scope"
+        )
     contract_match = AGENT_COMPLETION_CONTRACT_RE.search(content)
     exec_match = EXECUTION_PLAN_HEADING_RE.search(content)
+    contract_missing = (
+        "Active root blueprint missing section: "
+        "## Agent Completion Contract (before Execution Plan — "
+        "see docs/templates/TEMPLATE_blueprint.md §필수 3항)"
+    )
+    contract_order = (
+        "## Agent Completion Contract must appear before "
+        "## 🛠️ Step-by-Step Execution Plan"
+    )
     if not contract_match:
-        warnings.append(
-            "Active root blueprint missing section: "
-            "## Agent Completion Contract (before Execution Plan — "
-            "see docs/templates/TEMPLATE_blueprint.md §필수 3항)"
-        )
+        if check_strict:
+            issues.append(contract_missing)
+        else:
+            warnings.append(contract_missing)
     elif exec_match and contract_match.start() > exec_match.start():
-        warnings.append(
-            "## Agent Completion Contract must appear before "
-            "## 🛠️ Step-by-Step Execution Plan"
-        )
+        if check_strict:
+            issues.append(contract_order)
+        else:
+            warnings.append(contract_order)
     if exec_match:
         exec_start = exec_match.start()
         exec_block = content[exec_start:]

@@ -13,13 +13,15 @@ import sys
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+
+from scripts.agent.agents_paths import AGENTS_REL
 from typing import Literal
 
 from scripts.agent.verify_rules import verify_links
 
 Severity = Literal["fail", "warn"]
 
-SCAN_ROOTS = (".agents", "docs/knowledge")
+SCAN_ROOTS = (AGENTS_REL, "docs/knowledge")
 WARNINGS_REL = Path("docs/agent-context/memory/doc_quality_warnings.json")
 DEFAULT_STALE_DAYS = 90
 MAX_FILES_CAP = 500
@@ -79,9 +81,9 @@ def _iter_markdown_files(repo_root: Path, *, max_files: int) -> list[Path]:
 
 
 def _cross_ref_severity(rel: str) -> Severity:
-    """Tier-1 FAIL: `.agents/**`. Tier-2 FAIL: `docs/knowledge/<file>.md` (루트). 하위는 WARN."""
+    """Tier-1 FAIL: `agents/**`. Tier-2 FAIL: `docs/knowledge/<file>.md` (루트). 하위는 WARN."""
     parts = Path(rel).parts
-    if parts and parts[0] == ".agents":
+    if parts and parts[0] == AGENTS_REL:
         return "fail"
     if len(parts) >= 2 and parts[0] == "docs" and parts[1] == "knowledge":
         if len(parts) == 3:

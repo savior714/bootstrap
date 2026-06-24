@@ -6,17 +6,21 @@ import re
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-ROUTING_FILE = ".agents/registry/CONTEXT_ROUTING.md"
-PROJECT_SKILL_ROUTING_FILE = ".agents/registry/PROJECT_SKILL_ROUTING.json"
+from scripts.agent.agents_paths import (
+    LEGACY_AGENTS_REL,
+    PROJECT_SKILL_ROUTING_FILE,
+    ROUTING_FILE,
+    agents_rel,
+)
 
 _PROJECT_SKILL_PATH = re.compile(
-    r"(\.agents/skills/[\w./-]+/SKILL\.md)",
+    r"((?:agents|\.agents)/skills/[\w./-]+/SKILL\.md)",
     re.IGNORECASE,
 )
 
 
 def normalize_repo_rel(path: str) -> str:
-    """Strip leading `./` only — preserve `.agents/` and other dot-prefixed segments."""
+    """Strip leading `./` only — preserve `agents/` and other path segments."""
     rel = path.replace("\\", "/")
     while rel.startswith("./"):
         rel = rel[2:]
@@ -24,10 +28,13 @@ def normalize_repo_rel(path: str) -> str:
 
 
 def find_repo_root(start: Path | None = None) -> Path:
-    """Directory that contains `.agents/registry/CONTEXT_ROUTING.md`."""
+    """Directory that contains `agents/registry/CONTEXT_ROUTING.md` (legacy `agents/` ok)."""
     here = (start or Path.cwd()).resolve()
+    legacy_routing = f"{LEGACY_AGENTS_REL}/registry/CONTEXT_ROUTING.md"
     for p in [here, *here.parents]:
         if (p / ROUTING_FILE).is_file():
+            return p
+        if (p / legacy_routing).is_file():
             return p
     return here
 
@@ -58,7 +65,7 @@ def strip_pattern_annotation(pattern: str) -> str:
 
 
 def extract_project_skill_paths(cell: str) -> List[str]:
-    """`.agents/skills/.../SKILL.md` paths from a routing table cell."""
+    """`agents/skills/.../SKILL.md` paths from a routing table cell."""
     return [m.group(1) for m in _PROJECT_SKILL_PATH.finditer(cell.replace("`", ""))]
 
 

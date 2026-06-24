@@ -35,6 +35,7 @@ from scripts.plan_loop.plan_lint.quality import (
     _lint_conclusion_quality,
     _lint_goal_quality,
     _lint_target_quality,
+    _lint_task_goal_block,
     _lint_verify_quality,
 )
 from scripts.plan_loop.plan_lint.verification import (
@@ -44,10 +45,13 @@ from scripts.plan_loop.plan_lint.verification import (
     _is_conclusion_placeholder,
     _is_placeholder_value,
     _lint_open_task_conclusion,
+    _lint_implementation_review_section,
     _lint_preread_gate,
     _lint_rollup_summary_section,
     _lint_task_conclusion_slot,
     _lint_task_preread_block,
+    _lint_template_task_id,
+    lint_implementation_review_task_contract,
 )
 
 
@@ -58,6 +62,15 @@ def _lint_blueprint_doc_meta_fields(text: str) -> list[str]:
     # Linear-Issue: HARD ERROR unless Linear-Policy: internal is set
     linear_policy = doc_fields.get("Linear-Policy", "").strip().lower()
     linear_issue_value = doc_fields.get("Linear-Issue", "").strip()
+    if linear_policy == "internal" and linear_issue_value:
+        from scripts.linear_sync.lib.plan_metadata import is_linear_placeholder as _is_linear_placeholder
+
+        if not _is_linear_placeholder(linear_issue_value):
+            issues.append(
+                "Linear-Policy: internal conflicts with a real Linear-Issue (TEM-NN). "
+                "Use Linear-Issue: N/A for internal-only tracking, or remove Linear-Policy: internal "
+                "for product plans that require Linear board sync and plan-close validation."
+            )
     if linear_policy != "internal":
         if not linear_issue_value:
             issues.append(
@@ -92,24 +105,42 @@ def _lint_blueprint_doc_meta_fields(text: str) -> list[str]:
     return issues
 
 
-def lint_plan_text(text: str, file_path: Optional[Path] = None, is_archive_ready: bool = False) -> tuple[list[str], list[str]]:
+def lint_plan_text(text: str, file_path: Optional[Path] = None, is_archive_ready: bool = False, *, check_quality: bool = False, check_strict: bool = False) -> tuple[list[str], list[str]]:
     issues: list[str] = []
     warnings: list[str] = []
     is_blueprint_doc = is_blueprint_markdown(text)
     
     # [Hard Guard] Section Sequence Check
     if is_blueprint_doc:
-        from scripts.linear_sync.lib.label_policy import validate_blueprint_labels
+        from scripts.linear_sync.lib.label_policy import (
+            validate_blueprint_labels,
+            validate_discouraged_blueprint_labels,
+        )
 
         issues.extend(validate_blueprint_labels(text))
+        issues.extend(validate_discouraged_blueprint_labels(text, file_path=file_path))
+        if file_path is not None:
+            from scripts.agent.route_context import find_repo_root
+            from scripts.plan_loop.label_sync import lint_domain_label_coverage_warnings
+
+            root = find_repo_root(file_path.parent)
+            warnings.extend(
+                lint_domain_label_coverage_warnings(
+                    text,
+                    file_path=file_path,
+                    repo_root=root,
+                )
+            )
         issues.extend(verify_structural_sequence(text))
         issues.extend(_lint_collaboration_summary(text))
         issues.extend(_lint_rollup_summary_section(text))
+        issues.extend(_lint_implementation_review_section(text))
         issues.extend(_lint_task_heading_numeric_phase_task(text))
         issues.extend(_lint_preread_gate(text))
         issues.extend(lint_active_blueprint_recurrence_guards(text, file_path))
+        issues.extend(lint_implementation_review_task_contract(text))
         governance_issues, governance_warnings = _lint_active_root_blueprint_governance(
-            text, file_path
+            text, file_path, check_strict=check_strict
         )
         issues.extend(governance_issues)
         warnings.extend(governance_warnings)
@@ -161,7 +192,7 @@ def lint_plan_text(text: str, file_path: Optional[Path] = None, is_archive_ready
             issues.append(f"Task#{idx} missing required fields: {', '.join(missing)}")
 
         if is_blueprint:
-            issues.extend(_atomic_unit_contract_issues(idx, fields))
+            issues.extend(_atomic_unit_contract_issues(idx, fields, check_strict=check_strict))
 
         if is_blueprint and not missing:
             if FORBIDDEN_LEVEL_TAG_RE.search(block):
@@ -196,17 +227,20 @@ def lint_plan_text(text: str, file_path: Optional[Path] = None, is_archive_ready
                     f"Task#{idx} uses deprecated '{DEPRECATED_LEVEL_LOW_TAG}'; "
                     f"migrate heading to '{ATOMIC_UNIT_TAG}' — lint FAIL"
                 )
-            warnings.extend(_atomic_unit_size_warnings(idx, fields))
+            if check_strict:
+                warnings.extend(_atomic_unit_size_warnings(idx, fields))
             if is_blueprint_doc:
                 issues.extend(_lint_task_preread_block(idx, block))
             issues.extend(_lint_task_conclusion_slot(idx, block))
 
-            # : Task content quality checks
-            task_status = fields.get("Status", "todo")
-            issues.extend(_lint_target_quality(idx, fields.get("Target", "")))
-            issues.extend(_lint_goal_quality(idx, fields.get("Goal", "")))
-            issues.extend(_lint_verify_quality(idx, fields.get("Verify", "")))
-            issues.extend(_lint_conclusion_quality(idx, task_status, fields.get("Conclusion", "")))
+            if check_strict:
+                # Task content quality checks (strict tier only)
+                task_status = fields.get("Status", "todo")
+                issues.extend(_lint_target_quality(idx, fields.get("Target", "")))
+                issues.extend(_lint_task_goal_block(idx, block, fields.get("Goal", "")))
+                issues.extend(_lint_goal_quality(idx, fields.get("Goal", "")))
+                issues.extend(_lint_verify_quality(idx, fields.get("Verify", "")))
+                issues.extend(_lint_conclusion_quality(idx, task_status, fields.get("Conclusion", "")))
 
         status = fields.get("Status", "todo")
         
@@ -233,6 +267,7 @@ def lint_plan_text(text: str, file_path: Optional[Path] = None, is_archive_ready
 
         task_id = fields.get("Task-ID", "").strip()
         if task_id:
+            issues.extend(_lint_template_task_id(idx, task_id))
             if task_id in seen_ids:
                 issues.append(f"Task#{idx} duplicate Task-ID: {task_id}")
             else:
@@ -263,11 +298,30 @@ def lint_plan_text(text: str, file_path: Optional[Path] = None, is_archive_ready
     if is_blueprint_doc:
         issues.extend(_lint_blueprint_doc_meta_fields(text))
 
+    if check_quality and is_blueprint_doc:
+        from scripts.plan_loop.plan_lint.blueprint_quality import lint_blueprint_quality_gates
+
+        quality_issues, quality_warnings = lint_blueprint_quality_gates(text)
+        issues.extend(quality_issues)
+        warnings.extend(quality_warnings)
+
     return issues, warnings
 
 
-def lint_plan_file(path: Path, is_archive_ready: bool = False) -> tuple[list[str], list[str]]:
-    return lint_plan_text(path.read_text(encoding="utf-8"), file_path=path, is_archive_ready=is_archive_ready)
+def lint_plan_file(
+    path: Path,
+    is_archive_ready: bool = False,
+    *,
+    check_quality: bool = False,
+    check_strict: bool = False,
+) -> tuple[list[str], list[str]]:
+    return lint_plan_text(
+        path.read_text(encoding="utf-8"),
+        file_path=path,
+        is_archive_ready=is_archive_ready,
+        check_quality=check_quality,
+        check_strict=check_strict,
+    )
 
 
 

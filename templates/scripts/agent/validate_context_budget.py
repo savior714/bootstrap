@@ -5,29 +5,36 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from scripts.agent.agents_paths import agents_dir
+
 REPO = Path(__file__).resolve().parents[2]
-AGENTS_DIR = REPO / ".agents"
+AGENTS_DIR = agents_dir(REPO)
 SKILLS_DIR = AGENTS_DIR / "skills"
 OUTPUT_NAME = "COMPILED.md"
 FORBIDDEN_NAME = "AGENTS.md"
 
 T0_ALWAYS_APPLY = {
+    REPO / "PROJECT_RULES.md",
     REPO / "AGENTS.md",
     AGENTS_DIR / "core" / "principles.md",
     AGENTS_DIR / "core" / "error_patterns.md",
+    AGENTS_DIR / "core" / "orchestration.md",
 }
 
+# Per-file caps are repo self-guardrails (not Cursor platform limits).
+# orchestration.md is intentionally omitted — always read in full when needed.
 T0_BYTE_CAPS: dict[str, int] = {
-    ".agents/core/error_patterns.md": 10 * 1024,
-    ".agents/core/principles.md": 11 * 1024,
+    "PROJECT_RULES.md": 12 * 1024,
+    "agents/core/error_patterns.md": 15 * 1024,
+    "agents/core/principles.md": 15 * 1024,
 }
-T0_TOTAL_BYTE_CAP = 30 * 1024  # headroom for T0 growth (was 29270 at 2026-06)
+T0_TOTAL_BYTE_CAP = 60 * 1024  # headroom for T0 growth (was 40962 at 2026-06)
 
 CURSORIGNORE_REQUIRED_LINES = (
-    ".agents/skills/vendor/",
-    ".agents/skills/**/COMPILED.md",
-    ".agents/skills/**/AGENTS.md",
-    ".agents/route/session-manifest.json",
+    "agents/skills/vendor/",
+    "agents/skills/**/COMPILED.md",
+    "agents/skills/**/AGENTS.md",
+    "agents/route/session-manifest.json",
 )
 
 COMPILED_SKILLS = (
@@ -47,7 +54,7 @@ def _parse_always_apply(path: Path) -> bool | None:
 
 
 def check_no_skill_agents_md() -> list[str]:
-    """Any AGENTS.md under .agents/skills/ triggers Cursor always-applied injection."""
+    """Any AGENTS.md under agents/skills/ triggers Cursor always-applied injection."""
     issues: list[str] = []
     if not SKILLS_DIR.is_dir():
         return issues

@@ -5,7 +5,7 @@ Session manifest for Context Route Gate — multi-agent, IDE-agnostic.
 Agents run `just route <paths> --json --write-manifest`, Read must_read paths, then
 `just route-read <paths>`. Before edit: `just route-gate-check <paths>` (exit 1 = block).
 
-Manifest default: `.agents/route/session-manifest.json` (gitignored).
+Manifest default: `agents/route/session-manifest.json` (gitignored).
 Override: ROUTE_MANIFEST_PATH, ROUTE_SESSION_KEY, ROUTE_AGENT_ID.
 
 This module re-exports all public API from split submodules for backward compatibility.

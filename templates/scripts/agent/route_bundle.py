@@ -35,25 +35,25 @@ def resolve_rule_tokens_to_paths(rule_tokens: Iterable[str], repo_root: Path) ->
             token = _strip_rule_annotation(token)
             if not token:
                 continue
-            if token.startswith(".agents/"):
+            if token.startswith("agents/"):
                 if (repo_root / token).is_file():
                     add(token)
                 continue
             if token == "adaptive/*.md":
-                for p in sorted((repo_root / ".agents/adaptive").glob("*.md")):
+                for p in sorted((repo_root / "agents/adaptive").glob("*.md")):
                     add(str(p.relative_to(repo_root)))
                 continue
             if token.endswith(".md"):
                 if token.startswith("core/"):
-                    core = repo_root / ".agents/core" / Path(token).name
+                    core = repo_root / "agents/core" / Path(token).name
                     if core.is_file():
                         add(str(core.relative_to(repo_root)))
                     continue
-                domain = repo_root / ".agents/domains" / token
+                domain = repo_root / "agents/domains" / token
                 if domain.is_file():
                     add(str(domain.relative_to(repo_root)))
                     continue
-                core = repo_root / ".agents/core" / Path(token).name
+                core = repo_root / "agents/core" / Path(token).name
                 if core.is_file():
                     add(str(core.relative_to(repo_root)))
     return paths

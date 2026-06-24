@@ -4,9 +4,11 @@ import shutil
 import sys
 from pathlib import Path
 
+from scripts.agent.agents_paths import AGENTS_REL
+
 import yaml
 
-AGENTS_DIR = ".agents"
+AGENTS_DIR = AGENTS_REL
 REQUIRED_YAML_FIELDS = ["scope", "domain"]
 LANGUAGE_GATE = "<!-- Language: ko -->"
 
@@ -110,7 +112,7 @@ def main():
     parser = argparse.ArgumentParser(description="Fix agent rule files (YAML & Language Gate)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be changed without applying")
     parser.add_argument("--backup", action="store_true", help="Create .bak files before modifying")
-    parser.add_argument("--target", type=str, default=AGENTS_DIR, help="Target directory (default: .agents)")
+    parser.add_argument("--target", type=str, default=AGENTS_DIR, help="Target directory (default: agents)")
     
     args = parser.parse_args()
     

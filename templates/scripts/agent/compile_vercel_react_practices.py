@@ -18,6 +18,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from scripts.agent.agents_paths import agents_dir
+
 OUTPUT_NAME = "COMPILED.md"
 FORBIDDEN_NAME = "AGENTS.md"
 RULE_BODY_LINK = re.compile(r"\]\(\./([^)#]+\.md)(#[^)]+)?\)")
@@ -47,13 +49,13 @@ class SkillProfile:
 SKILL_PROFILES: dict[str, SkillProfile] = {
     "vercel-react-best-practices": SkillProfile(
         id="vercel-react-best-practices",
-        rel=".agents/skills/frontend/vercel-react-best-practices",
+        rel="agents/skills/frontend/vercel-react-best-practices",
         title="React Best Practices",
         description="React and Next.js codebases",
     ),
     "vercel-composition-patterns": SkillProfile(
         id="vercel-composition-patterns",
-        rel=".agents/skills/frontend/vercel-composition-patterns",
+        rel="agents/skills/frontend/vercel-composition-patterns",
         title="React Composition Patterns",
         description="React component libraries",
     ),
@@ -86,7 +88,7 @@ def find_repo_root(start: Path | None = None) -> Path:
     if cur.is_file():
         cur = cur.parent
     for parent in [cur, *cur.parents]:
-        if (parent / "AGENTS.md").is_file() and (parent / ".agents").is_dir():
+        if (parent / "AGENTS.md").is_file() and agents_dir(parent).is_dir():
             return parent
     msg = "Could not find repo root"
     raise RuntimeError(msg)

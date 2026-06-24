@@ -1,7 +1,3 @@
-# Memory Changelog Archive
+# Changelog (Bootstrap placeholder)
 
-`MEMORY.md`가 200줄을 넘거나 세션 로그가 길어지면, 월별 파일로 이관합니다.
-
-예: `2026-06/session_20260612_bootstrap.md`
-
-규정: [.agents/core/memory_hygiene.md](../../../../.agents/core/memory_hygiene.md)
+프로젝트별 변경 이력을 여기에 둔다. bootstrap 설치 kit 호환용 최소 placeholder.

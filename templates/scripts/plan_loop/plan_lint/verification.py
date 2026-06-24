@@ -88,6 +88,18 @@ def _is_conclusion_placeholder(value: str) -> bool:
     return _is_bracket_slot_placeholder(normalized)
 
 
+def _lint_template_task_id(task_idx: int, task_id: str) -> list[str]:
+    """FAIL when Task-ID uses template skeleton prefix (XXX, SLUG) instead of slug-derived ID."""
+    from scripts.plan_loop.plan_lint.shared import is_template_task_id
+
+    if not is_template_task_id(task_id):
+        return []
+    return [
+        f"Task#{task_idx} Task-ID '{task_id}' is a template placeholder — "
+        "replace XXX/SLUG with a slug-derived prefix (e.g. PLAN_user_table → [USRT-001])"
+    ]
+
+
 def _lint_open_task_conclusion(task_idx: int, status: str, value: str) -> list[str]:
     """todo/running must keep CSF slot; measured Conclusion only after Verify + done."""
     issues: list[str] = []
@@ -137,7 +149,7 @@ def _lint_task_preread_block(task_idx: int, block: str) -> list[str]:
         )
         return issues
     if not re.search(
-        r"`(?:\.agents|docs|apps|src|scripts|PROJECT_RULES\.md)|`PROJECT_RULES\.md`",
+        r"`(?:agents|docs|apps|src|scripts|PROJECT_RULES\.md)|`PROJECT_RULES\.md`",
         block,
     ):
         issues.append(
@@ -312,8 +324,10 @@ def _extract_target_paths(target: str) -> list[str]:
     return [p.strip() for p in re.split(r"[,·]", target) if p.strip()]
 
 
-def _atomic_unit_contract_issues(task_idx: int, fields: dict[str, str]) -> list[str]:
-    """Hard FAIL: violates single-Verify atomic ticket (.agents/workflows/plan.md §1.10)."""
+def _atomic_unit_contract_issues(
+    task_idx: int, fields: dict[str, str], *, check_strict: bool = False
+) -> list[str]:
+    """Hard FAIL: violates single-Verify atomic ticket (agents/workflows/plan.md §1.10)."""
     issues: list[str] = []
     verify = (fields.get("Verify") or "").strip()
     if not verify:
@@ -334,7 +348,8 @@ def _atomic_unit_contract_issues(task_idx: int, fields: dict[str, str]) -> list[
             )
 
     goal = (fields.get("Goal") or "").strip()
-    issues.extend(_validate_goal_atomicity_conjunctions(goal))
+    if check_strict:
+        issues.extend(_validate_goal_atomicity_conjunctions(goal))
 
     issues.extend(_single_proof_verify_issues(task_idx, verify))
 
@@ -533,7 +548,7 @@ def _lint_rollup_summary_section(text: str) -> list[str]:
             "Conclusion & Summary Roll-up is still a placeholder — "
             "write a measured 1-paragraph summary under "
             "'## 🔁 Conclusion & Summary' before closing the closeout Task "
-            "(see .agents/workflows/plan.md closeout gate)"
+            "(see agents/workflows/plan.md closeout gate)"
         ]
     return []
 
@@ -551,6 +566,226 @@ def check_rollup_summary_for_close(text: str) -> list[str]:
             "Write a measured 1-paragraph summary before running plan-close."
         ]
     return []
+
+
+CODE_IMPLEMENTATION_TARGET_PREFIXES = (
+    "apps/",
+    "src/",
+    "scripts/",
+    "packages/",
+    "tests/",
+)
+
+REVIEW_TASK_ID_SUFFIX_RE = re.compile(r"-098\]", re.IGNORECASE)
+CLOSEOUT_TASK_ID_SUFFIX_RE = re.compile(r"-099\]", re.IGNORECASE)
+
+REVIEW_SKILL_PATH = "agents/skills/review/SKILL.md"
+REVIEW_SKILL_HANDOFF_PATH = "agents/skills/plan/references/handoff-from-execute-to-review.md"
+REVIEW_SKILL_PREREAD_MARKERS: tuple[str, ...] = (
+    REVIEW_SKILL_PATH,
+    "review/SKILL.md",
+    "agents/skills/review/SKILL.md",
+)
+
+IMPLEMENTATION_REVIEW_SECTION_RE = re.compile(
+    r"^##\s*🔍\s*Implementation\s*Review\s*$",
+    re.MULTILINE,
+)
+
+IMPLEMENTATION_REVIEW_PHASE_RE = re.compile(
+    r"^###\s*Phase\s+\d+\s*—\s*.*?(?:Implementation\s*review|구현\s*리뷰)",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+IMPLEMENTATION_REVIEW_PLACEHOLDER_LINE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^\(Findings:", re.IGNORECASE),
+    re.compile(r"^\(Implementation\s*Review:", re.IGNORECASE),
+    re.compile(r"완료\s*후\s*기입"),
+    re.compile(r"review\s*후\s*기입", re.IGNORECASE),
+    re.compile(r"^\[Review\s*—", re.IGNORECASE),
+    re.compile(r"^\-\s*\*\*Findings\*\*:\s*…\s*$"),
+    re.compile(r"^\-\s*\*\*Findings\*\*:\s*\.\.\.\s*$"),
+    re.compile(r"^\[완료\s*시\s*기입\]"),
+)
+
+_MIN_IMPLEMENTATION_REVIEW_LENGTH = 25
+
+
+def _has_code_implementation_tasks(text: str) -> bool:
+    """True when blueprint has code-target tasks (excludes docs/plans/, -098, -099)."""
+    from scripts.plan_loop.plan_lint.shared import _parse_fields, _split_task_blocks
+
+    for block in _split_task_blocks(text):
+        fields = _parse_fields(block)
+        task_id = (fields.get("Task-ID") or "").strip()
+        if REVIEW_TASK_ID_SUFFIX_RE.search(task_id) or CLOSEOUT_TASK_ID_SUFFIX_RE.search(task_id):
+            continue
+        target = (fields.get("Target") or "").strip()
+        for path in _extract_target_paths(target):
+            normalized = path.strip().strip("`")
+            if normalized.startswith("docs/plans/"):
+                continue
+            if any(normalized.startswith(prefix) for prefix in CODE_IMPLEMENTATION_TARGET_PREFIXES):
+                return True
+    return False
+
+
+def _has_implementation_review_task(text: str) -> bool:
+    """True when a Task-ID [*-098] declares plan-review-gate in Verify."""
+    from scripts.plan_loop.plan_lint.shared import _parse_fields, _split_task_blocks
+
+    for block in _split_task_blocks(text):
+        fields = _parse_fields(block)
+        task_id = (fields.get("Task-ID") or "").strip()
+        verify = (fields.get("Verify") or "").lower()
+        if REVIEW_TASK_ID_SUFFIX_RE.search(task_id) and "plan-review-gate" in verify:
+            return True
+    return False
+
+
+def _is_implementation_review_task_block(block: str) -> bool:
+    from scripts.plan_loop.plan_lint.shared import _parse_fields
+
+    fields = _parse_fields(block)
+    task_id = (fields.get("Task-ID") or "").strip()
+    verify = (fields.get("Verify") or "").lower()
+    return bool(REVIEW_TASK_ID_SUFFIX_RE.search(task_id) and "plan-review-gate" in verify)
+
+
+def _review_task_includes_review_skill(block: str) -> bool:
+    """True when -098 task Pre-read lists review/SKILL.md."""
+    if not _is_implementation_review_task_block(block):
+        return False
+    return any(marker in block for marker in REVIEW_SKILL_PREREAD_MARKERS)
+
+
+def _review_task_goal_mentions_review_skill(block: str) -> bool:
+    from scripts.plan_loop.plan_lint.shared import _parse_fields
+
+    if not _is_implementation_review_task_block(block):
+        return False
+    goal = (_parse_fields(block).get("Goal") or "").lower()
+    return "review/skill" in goal or "review skill" in goal
+
+
+def lint_implementation_review_task_contract(text: str) -> list[str]:
+    """HARD: code blueprints must bind Task -098 to review/SKILL.md Pre-read and Goal."""
+    if not _has_code_implementation_tasks(text):
+        return []
+    if not _has_implementation_review_task(text):
+        return []
+
+    from scripts.plan_loop.plan_lint.shared import _split_task_blocks
+
+    issues: list[str] = []
+    for block in _split_task_blocks(text):
+        if not _is_implementation_review_task_block(block):
+            continue
+        if not _review_task_includes_review_skill(block):
+            issues.append(
+                "Review Task (-098) Pre-read MUST include "
+                f"`[project_skill]` `{REVIEW_SKILL_PATH}` — Execute MUST Read review/SKILL.md "
+                "(see docs/templates/TEMPLATE_blueprint.md §Implementation Review Task)"
+            )
+        if not _review_task_goal_mentions_review_skill(block):
+            issues.append(
+                "Review Task (-098) Goal MUST reference review/SKILL workflow "
+                "(e.g. review/SKILL.md diff-first Findings)"
+            )
+        break
+    return issues
+
+
+def extract_implementation_review_body(text: str) -> str | None:
+    """Return non-heading body under ## Implementation Review, or None if missing."""
+    match = IMPLEMENTATION_REVIEW_SECTION_RE.search(text)
+    if not match:
+        return None
+    start = match.end()
+    next_section = re.search(r"\n## ", text[start:])
+    end = start + next_section.start() if next_section else len(text)
+    return text[start:end].strip()
+
+
+def is_implementation_review_placeholder(body: str) -> bool:
+    """True when Implementation Review section is empty or still a template hint."""
+    normalized = body.strip()
+    if not normalized:
+        return True
+    if len(normalized) < _MIN_IMPLEMENTATION_REVIEW_LENGTH:
+        return True
+    for line in normalized.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        for pattern in IMPLEMENTATION_REVIEW_PLACEHOLDER_LINE_PATTERNS:
+            if pattern.search(stripped):
+                return True
+        for bad in BAD_PATTERNS:
+            if re.search(bad, stripped):
+                return True
+        if stripped in CANONICAL_TODO_CONCLUSION_SLOTS:
+            return True
+    return False
+
+
+def _review_task_is_done(text: str) -> bool:
+    """True when implementation review task (-098 + plan-review-gate Verify) is done."""
+    from scripts.plan_loop.plan_lint.shared import _parse_fields, _split_task_blocks
+
+    for block in _split_task_blocks(text):
+        fields = _parse_fields(block)
+        task_id = (fields.get("Task-ID") or "").strip()
+        verify = (fields.get("Verify") or "").lower()
+        status = (fields.get("Status") or "").lower()
+        if (
+            REVIEW_TASK_ID_SUFFIX_RE.search(task_id)
+            and "plan-review-gate" in verify
+            and status == "done"
+        ):
+            return True
+    return False
+
+
+def _lint_implementation_review_section(text: str) -> list[str]:
+    """FAIL when review Task (-098) is done but Implementation Review is still placeholder."""
+    if not IMPLEMENTATION_REVIEW_SECTION_RE.search(text):
+        return []
+    body = extract_implementation_review_body(text) or ""
+    if not _review_task_is_done(text):
+        return []
+    if is_implementation_review_placeholder(body):
+        return [
+            "Implementation Review section is still a placeholder — "
+            "write a measured findings summary under "
+            "'## 🔍 Implementation Review' before closing Task -098 "
+            "(see docs/templates/TEMPLATE_blueprint.md Implementation Review Task)"
+        ]
+    return []
+
+
+def check_implementation_review_for_close(text: str) -> list[str]:
+    """plan-close gate: Implementation Review must be complete before plan completion."""
+    if not _has_code_implementation_tasks(text):
+        return []
+    issues: list[str] = []
+    if not _has_implementation_review_task(text):
+        issues.append(
+            "missing implementation review task with Task-ID [*-098] and "
+            "Verify containing plan-review-gate"
+        )
+    if not IMPLEMENTATION_REVIEW_SECTION_RE.search(text):
+        issues.append("missing section: ## 🔍 Implementation Review")
+    else:
+        body = extract_implementation_review_body(text) or ""
+        if is_implementation_review_placeholder(body):
+            preview = body.splitlines()[0][:80] if body else "(empty)"
+            issues.append(
+                "Implementation Review section is still a placeholder — "
+                f"current: {preview!r}. "
+                "Complete Task -098 review and fill findings before plan-close."
+            )
+    return issues
 
 
 ROLLUP_SUMMARY_SECTION_RE = re.compile(
@@ -632,7 +867,7 @@ def _lint_rollup_summary_section(text: str) -> list[str]:
             "Conclusion & Summary Roll-up is still a placeholder — "
             "write a measured 1-paragraph summary under "
             "'## 🔁 Conclusion & Summary' before closing the closeout Task "
-            "(see .agents/workflows/plan.md closeout gate)"
+            "(see agents/workflows/plan.md closeout gate)"
         ]
     return []
 

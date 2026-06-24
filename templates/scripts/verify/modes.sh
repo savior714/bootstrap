@@ -71,46 +71,52 @@ configure_verify_mode() {
         RUN_DOCS=0
     fi
 
-    # full mode: force all stages
+    # full mode: force all stages (no auto scoping)
     if [ "$VERIFY_MODE" = "full" ]; then
-        return
-    fi
-
-    # auto mode: detect changed files
-    if [ "$VERIFY_MODE" = "auto" ]; then
+        :
+    elif [ "$VERIFY_MODE" = "auto" ]; then
         local changed
         changed="$(git status --porcelain 2>/dev/null || true)"
 
-        if [ -z "$changed" ]; then
+        if [ -n "$changed" ]; then
+            local has_frontend=0
+            local has_backend=0
+            local has_docs=0
+            local has_shared=0
+
+            while IFS= read -r line; do
+                [ -z "$line" ] && continue
+                local path="${line:3}"
+                if [[ "$path" == {{FRONTEND_APP_PATH}}/* ]]; then has_frontend=1
+                elif [[ "$path" == src/* ]] || [[ "$path" == tests/* ]]; then has_backend=1
+                elif [[ "$path" == docs/* ]]; then has_docs=1
+                elif [[ "$path" == "verify.sh" ]] || [[ "$path" == "pyproject.toml" ]] || [[ "$path" == "uv.lock" ]] || [[ "$path" == "package.json" ]] || [[ "$path" == ".mcp.json" ]] || [[ "$path" == scripts/verify/* ]]; then
+                    has_shared=1
+                elif [[ "$path" == *.md ]]; then has_docs=1
+                else has_shared=1; fi
+            done <<< "$changed"
+
+            if [ "$has_shared" -eq 0 ]; then
+                RUN_FRONTEND=$has_frontend
+                RUN_BACKEND=$has_backend
+                RUN_DOCS=$has_docs
+                RUN_PYTEST=$has_backend
+
+                if [ "$RUN_FRONTEND" -eq 0 ]; then SKIP_FRONTEND_ALL=1; fi
+                if [ "$RUN_BACKEND" -eq 0 ]; then RUN_PYTEST=0; fi
+            else
+                echo -e "  \033[0;93m[AUTO]\033[0m Shared infra changed; running full verification."
+            fi
+        else
             echo -e "  \033[0;93m[AUTO]\033[0m No changes detected; running full verification."
-            return
         fi
+    fi
 
-        local has_frontend=0
-        local has_backend=0
-        local has_docs=0
-        local has_shared=0
-
-        while IFS= read -r line; do
-            [ -z "$line" ] && continue
-            local path="${line:3}"
-            if [[ "$path" == {{FRONTEND_APP_PATH}}/* ]]; then has_frontend=1
-            elif [[ "$path" == src/* ]] || [[ "$path" == tests/* ]]; then has_backend=1
-            elif [[ "$path" == docs/* ]]; then has_docs=1
-            elif [[ "$path" == "verify.sh" ]] || [[ "$path" == "pyproject.toml" ]] || [[ "$path" == "uv.lock" ]] || [[ "$path" == "package.json" ]] || [[ "$path" == ".mcp.json" ]] || [[ "$path" == scripts/verify/* ]]; then
-                has_shared=1
-            elif [[ "$path" == *.md ]]; then has_docs=1
-            else has_shared=1; fi
-        done <<< "$changed"
-
-        if [ "$has_shared" -eq 1 ]; then return; fi
-
-        RUN_FRONTEND=$has_frontend
-        RUN_BACKEND=$has_backend
-        RUN_DOCS=$has_docs
-        RUN_PYTEST=$has_backend
-
-        if [ "$RUN_FRONTEND" -eq 0 ]; then SKIP_FRONTEND_ALL=1; fi
-        if [ "$RUN_BACKEND" -eq 0 ]; then RUN_PYTEST=0; fi
+    # CI/deploy parity: never skip frontend verification (Vercel rebuilds full app on every push).
+    # Cloud production build runs in dedicated `renderer-ship-gate` CI job — avoid duplicate here.
+    if [ "${CI:-}" = "true" ] || [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        RUN_FRONTEND=1
+        SKIP_FRONTEND_ALL=0
+        SKIP_FRONTEND_BUILD=1
     fi
 }

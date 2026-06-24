@@ -94,7 +94,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--write-manifest",
         action="store_true",
-        help="Append this bundle to .agents/route/session-manifest.json (see route_gate.py).",
+        help="Append this bundle to agents/route/session-manifest.json (see route_gate.py).",
     )
     parser.add_argument(
         "--phase",

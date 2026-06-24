@@ -20,9 +20,11 @@ import json
 import re
 from pathlib import Path
 
-ROUTING_FILE = ".agents/registry/CONTEXT_ROUTING.md"
-PROJECT_SKILL_ROUTING_FILE = ".agents/registry/PROJECT_SKILL_ROUTING.json"
-SKILL_CATALOG_FILE = ".agents/registry/SKILL_CATALOG.json"
+from scripts.agent.agents_paths import agents_dir
+
+ROUTING_FILE = "agents/registry/CONTEXT_ROUTING.md"
+PROJECT_SKILL_ROUTING_FILE = "agents/registry/PROJECT_SKILL_ROUTING.json"
+SKILL_CATALOG_FILE = "agents/registry/SKILL_CATALOG.json"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -83,15 +85,15 @@ def validate_context_routing() -> list[str]:
             if not search_dir.is_dir():
                 issues.append(f"CONTEXT_ROUTING glob dir missing: {search_dir}")
             continue
-        # Plain file path — resolve relative to .agents/domains/ or keep as-is
-        if rel.startswith(".agents/"):
+        # Plain file path — resolve relative to agents/domains/ or keep as-is
+        if rel.startswith("agents/"):
             full = REPO_ROOT / rel
         elif "/" in rel:
-            # Domain rules like "documentation/markdown.md" → ".agents/domains/documentation/markdown.md"
-            full = REPO_ROOT / ".agents" / "domains" / rel
+            # Domain rules like "documentation/markdown.md" → "agents/domains/documentation/markdown.md"
+            full = agents_dir(REPO_ROOT) / "domains" / rel
         else:
-            # Single file like "markdown.md" → ".agents/core/markdown.md" or ".agents/domains/..."
-            full = REPO_ROOT / ".agents" / "core" / rel
+            # Single file like "markdown.md" → "agents/core/markdown.md" or "agents/domains/..."
+            full = agents_dir(REPO_ROOT) / "core" / rel
         if not full.is_file():
             issues.append(f"CONTEXT_ROUTING references missing file: {rel} (checked {full})")
 

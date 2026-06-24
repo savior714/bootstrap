@@ -82,6 +82,61 @@ def _lint_target_quality(task_idx: int, target: str) -> list[str]:
     return issues
 
 
+def _lint_goal_format(task_idx: int, goal: str) -> list[str]:
+    """Goal must stay on one line — no embedded markdown headings (closeout Task 9.9)."""
+    issues: list[str] = []
+    if not goal:
+        return issues
+    if "\n" in goal:
+        issues.append(
+            f"Task#{task_idx} Goal must be a single line — "
+            "do not break across lines or embed markdown headings "
+            "(e.g. write 'Conclusion and Summary Roll-up' not '`## 🔁 …`')"
+        )
+    if re.search(r"^#+\s", goal, re.MULTILINE):
+        issues.append(
+            f"Task#{task_idx} Goal contains markdown heading — "
+            "use plain Korean section name on one line"
+        )
+    if re.search(r"`\s*#", goal):
+        issues.append(
+            f"Task#{task_idx} Goal contains backtick-wrapped heading — "
+            "remove backticks and keep Goal on one line"
+        )
+    return issues
+
+
+_GOAL_FIELD_LINE_RE = re.compile(r"^- \*\*Goal\*\*:\s*(.*)$", re.MULTILINE)
+
+
+def _lint_task_goal_block(task_idx: int, block: str, parsed_goal: str) -> list[str]:
+    """Catch Goal line-breaks the field parser may not merge into parsed_goal."""
+    issues = _lint_goal_format(task_idx, parsed_goal)
+    match = _GOAL_FIELD_LINE_RE.search(block)
+    if not match:
+        return issues
+    if re.search(r"`\s*#", match.group(1)):
+        msg = (
+            f"Task#{task_idx} Goal contains backtick-wrapped heading — "
+            "remove backticks and keep Goal on one line"
+        )
+        if msg not in issues:
+            issues.append(msg)
+    tail = block[match.end() :]
+    for line in tail.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("- "):
+            break
+        issues.append(
+            f"Task#{task_idx} Goal must be a single line — "
+            "continuation lines after '- **Goal**:' are not allowed"
+        )
+        break
+    return issues
+
+
 def _lint_goal_quality(task_idx: int, goal: str) -> list[str]:
     """: Goal must be specific and substantive, not a single verb.
 

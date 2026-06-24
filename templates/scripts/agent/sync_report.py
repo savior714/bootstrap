@@ -29,7 +29,7 @@ def build_footer(
     else:
         lines.append("관련 명세가 있으면 Claim을 코드에 맞게 갱신한 뒤 `just sync --check`를 실행하세요.")
     steps = [
-        "1. `/sync` — [.agents/workflows/sync.md](.agents/workflows/sync.md) Phase 2~4",
+        "1. `/sync` — [agents/workflows/sync.md](agents/workflows/sync.md) Phase 2~4",
         "2. `just sync --check` — code lock + spec alignment",
     ]
     step_no = 3

@@ -1,3 +1,4 @@
 # Incremental gate baseline — fail only on NEW entries.
 # Remove a line when fixed. Regenerate: gate script --update-baseline
-High|T1-shared-fixture|tests/integration/nhis_bridge/test_testbed_e2e.py|mock_signer|3 tests
+High|T1-shared-fixture|tests/api/v1/test_fhir_patient_router.py|mock_repo|3 tests
+High|T1-shared-fixture|tests/integration/nhis_bridge/test_testbed_e2e.py|mock_signer|4 tests

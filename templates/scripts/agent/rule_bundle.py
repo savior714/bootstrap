@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""On-demand RULE_BUNDLE export from .agents/ (not tracked in git)."""
+"""On-demand RULE_BUNDLE export from agents/ (not tracked in git)."""
 
 from __future__ import annotations
 
@@ -9,8 +9,10 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from scripts.agent.agents_paths import agents_dir
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
-AGENTS_DIR = REPO_ROOT / ".agents"
+AGENTS_DIR = agents_dir(REPO_ROOT)
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "share"
 
 LINK_PATTERN = re.compile(r"\]\(([^)]+\.md)\)")
@@ -34,7 +36,7 @@ CROSS_REVIEW_TEMPLATE = """## Cross-Review Prompt (copy to external LLM)
 - P1: 구조·중복 정리 제안
 - P2: 톤·표현 다듬기
 
-코드베이스·앱 소스 수정 제안은 하지 마세요. `.agents/` 규칙 문서만 대상입니다.
+코드베이스·앱 소스 수정 제안은 하지 마세요. `agents/` 규칙 문서만 대상입니다.
 """
 
 
@@ -97,7 +99,7 @@ def collect_sources(slug: str) -> list[Path]:
 def build_bundle_text(slug: str) -> str:
     sources = collect_sources(slug)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    source_lines = "\n".join(f"  - .agents/{_agents_rel(p)}" for p in sources)
+    source_lines = "\n".join(f"  - agents/{_agents_rel(p)}" for p in sources)
 
     parts = [
         "---\n",
@@ -138,7 +140,7 @@ def build(slug: str, *, out_dir: Path, stdout: bool) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Export RULE_BUNDLE_<slug>.md from .agents/ (on demand)",
+        description="Export RULE_BUNDLE_<slug>.md from agents/ (on demand)",
     )
     parser.add_argument("slug", choices=REGISTERED_SLUGS)
     parser.add_argument(

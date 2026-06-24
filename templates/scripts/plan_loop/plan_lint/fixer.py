@@ -22,6 +22,14 @@ from scripts.plan_loop.plan_lint.verification import (
     _verify_segment_runner,
 )
 
+EXECUTION_PACK_STUB = """## Agent Execution Pack
+
+> **Execute 읽기 범위**: Execute·경량 모델은 Blueprint에서 **이 절부터** `Agent Completion Contract`·각 Task `Pre-read`·아래 실행 절만 Read한다. `Origin Intent`·`Diagnosis`·`Architectural Deepening` 등 설계 절은 **읽지 않는다**.
+
+Pack 구성 — `Impact Scope` · `실행 순서·선행` 표 · `Execution Plan` Task 블록만 포함한다. 설계 절 요약·재해석 **금지**.
+
+"""
+
 
 def fix_plan_text(text: str, file_path: Optional[Path] = None) -> tuple[str, list[str]]:
     """Apply mechanical fixes and return (fixed_text, list_of_applied_fixes).
@@ -29,6 +37,7 @@ def fix_plan_text(text: str, file_path: Optional[Path] = None) -> tuple[str, lis
     Fixes applied in order:
       1. Doc meta defaults — fill empty required meta fields with defaults
       2. Missing sections — insert absent REQUIRED_SECTIONS at correct positions
+      2b. Agent Execution Pack — insert before Impact Scope on active root blueprints
       3. Section order — reorder out-of-order sections to canonical sequence
       4. CSF slot insertion — fill empty todo/running Conclusion with canonical slot
       5. Deprecated tag replacement — [Level: Low] -> [Unit: Atomic]
@@ -45,6 +54,10 @@ def fix_plan_text(text: str, file_path: Optional[Path] = None) -> tuple[str, lis
     # 2. Missing sections insertion
     result, fix_sections = _fix_missing_sections(result)
     fixes.extend(fix_sections)
+
+    # 2b. Agent Execution Pack (active root blueprints)
+    result, fix_pack = _fix_missing_execution_pack(result, file_path)
+    fixes.extend(fix_pack)
 
     # 3. Section order correction
     result, fix_order = _fix_section_order(result)
@@ -117,7 +130,7 @@ def _fix_doc_meta_defaults(text: str, file_path: Optional[Path]) -> tuple[str, l
             "Project Status Link": "N/A",
             "Architectural Goal": "Blueprint",
             "Priority": "2",
-            "Labels": "docs",
+            "Labels": "Improvement",
         }
 
     # Required fields in canonical order; preserve custom meta bullets from original block.
@@ -179,6 +192,25 @@ def _fix_missing_sections(text: str) -> tuple[str, list[str]]:
         fixes.append(f"Section: inserted missing '{name}' section")
 
     return text, fixes
+
+
+def _fix_missing_execution_pack(
+    text: str, file_path: Optional[Path]
+) -> tuple[str, list[str]]:
+    """Insert Agent Execution Pack stub before Impact Scope on active root blueprints."""
+    from scripts.plan_loop.plan_lint.structural import _is_active_root_blueprint_path
+
+    if not _is_active_root_blueprint_path(file_path):
+        return text, []
+    if re.search(r"^## Agent Execution Pack\s*$", text, re.MULTILINE):
+        return text, []
+    impact_match = re.search(r"^##\s*🔍\s*Impact Scope", text, re.MULTILINE)
+    if not impact_match:
+        return text, []
+    insert_pos = impact_match.start()
+    stub = EXECUTION_PACK_STUB + "\n"
+    text = text[:insert_pos] + stub + text[insert_pos:]
+    return text, ["Section: inserted missing 'Agent Execution Pack' before Impact Scope"]
 
 
 def _fix_section_order(text: str) -> tuple[str, list[str]]:

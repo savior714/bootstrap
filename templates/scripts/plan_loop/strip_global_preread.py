@@ -20,13 +20,13 @@ GLOBAL_PREREAD_BLOCK_RE = re.compile(
     r"^### 📌 Global Pre-read \(세션 시작 시 한 번 로드\)\s*\n"
     r"(?:- [^\n]+\n)*"
     r"\n?"
-    r"\.agents/[^\n]+\n"
+    r"\agents/[^\n]+\n"
     r"\n*",
     re.MULTILINE,
 )
 # Leftovers when heading was removed without the path line (earlier buggy pass).
 ORPHAN_GLOBAL_PATH_RE = re.compile(
-    r"^\.agents/[^\n]*cognitive_logging\.md[^\n]*\n+",
+    r"^\agents/[^\n]*cognitive_logging\.md[^\n]*\n+",
     re.MULTILINE,
 )
 EXCESS_BLANK_RE = re.compile(r"\n{3,}")

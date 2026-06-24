@@ -407,8 +407,8 @@ def run_linter(rules_path: Path, check_path: Path, repo_root: Path, incremental:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Best Practice Compliance Linter")
-    parser.add_argument("--rules-path", type=str, default=".agents/domains/",
-                        help="Path to markdown rules file or directory (default: .agents/domains/)")
+    parser.add_argument("--rules-path", type=str, default="agents/domains/",
+                        help="Path to markdown rules file or directory (default: agents/domains/)")
     parser.add_argument("--check-path", type=str, default=".",
                         help="Path to directory or file to check (default: .)")
     parser.add_argument("--incremental", action="store_true",

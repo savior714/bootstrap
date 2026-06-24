@@ -13,7 +13,7 @@ Usage:
 Output format (JSON):
     {
       "must_read": [
-        {"path": ".agents/core/execution.md", "kind": "rule", "installed": true},
+        {"path": "agents/core/execution.md", "kind": "rule", "installed": true},
         ...
       ],
       "gate_command": "just route -- <paths> --json",

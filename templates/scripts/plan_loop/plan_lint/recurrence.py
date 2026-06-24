@@ -12,6 +12,11 @@ from scripts.plan_loop.plan_lint.justfile_recipes import (
     load_justfile_recipe_names,
 )
 from scripts.plan_loop.plan_lint.structural import _is_active_root_blueprint_path
+from scripts.plan_loop.plan_lint.verification import (
+    IMPLEMENTATION_REVIEW_PHASE_RE,
+    _has_code_implementation_tasks,
+    _has_implementation_review_task,
+)
 
 DOD_SECTION_START_RE = re.compile(
     r"^##\s*✅\s*Definition of Done\s*\(\s*DoD\s*\)",
@@ -106,5 +111,19 @@ def lint_active_blueprint_recurrence_guards(
                     f"DoD references unknown Justfile recipe `just {recipe}` — "
                     f"run `just --list` and fix the command or add the recipe to Justfile."
                 )
+
+    if _has_code_implementation_tasks(text):
+        if not _has_implementation_review_task(text):
+            issues.append(
+                "Active blueprint with code implementation tasks missing review task "
+                "Task-ID [*-098] with Verify containing plan-review-gate "
+                "(see docs/templates/TEMPLATE_blueprint.md Implementation Review Task)"
+            )
+        elif not IMPLEMENTATION_REVIEW_PHASE_RE.search(text):
+            issues.append(
+                "Active blueprint missing Phase heading for Implementation review "
+                "(e.g. `### Phase N — Implementation review` or `구현 리뷰`) "
+                "before Task -098"
+            )
 
     return issues

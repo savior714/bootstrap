@@ -31,7 +31,7 @@ _SKIP_PREFIXES = (
     "docs/plans/archive/",
     "docs/reports/tool_logs/",
     "node_modules/",
-    ".agents/",
+    "agents/",
 )
 
 

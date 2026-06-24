@@ -191,6 +191,16 @@ _TS_RULES: list[tuple[str, re.Pattern[str], str, str, str, str]] = [
     ),
 ]
 
+# BFF → {{NPM_SCOPE}}/server write boundary (ARCH_backend_bff_python_boundary.md §3.1)
+_BFF_API_PATH_FRAGMENT = "{{FRONTEND_APP_PATH}}/src/app/api/"
+_BFF_WRITE_IMPORT_RE = re.compile(
+    r"{{NPM_SCOPE}}/server/modules/[^'\"]+/(?:[^'\"]*/)?(?:[^'\"]*_store|repositories/|intake_session_create)"
+)
+_BFF_READ_ONLY_IMPORT_RE = re.compile(
+    r"{{NPM_SCOPE}}/server/modules/[^'\"]+/(?:types(?:/|$)|intake_emr_sync_display|intake_d7_cron_auth|gateways/)"
+)
+_IMPORT_EMR_SERVER_RE = re.compile(r"""['"]({{NPM_SCOPE}}/server[^'"]+)['"]""")
+
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
@@ -414,6 +424,41 @@ def scan_python_file(file_path: Path, result: ScanResult) -> None:
                 )
 
 
+def _scan_bff_emr_server_write_imports(
+    file_path: Path, text: str, rel_path: str, result: ScanResult
+) -> None:
+    """BFF app/api Route Handler의 {{NPM_SCOPE}}/server store·repository write import (S-bff-write)."""
+    if _BFF_API_PATH_FRAGMENT not in rel_path:
+        return
+    if file_path.name.endswith(".test.ts"):
+        return
+
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        if line.strip().startswith("import type "):
+            continue
+        for match in _IMPORT_EMR_SERVER_RE.finditer(line):
+            imported = match.group(1)
+            if _BFF_READ_ONLY_IMPORT_RE.search(imported):
+                continue
+            if not _BFF_WRITE_IMPORT_RE.search(imported):
+                continue
+            result.violations.append(
+                Violation(
+                    file=rel_path,
+                    line=line_no,
+                    type="S-bff-write",
+                    target=imported,
+                    risk="High",
+                    impact="P1-컨텍스트",
+                    matrix_score=_matrix_score("High", "P1-컨텍스트"),
+                    description=(
+                        "BFF Route Handler가 {{NPM_SCOPE}}/server store/repository write 모듈 import "
+                        "(mutation은 Python API SSOT)"
+                    ),
+                )
+            )
+
+
 def scan_ts_file(file_path: Path, result: ScanResult) -> None:
     """단일 TypeScript/TSX 파일의 import를 분석해 위반을 수집."""
     try:
@@ -448,6 +493,8 @@ def scan_ts_file(file_path: Path, result: ScanResult) -> None:
                         description=desc,
                     )
                 )
+
+    _scan_bff_emr_server_write_imports(file_path, text, rel_path, result)
 
 
 def scan_directory(path: Path, result: ScanResult) -> None:

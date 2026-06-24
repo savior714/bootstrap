@@ -20,6 +20,7 @@ def _warnings_only_blueprint_body() -> str:
 - **SSOT Check**: scripts/plan_loop/plan_lint/cli.py
 - **Project Status Link**: N/A
 - **Architectural Goal**: CLI warnings-only exit code regression
+- **Linear-Policy**: internal
 - **Linear-Issue**: N/A
 - **Priority**: 1
 - **Labels**: tooling
@@ -108,39 +109,65 @@ warnings only → exit 1
 """
 
 
+def _run_plan_lint_cli(plan_path: Path, *, strict: bool) -> subprocess.CompletedProcess[str]:
+    repo_root = Path(__file__).resolve().parents[3]
+    script = repo_root / "scripts" / "plan_loop" / "plan_lint.py"
+    cmd = [
+        "uv",
+        "run",
+        "python",
+        str(script),
+        str(plan_path),
+        "--skip-linear-ensure",
+    ]
+    if strict:
+        cmd.append("--strict")
+    return subprocess.run(
+        cmd,
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 class TestPlanLintCliWarnings(unittest.TestCase):
     def test_fixture_is_warnings_only_at_linter_level(self) -> None:
         path = Path("docs/plans/archive/PLAN_test_cli_warnings_only.md")
-        issues, warnings = lint_plan_text(_warnings_only_blueprint_body(), file_path=path)
+        issues, warnings = lint_plan_text(
+            _warnings_only_blueprint_body(),
+            file_path=path,
+            check_strict=False,
+        )
         self.assertEqual(issues, [], issues)
         self.assertTrue(
             any("checkbox format" in w for w in warnings),
             warnings,
         )
 
-    def test_plan_lint_warnings_only_exit_code_one(self) -> None:
-        repo_root = Path(__file__).resolve().parents[3]
-        script = repo_root / "scripts" / "plan_loop" / "plan_lint.py"
+    def test_plan_lint_contract_warnings_only_exit_code_zero(self) -> None:
         with tempfile.NamedTemporaryFile(
             "w", suffix=".md", delete=False, encoding="utf-8"
         ) as plan:
             plan.write(_warnings_only_blueprint_body())
             plan_path = Path(plan.name)
         try:
-            result = subprocess.run(
-                [
-                    "uv",
-                    "run",
-                    "python",
-                    str(script),
-                    str(plan_path),
-                    "--skip-linear-ensure",
-                ],
-                cwd=str(repo_root),
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+            result = _run_plan_lint_cli(plan_path, strict=False)
+        finally:
+            plan_path.unlink(missing_ok=True)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        combined = result.stdout + result.stderr
+        self.assertIn("passed with warnings", combined)
+
+    def test_plan_lint_strict_warnings_exit_code_one(self) -> None:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".md", delete=False, encoding="utf-8"
+        ) as plan:
+            plan.write(_warnings_only_blueprint_body())
+            plan_path = Path(plan.name)
+        try:
+            result = _run_plan_lint_cli(plan_path, strict=True)
         finally:
             plan_path.unlink(missing_ok=True)
 

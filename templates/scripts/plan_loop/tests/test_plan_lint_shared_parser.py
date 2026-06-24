@@ -16,8 +16,8 @@ INDENTED_PREREAD_BLOCK = """
 - Task-ID: [LINT-SHR-005]
 - Status: running
 - Pre-read:
-  1. `[rule]` `.agents/domains/testing/tdd.md`
-  2. `[project_skill]` `.agents/skills/frontend/web-design-guidelines/SKILL.md`
+  1. `[rule]` `agents/domains/testing/tdd.md`
+  2. `[project_skill]` `agents/skills/frontend/web-design-guidelines/SKILL.md`
 - Goal: collect indented pre-read lines
 """
 

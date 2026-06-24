@@ -156,6 +156,25 @@ BAD_PATTERNS = [
 
 TASK_ID_PATTERN = re.compile(r"^\[[A-Z]{2,}(?:-[A-Z0-9]+)*-\d{3,}\]$")
 
+# Template copy tokens — syntactically valid Task-ID but must be replaced before plan-lint PASS.
+TASK_ID_TEMPLATE_PREFIXES = frozenset({"XXX", "SLUG"})
+TASK_ID_LEADING_PREFIX_RE = re.compile(r"^\[([A-Z]{2,})")
+
+
+def extract_task_id_leading_prefix(task_id: str) -> str | None:
+    """First uppercase segment of a bracket Task-ID (e.g. [LINT-SHR-001] → LINT)."""
+    normalized = task_id.strip()
+    if not TASK_ID_PATTERN.match(normalized):
+        return None
+    match = TASK_ID_LEADING_PREFIX_RE.match(normalized)
+    return match.group(1) if match else None
+
+
+def is_template_task_id(task_id: str) -> bool:
+    """True when Task-ID still uses blueprint skeleton prefix (XXX, SLUG, …)."""
+    prefix = extract_task_id_leading_prefix(task_id)
+    return prefix in TASK_ID_TEMPLATE_PREFIXES if prefix else False
+
 KOREAN_CHAR_RE = re.compile(r"[\uac00-\ud7a3]")
 
 CJK_CHAR_RE = re.compile(r"[\u4E00-\u9FFF\u3400-\u4DBF]")
@@ -233,7 +252,7 @@ def _yaml_blueprint_doc_meta_defaults(text: str) -> dict[str, str]:
         "Project Status Link": "N/A",
         "Architectural Goal": title,
         "Priority": "2",
-        "Labels": "docs",
+        "Labels": "Improvement",
     }
 
 

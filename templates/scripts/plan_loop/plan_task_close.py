@@ -105,6 +105,16 @@ def _find_task_block_span(text: str, task_id: str) -> tuple[int, int]:
     return hits[0]
 
 
+def _ensure_task_block_separator(block_text: str) -> str:
+    """Close된 Task 블록 끝에 다음 Task heading과의 경계용 빈 줄 1개를 둔다."""
+    lines = block_text.splitlines()
+    while lines and lines[-1].strip() == "":
+        lines.pop()
+    lines.append("")
+    # join(["…", ""])는 trailing \\n 하나만 만들므로, 빈 줄을 완성하려면 \\n을 한 번 더 붙인다.
+    return "\n".join(lines) + "\n"
+
+
 def _patch_task_block(block_text: str, conclusion: str) -> tuple[str, bool, bool]:
     lines = block_text.splitlines()
     status_updated = False
@@ -142,7 +152,10 @@ def _patch_task_block(block_text: str, conclusion: str) -> tuple[str, bool, bool
             lines[i] = f"{indent}- **Conclusion**: {_with_closeout_marker(conclusion)}"
             conclusion_updated = True
 
-    return "\n".join(lines), status_updated, conclusion_updated
+    patched = "\n".join(lines)
+    if status_updated and conclusion_updated:
+        patched = _ensure_task_block_separator(patched)
+    return patched, status_updated, conclusion_updated
 
 
 def close_task_in_markdown(plan_path: Path, task_id: str, conclusion: str) -> None:

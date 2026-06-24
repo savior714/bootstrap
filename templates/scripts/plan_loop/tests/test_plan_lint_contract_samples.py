@@ -205,7 +205,7 @@ Sketch...
 - Task-ID: [T1] | Status: todo | RetryPolicy: none
 - **MCP**: desktop-commander
 - **Pre-read**: paths <!-- plan-task-preread:v1 paths=1 must_read_installed=1 -->
-  1. `[rule]` `.agents/core/execution.md`
+  1. `[rule]` `agents/core/execution.md`
 - **Action**: Edit | **Target**: a.py
 - **Goal**: fix lint
 - **Diagnostics**: none
@@ -251,7 +251,7 @@ Sketch...
 - Task-ID: [T1] | Status: todo | RetryPolicy: none
 - **MCP**: desktop-commander
 - **Pre-read**: paths <!-- plan-task-preread:v1 paths=1 must_read_installed=1 -->
-  1. `[rule]` `.agents/core/execution.md`
+  1. `[rule]` `agents/core/execution.md`
 - **Action**: Edit | **Target**: a.py
 - **Goal**: fix lint
 - **Diagnostics**: none

@@ -89,45 +89,16 @@ run_docs_steps() {
             invoke_step "$yaml_label" "" "false" just docs-yaml-hubs
         fi
 
+        invoke_step "Docs: DRY cross-layer check" "" "false" just docs-dry-check
+
         # Dual SSOT header pair must not live under docs/**/reports/** (hub paths only)
         invoke_step "Docs: SSOT path policy (dual-header hubs)" "" "false" uv run python scripts/verify_docs_ssot_path_policy.py
 
-        # Memory index verification
-        label="Docs: Memory index verification"
-        VERIFY_STEPS+=("$label:true")
-        write_step "$label"
-        start_time=$(start_timing)
-        ok=true
-
-        if [ ! -f "docs/agent-context/memory/MEMORY.md" ]; then
-            echo -e "  \033[0;31m[FAIL]\033[0m docs/agent-context/memory/MEMORY.md not found"
-            ok=false
-        else
-            local line_count
-            line_count=$(wc -l < "docs/agent-context/memory/MEMORY.md")
-            if [ "$line_count" -gt 500 ]; then
-                echo -e "  \033[0;31m[FAIL]\033[0m docs/agent-context/memory/MEMORY.md has $line_count lines (max 500)"
-                ok=false
-            else
-                echo -e "  \033[0;32m[OK]\033[0m docs/agent-context/memory/MEMORY.md ($line_count lines)"
-            fi
-        fi
-
-        if [ "$ok" = "false" ]; then
-            stop_timing "$label" "$start_time"
-            fail_verify 1 "$label" ""
-        fi
-        stop_timing "$label" "$start_time"
-        serialize_state
-        save_verify_result 0 "" ""
-
-        # Plans index integrity check
-        invoke_step "Docs: Plans index integrity check" "" "false" python3 scripts/verify_plans_index.py
+        # Plans index check removed with plans-index recipe (992307201)
     else
         skip_step "Docs: HTML structure check" "auto-mode"
         skip_step "Docs: Korean text hallucination check" "auto-mode"
         skip_step "Docs: YAML hub frontmatter (active hubs + discussions/agent-context + plans archive)" "auto-mode"
         skip_step "Docs: SSOT path policy (dual-header hubs)" "auto-mode"
-        skip_step "Docs: Memory index verification" "auto-mode"
     fi
 }

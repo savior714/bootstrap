@@ -32,7 +32,7 @@ def extract_preread_paths_from_block(block: str) -> List[str]:
     """Extract file paths from a Task Pre-read block."""
     paths: List[str] = []
     
-    # Match lines like: 1. `[rule]` `.agents/core/execution.md`
+    # Match lines like: 1. `[rule]` `agents/core/execution.md`
     # Pattern: number. `[label]` `<path>`
     # Note: [label] is also in backticks, so we need to extract the second backtick group
     path_pattern = re.compile(r"^\s*\d+\.\s*`\[\w+\]`\s*`([^`]+)`")

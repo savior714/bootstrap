@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from scripts.agent.agents_paths import SESSION_MANIFEST_REL
 from scripts.agent.route_context import find_repo_root, normalize_repo_rel
 
 try:
@@ -20,7 +21,7 @@ except ImportError:  # pragma: no cover - Windows
     _HAS_FCNTL = False
 
 SCHEMA_VERSION = "1"
-DEFAULT_MANIFEST_REL = ".agents/route/session-manifest.json"
+DEFAULT_MANIFEST_REL = SESSION_MANIFEST_REL
 
 
 def _utc_now_iso() -> str:

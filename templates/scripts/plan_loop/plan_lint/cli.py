@@ -96,14 +96,24 @@ def main() -> int:
         action="store_true",
         help="Apply mechanical auto-fixes before linting and write changes in-place",
     )
+    parser.add_argument(
+        "--check-quality",
+        action="store_true",
+        help="Run blueprint quality gates (#8 Verify–test, #9 deps sync, #10 DoD WARN)",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Strict tier: quality heuristics, warnings-as-fail, optional Linear ensure",
+    )
     args = parser.parse_args()
 
     overall_fail = False
     linted_count = 0
-    template_link = "file:///.agents/workflows/plan.md"
+    template_link = "file:///agents/workflows/plan.md"
     auto_ensure = (
         not args.skip_linear_ensure
-        and (args.ensure_linear or len(args.plan_files) == 1)
+        and (args.ensure_linear or args.strict)
     )
     linear_ensure_failed = False
 
@@ -127,13 +137,21 @@ def main() -> int:
                 for fix in fixes:
                     print(f"  {COLOR_BLUE}- {fix}{COLOR_RESET}")
 
-        issues, warnings = lint_plan_file(plan_file, is_archive_ready=args.archive_ready)
+        issues, warnings = lint_plan_file(
+            plan_file,
+            is_archive_ready=args.archive_ready,
+            check_quality=args.check_quality,
+            check_strict=args.strict,
+        )
+
+        quality_tag = " + quality" if args.check_quality else ""
+        strict_tag = " (strict)" if args.strict else ""
 
         for warning in warnings:
             print(f"{COLOR_YELLOW}[WARN] {plan_file}: {warning}{COLOR_RESET}")
 
         if not issues and not warnings:
-            print(f"{COLOR_GREEN}[PASS] {plan_file} contract lint passed{COLOR_RESET}")
+            print(f"{COLOR_GREEN}[PASS] {plan_file} contract lint passed{quality_tag}{strict_tag}{COLOR_RESET}")
             if auto_ensure:
                 try:
                     _maybe_ensure_linear(plan_file, dry_run=args.ensure_linear_dry_run)
@@ -143,10 +161,17 @@ def main() -> int:
                     if exc.code != 0:
                         continue
         elif not issues and warnings:
-            print(f"{COLOR_YELLOW}[WARN] {plan_file} contract lint passed with warnings — fix required before implementation{COLOR_RESET}")
-            overall_fail = True
+            warn_suffix = (
+                " — fix required before implementation" if args.strict else ""
+            )
+            print(
+                f"{COLOR_YELLOW}[WARN] {plan_file} contract lint passed with warnings{quality_tag}{strict_tag}"
+                f"{warn_suffix}{COLOR_RESET}"
+            )
+            if args.strict:
+                overall_fail = True
         else:
-            print(f"{COLOR_RED}[FAIL] {plan_file} contract lint failed{COLOR_RESET}")
+            print(f"{COLOR_RED}[FAIL] {plan_file} contract lint failed{strict_tag}{COLOR_RESET}")
             print(f"{COLOR_YELLOW}Guideline: Follow the structural sequence in {template_link}{COLOR_RESET}")
             for issue in issues:
                 print(f" {COLOR_RED}- {issue}{COLOR_RESET}")

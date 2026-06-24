@@ -76,6 +76,12 @@ sketch
 
 - **Risk**: x — **Strategy**: y
 
+## Agent Execution Pack
+
+> **Execute 읽기 범위**: Execute·경량 모델은 Blueprint에서 **이 절부터** `Agent Completion Contract`·각 Task `Pre-read`·아래 실행 절만 Read한다.
+
+Pack 구성 — `Impact Scope` · `실행 순서·선행` 표 · `Execution Plan` Task 블록만 포함한다.
+
 ## 🔍 Impact Scope
 
 | f | r |
@@ -147,13 +153,15 @@ class TestJustfileRecipes(unittest.TestCase):
     def test_load_justfile_recipe_names_includes_plan_lint(self):
         from scripts.plan_loop.plan_lint.justfile_recipes import (
             DEFAULT_JUSTFILE,
+            clear_justfile_recipe_caches,
             load_justfile_recipe_names,
         )
 
-        load_justfile_recipe_names.cache_clear()
+        clear_justfile_recipe_caches()
         names = load_justfile_recipe_names(str(DEFAULT_JUSTFILE))
         self.assertIn("plan-lint", names)
-        self.assertIn("docs-ssot-headers", names)
+        self.assertIn("lint-be", names)
+        self.assertIn("billing-van-verify", names)
 
 
 class TestRecurrenceGuards(unittest.TestCase):

@@ -1,10 +1,16 @@
 # Incremental gate baseline — fail only on NEW entries.
 # Remove a line when fixed. Regenerate: gate script --update-baseline
+{{FRONTEND_APP_PATH}}/src/app/dashboard/admin/components/__tests__/CycleRulesManagement.test.tsx:12:@/src/features/admin/adapters/adminAdapter
+{{FRONTEND_APP_PATH}}/src/app/dashboard/admin/components/__tests__/CycleRulesManagement.test.tsx:21:@/src/hooks/use-toast
 {{FRONTEND_APP_PATH}}/src/app/dashboard/components/__tests__/AiIntelligenceSection.test.tsx:8:@/src/contexts/DashboardDataContext
 {{FRONTEND_APP_PATH}}/src/features/patient/components/PatientRegistrationSidebar.insurance.test.tsx:19:@/src/features/patient/adapters/patientIdentityAdapter
 {{FRONTEND_APP_PATH}}/src/features/patient/components/PatientRegistrationSidebar.insurance.test.tsx:34:@/src/hooks/use-toast
+{{FRONTEND_APP_PATH}}/src/features/reception/hooks/receptionEncounterModalSubmit.test.ts:10:@/src/features/patient/adapters/patientIdentityAdapter
 {{FRONTEND_APP_PATH}}/src/features/reception/layouts/ReceptionDashboardSidePanel.test.tsx:7:../components/WaitingList
 {{FRONTEND_APP_PATH}}/src/views/consultation/ConsultationPageLive.test.tsx:6:@/src/hooks/use-toast
+{{FRONTEND_APP_PATH}}/tests/unit/app/dashboard/DashboardLayoutClient.session-guards.test.tsx:19:@/src/hooks/useIdleSession
+{{FRONTEND_APP_PATH}}/tests/unit/app/dashboard/DashboardLayoutClient.session-guards.test.tsx:27:@/src/components/auth/SessionExpiryWarning
+{{FRONTEND_APP_PATH}}/tests/unit/app/dashboard/DashboardLayoutClient.session-guards.test.tsx:40:@/src/stores/consultationSessionStore
 {{FRONTEND_APP_PATH}}/tests/unit/app/dashboard/admin/AdminResourceHealthDots.test.tsx:11:@/src/features/admin/adapters/adminAdapter
 {{FRONTEND_APP_PATH}}/tests/unit/app/dashboard/admin/UserRoleEditDialog.test.tsx:11:@/src/features/admin/adapters/adminAdapter
 {{FRONTEND_APP_PATH}}/tests/unit/app/dashboard/admin/useAdminResourceHealth.test.ts:13:@/src/features/admin/adapters/adminAdapter
@@ -15,10 +21,9 @@
 {{FRONTEND_APP_PATH}}/tests/unit/app/dashboard/admin/useAdminUsersLoadGate.test.tsx:31:@/app/dashboard/admin/components/user/UserTable
 {{FRONTEND_APP_PATH}}/tests/unit/app/dashboard/admin/useAdminUsersLoadGate.test.tsx:34:@/app/dashboard/admin/components/user/UserLogs
 {{FRONTEND_APP_PATH}}/tests/unit/app/dashboard/admin/useAdminUsersQuery.test.tsx:20:@/src/features/admin/adapters/adminAdapter
-{{FRONTEND_APP_PATH}}/tests/unit/components/VitalsDetailSheet.test.tsx:11:@/components/consultation/VitalsChart
-{{FRONTEND_APP_PATH}}/tests/unit/features/consultation/useExaminationQueue.kind.test.ts:19:@/src/features/consultation/hooks/usePatientUrlSync
-{{FRONTEND_APP_PATH}}/tests/unit/features/consultation/useExaminationQueue.kind.test.ts:23:@/src/features/consultation/hooks/useExaminationQueueHandlers
-{{FRONTEND_APP_PATH}}/tests/unit/features/consultation/useExaminationQueue.kind.test.ts:45:@/stores/consultationAtoms
+{{FRONTEND_APP_PATH}}/tests/unit/app/login/login-mfa-submit.test.tsx:17:@/src/hooks/useAuth
+{{FRONTEND_APP_PATH}}/tests/unit/components/ProgressNoteIntakeImport.test.tsx:13:@/features/intake/hooks/useIntakeSoapDraftImport
+{{FRONTEND_APP_PATH}}/tests/unit/components/VitalsDetailSheet.test.tsx:11:@/features/consultation/components/VitalsChart
 {{FRONTEND_APP_PATH}}/tests/unit/features/reception/ReceptionEncounterModal.test.tsx:16:@/src/features/patient/adapters/patientIdentityAdapter
 {{FRONTEND_APP_PATH}}/tests/unit/features/reception/ReceptionEncounterModal.test.tsx:23:@/src/hooks/use-toast
 {{FRONTEND_APP_PATH}}/tests/unit/features/reception/ReceptionPatientSearchModal.test.tsx:14:@/src/features/patient/components/PatientSearchCard

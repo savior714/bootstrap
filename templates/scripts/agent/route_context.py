@@ -2,8 +2,8 @@
 """Resolve CONTEXT_ROUTING + project skill routes against file paths (and optional intent).
 
 SSOT tables:
-  - .agents/registry/CONTEXT_ROUTING.md
-  - .agents/registry/PROJECT_SKILL_ROUTING.json
+  - agents/registry/CONTEXT_ROUTING.md
+  - agents/registry/PROJECT_SKILL_ROUTING.json
 
 This module re-exports everything from the split sub-modules for backward
 compatibility.  Consumers should continue importing from ``scripts.agent.route_context``.

@@ -9,8 +9,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from scripts.agent.route_context import find_repo_root, get_route_bundle, normalize_repo_rel
+from scripts.plan_loop.plan_lint.verification import (
+    REVIEW_SKILL_HANDOFF_PATH,
+    REVIEW_SKILL_PATH,
+    _is_implementation_review_task_block,
+)
 from scripts.plan_loop.intent_utils import extract_plan_intents
-from scripts.plan_loop.path_utils import SECTION_RE, extract_plan_paths, extract_task_paths
+from scripts.plan_loop.path_utils import (
+    SECTION_RE,
+    extract_blueprint_plan_target,
+    extract_plan_paths,
+    extract_task_paths,
+)
 from scripts.plan_loop.spec_routing import route_spec_files
 from scripts.plan_loop.stack_utils import _actionable_missing, infer_stack_labels
 
@@ -19,13 +29,13 @@ TASK_PREREAD_MARKER = "plan-task-preread:v1"
 
 # Tri-runtime neutral: file write / partial edit gate (not Cursor tool names).
 PREREAD_EDIT_GATE = "`write`/`patch`"
-RUNTIME_EDIT_TOOLS_LINK = ".agents/core/runtime_edit_tools.md"
+RUNTIME_EDIT_TOOLS_LINK = "agents/core/runtime_edit_tools.md"
 
 LEGACY_MCP_PREREAD_BLURBS: tuple[str, ...] = (
     "> **💡 MCP 도구 적극 활용**: 브라우저 테스트, 외부 검색, 기타 도구 연동이 필요한 작업이라면, 직접 스크립트를 작성하거나 추측하기 전에 **반드시 관련 MCP 도구(chrome-devtools, fia, playwright 등)를 먼저 호출**하여 확인하세요.",
     "> **💡 MCP 도구 적극 활용**: 브라우저 테스트, 외부 검색, 기타 도구 연동이 필요한 작업이라면, 직접 스크립트를 작성하거나 추측하기 전에 **반드시 관련 MCP 도구 (chrome-devtools, fia, playwright 등) 를 먼저 호출**하여 확인하세요.",
     "> **💡 MCP 도구 적극 활용**: 브라우저 테스트·외부 검색·파일 편집 등 MCP로 해결 가능한 작업은 스크립트 추측 전에 "
-    "**[mcp_tools.md](.agents/reference/mcp_tools.md) SSOT**의 서버·도구명을 확인하고 호출하세요.",
+    "**[mcp_tools.md](agents/reference/mcp_tools.md) SSOT**의 서버·도구명을 확인하고 호출하세요.",
 )
 
 TASK_HEADING_RE = re.compile(r"^####\s+Task\b.*$", re.MULTILINE)
@@ -37,6 +47,13 @@ TASK_PREREAD_BLOCK_RE = re.compile(
 
 MAX_INSTALLED_PREREAD = 5
 MAX_RULE_PREREAD_SLOTS = 2
+
+# Task 0.1 / closeout: Target is docs/plans/PLAN_*.md — excluded from route path extraction.
+BLUEPRINT_SELF_EDIT_ROUTE_PATHS: tuple[str, ...] = (
+    "agents/workflows/plan.md",
+    "agents/core/planning.md",
+    "docs/templates/TEMPLATE_blueprint.md",
+)
 
 _KIND_PRIORITY: dict[str, int] = {
     "rule": 0,
@@ -128,6 +145,41 @@ def upsert_preread_in_task_block(block: str, preread_field: str) -> str:
     return "\n".join(lines)
 
 
+def render_implementation_review_task_preread(plan_rel: str) -> str:
+    """Pre-read for Task -098 — review/SKILL.md is mandatory (plan-lint HARD)."""
+    lines = [
+        "- **Pre-read**: "
+        f"이 Task만 — {PREREAD_EDIT_GATE} 전 **전부** Read "
+        f"<!-- {TASK_PREREAD_MARKER} paths=4 must_read_installed=4 review-skill-mandatory -->",
+        f"  1. `[project_skill]` `{REVIEW_SKILL_PATH}`",
+        f"  2. `[spec]` `{REVIEW_SKILL_HANDOFF_PATH}`",
+        f"  3. `[spec]` `{plan_rel}`",
+        "  4. `[rule]` `agents/core/error_patterns/detail/editing.md`",
+    ]
+    return "\n".join(lines)
+
+
+def render_blueprint_self_edit_preread(
+    plan_rel: str,
+    *,
+    repo_root: Path,
+    intents: Sequence[str],
+) -> str:
+    """Pre-read for Tasks that edit the blueprint file (docs/plans/PLAN_*.md)."""
+    route_paths = list(BLUEPRINT_SELF_EDIT_ROUTE_PATHS)
+    bundle = get_route_bundle(route_paths, repo_root=repo_root, intent_queries=intents, tight=True)
+    must_read = list(bundle.get("must_read") or [])
+    must_read_paths = list(bundle.get("must_read_paths") or [])
+    if plan_rel not in must_read_paths:
+        must_read.insert(0, {"kind": "spec", "path": plan_rel, "installed": True})
+        must_read_paths.insert(0, plan_rel)
+    bundle = {**bundle, "must_read": must_read, "must_read_paths": must_read_paths}
+    return render_task_preread_field(
+        paths=[plan_rel, *route_paths],
+        bundle=bundle,
+    )
+
+
 def upsert_task_prereads_in_plan(
     content: str,
     *,
@@ -156,7 +208,25 @@ def upsert_task_prereads_in_plan(
                 updated += 1
             parts.append(new_block)
         else:
-            parts.append(block)
+            plan_target = extract_blueprint_plan_target(block, repo_root)
+            if _is_implementation_review_task_block(block) and plan_target:
+                preread = render_implementation_review_task_preread(plan_target)
+                new_block = upsert_preread_in_task_block(block, preread)
+                if new_block != block:
+                    updated += 1
+                parts.append(new_block)
+            elif plan_target:
+                preread = render_blueprint_self_edit_preread(
+                    plan_target,
+                    repo_root=repo_root,
+                    intents=intents,
+                )
+                new_block = upsert_preread_in_task_block(block, preread)
+                if new_block != block:
+                    updated += 1
+                parts.append(new_block)
+            else:
+                parts.append(block)
         cursor = end
     parts.append(content[cursor:])
     return "".join(parts), updated
@@ -217,7 +287,7 @@ def render_preread_section(
         "",
         marker,
         "",
-        "**정책 (IDE 공통)**: [execution.md §2.8](.agents/core/execution.md) Context Route Gate. "
+        "**정책 (IDE 공통)**: [execution.md §2.8](agents/core/execution.md) Context Route Gate. "
         f"**Read SSOT**은 각 Task 블록의 **`Pre-read`** 목록이다 — {PREREAD_EDIT_GATE} 전 **해당 Task** 목록을 전부 Read "
         f"(`write`/`patch` = 파일 쓰기·부분 수정 직전; 호스트 도구명은 [runtime_edit_tools.md §1]({RUNTIME_EDIT_TOOLS_LINK})). "
         "상단 게이트만 읽고 Task `Pre-read`를 건너뛰면 정책 위반.",

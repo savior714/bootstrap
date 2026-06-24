@@ -47,6 +47,25 @@ plan-task-close plan="" task="" conclusion="":
     fi
     @uv run python scripts/plan_loop/plan_task_close.py --plan "{{plan}}" --task "{{task}}" --conclusion "{{conclusion}}"
 
+# --- Plan archive (kernel) ---
+plans-index:
+    @echo "🔍 Guard: tracked archive plans must exist on disk..."
+    @uv run python scripts/archive_plans.py guard-deleted
+    @echo "🔍 Checking for broken plans links..."
+    @uv run python scripts/archive_plans.py check
+
+archive-plan name="" dry_run="":
+    @if [ -z "{{name}}" ]; then \
+        echo "❌ name 필요. 예: just archive-plan name=PLAN_foo.md"; \
+        exit 1; \
+    fi
+    @if [ "{{dry_run}}" = "true" ]; then \
+        uv run python scripts/archive_plans.py archive --dry-run "{{name}}"; \
+    else \
+        uv run python scripts/archive_plans.py archive "{{name}}"; \
+    fi
+    @if [ "{{dry_run}}" != "true" ]; then just plans-index; fi
+
 # --- Route (kernel) ---
 route *files:
     @uv run python scripts/agent/route_context.py {{files}}

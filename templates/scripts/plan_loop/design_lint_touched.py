@@ -9,6 +9,9 @@
   - palette 직접색 (bg-slate-*, text-amber-* 등)
   - 임의 bracket 클래스 (text-[11px] 등)
   - 헤더 액션 SSOT 미사용 (deskActionBarOutlineButtonClass)
+  - 인라인 fontWeight 600~900·bold (타이포 토큰 우회)
+  - Tailwind font-extrabold / font-black
+  - Passive 안내: font-bold + text-muted-foreground
 예외 주석:
   - // design-lint-disable
   - /* design-lint-disable */
@@ -58,6 +61,24 @@ _RE_PALETTE_DIRECT = re.compile(
 
 # Tailwind arbitrary bracket 클래스 금지
 _RE_ARBITRARY_BRACKET = re.compile(r"\b\w+-\[[^\]]+\]")
+
+# 인라인 fontWeight 숫자 (600~900) — tokens.css 상한(500) 우회
+_RE_INLINE_FONT_WEIGHT_NUMERIC = re.compile(
+    r"fontWeight\s*:\s*(?:[6-9]\d{2}|['\"][6-9]\d{2}['\"])"
+)
+
+# 인라인 fontWeight 키워드
+_RE_INLINE_FONT_WEIGHT_KEYWORD = re.compile(
+    r"fontWeight\s*:\s*['\"](?:bold|bolder)['\"]"
+)
+
+# Tailwind 초과 굵기 (font-bold는 @theme 500으로 캡됨 — extrablack만 차단)
+_RE_HEAVY_TAILWIND_WEIGHT = re.compile(r"\bfont-(?:extrabold|black)\b")
+
+# 안내·메타에 font-bold + muted 조합 (Passive 티어 위반)
+_RE_PASSIVE_FONT_BOLD = re.compile(
+    r"font-bold\b[^\"'`]*text-muted-foreground|text-muted-foreground[^\"'`]*font-bold"
+)
 
 # 헤더·툴바 액션 파일 — deskActionBarOutlineButtonClass SSOT 필수
 _HEADER_ACTION_FILES = frozenset(
@@ -189,6 +210,28 @@ def scan_hybrid_rules(
     return issues
 
 
+def scan_typography_rules(
+    line: str,
+    line_no: int,
+) -> list[tuple[int, str, str]]:
+    """단일 라인에 대한 타이포그래피·굵기 규칙 검출."""
+    issues: list[tuple[int, str, str]] = []
+
+    for m in _RE_INLINE_FONT_WEIGHT_NUMERIC.finditer(line):
+        issues.append((line_no, "inline-font-weight-numeric", m.group(0)))
+
+    for m in _RE_INLINE_FONT_WEIGHT_KEYWORD.finditer(line):
+        issues.append((line_no, "inline-font-weight-keyword", m.group(0)))
+
+    for m in _RE_HEAVY_TAILWIND_WEIGHT.finditer(line):
+        issues.append((line_no, "heavy-tailwind-weight", m.group(0)))
+
+    for m in _RE_PASSIVE_FONT_BOLD.finditer(line):
+        issues.append((line_no, "passive-font-bold", m.group(0)))
+
+    return issues
+
+
 def scan_header_ssot(
     path: Path,
     content: str,
@@ -251,6 +294,9 @@ def _scan_file(path: Path) -> list[tuple[int, str, str]]:
         # 하이브리드 규칙 (palette·bracket)
         issues.extend(scan_hybrid_rules(line, i))
 
+        # 타이포그래피·굵기 규칙
+        issues.extend(scan_typography_rules(line, i))
+
     # 헤더 SSOT (파일 단위)
     issues.extend(scan_header_ssot(path, content))
 
@@ -284,6 +330,9 @@ def design_lint_touched(
         print("  - Palette direct colors (bg-slate-*, text-amber-*, etc.)")
         print("  - Arbitrary bracket classes (text-[11px], etc.)")
         print("  - Header action SSOT (deskActionBarOutlineButtonClass)")
+        print("  - Inline fontWeight 600-900 / bold (typography token bypass)")
+        print("  - Tailwind font-extrabold / font-black")
+        print("  - Passive hint: font-bold + text-muted-foreground")
         print()
         print("Exceptions: // design-lint-disable or /* design-lint-disable */")
         return 0

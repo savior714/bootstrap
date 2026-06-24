@@ -4,7 +4,7 @@ import tomllib
 from pathlib import Path
 
 # SSOT: Snapshot location for detected dependencies
-SNAPSHOT_PATH = Path(".agents/dependency_snapshot.json")
+SNAPSHOT_PATH = Path("agents/dependency_snapshot.json")
 
 def get_python_deps():
     deps = set()
@@ -99,7 +99,7 @@ def research_library(lib_name):
     Simulates or triggers research for a new library.
     In the agentic workflow, this outputs a request that the agent fulfills.
     """
-    research_dir = Path(".agents/research")
+    research_dir = Path("agents/research")
     research_dir.mkdir(parents=True, exist_ok=True)
     research_file = research_dir / f"{lib_name}.json"
     
@@ -116,7 +116,7 @@ def generate_rule_file(lib_name):
     """
     Generates a modular rule file (.md) from researched best practices.
     """
-    research_file = Path(".agents/research") / f"{lib_name}.json"
+    research_file = Path("agents/research") / f"{lib_name}.json"
     if not research_file.exists():
         return False
         
@@ -124,7 +124,7 @@ def generate_rule_file(lib_name):
         with research_file.open("r") as f:
             data = json.load(f)
             
-        rule_dir = Path(".agents/domains/tech-stack")
+        rule_dir = Path("agents/domains/tech-stack")
         rule_dir.mkdir(parents=True, exist_ok=True)
         rule_file = rule_dir / f"{lib_name}.md"
         
@@ -178,7 +178,7 @@ def register_rule_to_registry(lib_name, scope):
     """
     Automatically registers the new rule in RULE_INDEX.md and CONTEXT_ROUTING.md.
     """
-    registry_dir = Path(".agents/registry")
+    registry_dir = Path("agents/registry")
     rule_index_path = registry_dir / "RULE_INDEX.md"
     context_routing_path = registry_dir / "CONTEXT_ROUTING.md"
 
@@ -201,7 +201,7 @@ def register_rule_to_registry(lib_name, scope):
                     if target_line_idx != -1: break
             
             if target_line_idx != -1:
-                new_row = f"| **Tech Stack** | [.agents/domains/tech-stack/{lib_name}.md](../specs/domains/tech-stack/{lib_name}.md) | {lib_name} 라이브러리 사용 지침 |"
+                new_row = f"| **Tech Stack** | [agents/domains/tech-stack/{lib_name}.md](../specs/domains/tech-stack/{lib_name}.md) | {lib_name} 라이브러리 사용 지침 |"
                 lines.insert(target_line_idx, new_row)
                 rule_index_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
                 print(f"  ✅ [REGISTRY] Added {lib_name} to RULE_INDEX.md")
@@ -254,7 +254,7 @@ def main():
             # If research exists, try to generate/update the rule file
             generate_rule_file(dep)
         
-        print("\n💡 Tip: If you see [RESEARCH_NEEDED], perform research and save to .agents/research/<lib>.json, then run again.")
+        print("\n💡 Tip: If you see [RESEARCH_NEEDED], perform research and save to agents/research/<lib>.json, then run again.")
     else:
         print("\n✨ No new dependencies detected.")
 

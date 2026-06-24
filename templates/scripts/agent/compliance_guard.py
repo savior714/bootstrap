@@ -142,18 +142,18 @@ def check_fastapi_decorators(directory: str) -> Tuple[bool, List[str], List[str]
 
 # Domain to Command Mapping (Seed Data / Fallback)
 SEED_DOMAIN_MAPPING: Dict[str, List[str]] = {
-    # This will be merged with dynamic data from .agents/
+    # This will be merged with dynamic data from agents/
 }
 
 def load_dynamic_mapping() -> Dict[str, List[str]]:
-    """Scan .agents/ directory and extract domain/verify_with from frontmatter."""
+    """Scan agents/ directory and extract domain/verify_with from frontmatter."""
     mapping = SEED_DOMAIN_MAPPING.copy()
-    agents_dir = ".agents"
+    agents_root = str(resolve_agents_dir(Path.cwd()))
     
-    if not os.path.exists(agents_dir):
+    if not os.path.exists(agents_root):
         return mapping
 
-    for root, _, files in os.walk(agents_dir):
+    for root, _, files in os.walk(agents_root):
         for file in files:
             if file.endswith(".md"):
                 path = os.path.join(root, file)

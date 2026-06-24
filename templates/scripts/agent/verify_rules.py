@@ -3,10 +3,12 @@ import sys
 import yaml
 import re
 from pathlib import Path
+
+from scripts.agent.agents_paths import AGENTS_REL
 from typing import List
 
 # Constants
-AGENTS_DIR = ".agents"
+AGENTS_DIR = AGENTS_REL
 REQUIRED_YAML_FIELDS = ["scope", "domain"]  # 예시 필수 필드
 LINK_REGEX = re.compile(r'\[.*?\]\((.*?)\)')
 
@@ -108,7 +110,7 @@ def verify_rule_file(path: Path) -> List[str]:
 
 def get_rule_files(base_dir: str = AGENTS_DIR) -> List[Path]:
     """
-    Recursively finds all .md files in the .agents directory.
+    Recursively finds all .md files in the agents directory.
     """
     base_path = Path(base_dir)
     if not base_path.exists():
@@ -145,7 +147,7 @@ def main():
     STRICT_DIRS = {"core", "domains", "adaptive", "registry", "workflows"}
     
     for rule_file in rule_files:
-        # Get the relative path part after .agents/
+        # Get the relative path part after agents/
         rel_path = rule_file.relative_to(AGENTS_DIR)
         top_dir = rel_path.parts[0] if rel_path.parts else ""
         

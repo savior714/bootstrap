@@ -43,6 +43,33 @@ class TestPlanTaskClose(unittest.TestCase):
         self.assertIn("#### Task 1.2: Second task [Unit: Atomic]", updated)
         self.assertIn("- **Conclusion**: [placeholder]", updated)
 
+    def test_adds_blank_line_before_next_task_heading(self):
+        plan = self._write_temp_plan(
+            """# Test Blueprint
+
+#### Task 1.1: First task [Unit: Atomic]
+- Task-ID: TASK-001 | Status: todo | Priority: 1
+- **Goal**: first
+- **Conclusion**: [placeholder]
+- **Dependency**: None
+#### Task 1.2: Second task [Unit: Atomic]
+- Task-ID: TASK-002 | Status: todo | Priority: 1
+- **Goal**: second
+- **Conclusion**: [placeholder]
+- **Dependency**: TASK-001
+"""
+        )
+        try:
+            close_task_in_markdown(plan, "TASK-001", "[PASS] first task 완료. 검증 통과 확인.")
+            updated = plan.read_text(encoding="utf-8")
+        finally:
+            plan.unlink(missing_ok=True)
+
+        self.assertIn(
+            "- **Dependency**: None\n\n#### Task 1.2: Second task [Unit: Atomic]",
+            updated,
+        )
+
     def test_duplicate_task_id_raises_system_exit(self):
         plan = self._write_temp_plan(
             """# Test Blueprint

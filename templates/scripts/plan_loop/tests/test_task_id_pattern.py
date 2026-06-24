@@ -1,6 +1,10 @@
 import unittest
 
 from scripts.plan_loop.plan_lint import TASK_ID_PATTERN
+from scripts.plan_loop.plan_lint.shared import (
+    extract_task_id_leading_prefix,
+    is_template_task_id,
+)
 
 
 class TestTaskIDPatternRegex(unittest.TestCase):
@@ -60,6 +64,23 @@ class TestTaskIDPatternRegex(unittest.TestCase):
                 TASK_ID_PATTERN.match(placeholder),
                 f"{placeholder} should NOT match TASK_ID_PATTERN"
             )
+
+
+class TestTemplateTaskIDDetection(unittest.TestCase):
+    """Template skeleton prefixes (XXX, SLUG) must fail plan-lint even when regex-valid."""
+
+    def test_template_prefixes_flagged(self):
+        for task_id in ("[XXX-001]", "[SLUG-001]", "[XXX-099]"):
+            self.assertTrue(is_template_task_id(task_id), task_id)
+
+    def test_real_prefixes_not_flagged(self):
+        for task_id in ("[PLAN-001]", "[USRT-001]", "[LINT-SHR-001]", "[TEM-356-001]"):
+            self.assertFalse(is_template_task_id(task_id), task_id)
+
+    def test_extract_leading_prefix(self):
+        self.assertEqual(extract_task_id_leading_prefix("[LINT-SHR-005]"), "LINT")
+        self.assertEqual(extract_task_id_leading_prefix("[XXX-001]"), "XXX")
+        self.assertIsNone(extract_task_id_leading_prefix("[TBD]"))
 
 
 if __name__ == "__main__":
