@@ -23,6 +23,13 @@ fi
 TARGET_ROOT="$(cd "${TARGET_ROOT}" && pwd)"
 echo "Installing bootstrap kernel into ${TARGET_ROOT}"
 
+# Auto-detect project name from folder name (used for {{PROJECT_NAME}} etc.)
+PROJECT_DIRNAME="$(basename "${TARGET_ROOT}")"
+# Title-case: "stock" → "Stock", "my-project" → "My Project"
+PROJECT_NAME="${PROJECT_DIRNAME//-/ }"
+# Use awk for portable title-casing (macOS BSD sed doesn't support \U/\u)
+PROJECT_NAME="$(echo "${PROJECT_NAME}" | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2)); print}')"
+
 if [[ -f "${TARGET_ROOT}/AGENTS.md" || -f "${TARGET_ROOT}/verify.sh" ]]; then
   echo "[WARN] Target already has AGENTS.md or verify.sh — files will be overwritten."
   echo "Press Ctrl+C to abort, or wait 5 seconds..."
@@ -65,6 +72,42 @@ if [[ -d "${TARGET_ROOT}/docs/memory" && ! -f "${TARGET_ROOT}/docs/agent-context
   echo "       Migrate handoff notes into MEMORY.md, then remove docs/memory/."
 fi
 
+# Auto-replace {{PROJECT_NAME}} and related placeholders with detected project name
+echo ""
+echo "Replacing {{PLACEHOLDER}} with project name '${PROJECT_NAME}'..."
+for f in "${TARGET_ROOT}/AGENTS.md" \
+         "${TARGET_ROOT}/PROJECT_RULES.md" \
+         "${TARGET_ROOT}/docs/design.md" \
+         "${TARGET_ROOT}/docs/agent-context/memory/MEMORY.md" \
+         "${TARGET_ROOT}/Justfile.snippet" \
+         "${TARGET_ROOT}/Justfile"; do
+  if [[ -f "$f" ]]; then
+    sed -i '' "s|{{PROJECT_NAME}}|${PROJECT_NAME}|g" "$f" 2>/dev/null || true
+    sed -i '' "s|{{FRONTEND_APP_PATH}}|apps/renderer|g" "$f" 2>/dev/null || true
+    sed -i '' "s|{{DESKTOP_APP_PATH}}|apps/desktop-tauri|g" "$f" 2>/dev/null || true
+    sed -i '' "s|{{NPM_SCOPE}}|@${PROJECT_DIRNAME}|g" "$f" 2>/dev/null || true
+    sed -i '' "s|{{FRONTEND_DEV_URL}}|http://127.0.0.1:3000|g" "$f" 2>/dev/null || true
+    sed -i '' "s|{{FRONTEND_DEV_HOST}}|127.0.0.1:3000|g" "$f" 2>/dev/null || true
+    sed -i '' "s|{{BACKEND_PORT}}|8000|g" "$f" 2>/dev/null || true
+    sed -i '' "s|{{LINEAR_WORKSPACE}}|${PROJECT_DIRNAME}|g" "$f" 2>/dev/null || true
+  fi
+done
+
+# Also replace placeholders in all .py and .sh files (scripts may reference them)
+echo "Replacing placeholders in scripts..."
+find "${TARGET_ROOT}" -type f \( -name '*.py' -o -name '*.sh' \) \
+  -not -path '*/.git/*' -not -path '*/.uv_cache/*' \
+  -exec sed -i '' \
+    -e "s|{{PROJECT_NAME}}|${PROJECT_NAME}|g" \
+    -e "s|{{FRONTEND_APP_PATH}}|apps/renderer|g" \
+    -e "s|{{DESKTOP_APP_PATH}}|apps/desktop-tauri|g" \
+    -e "s|{{NPM_SCOPE}}|@${PROJECT_DIRNAME}|g" \
+    -e "s|{{FRONTEND_DEV_URL}}|http://127.0.0.1:3000|g" \
+    -e "s|{{FRONTEND_DEV_HOST}}|127.0.0.1:3000|g" \
+    -e "s|{{BACKEND_PORT}}|8000|g" \
+    -e "s|{{LINEAR_WORKSPACE}}|${PROJECT_DIRNAME}|g" \
+    {} + || true
+
 if [[ -f "${TARGET_ROOT}/pyproject.toml" ]] && command -v uv >/dev/null 2>&1; then
   echo ""
   echo "[SETUP] uv sync (dev dependencies)..."
@@ -81,3 +124,18 @@ echo ""
 echo "[NOTE] Use pytest via 'uv run pytest' — plain 'pip install pytest' is not required."
 
 echo "[PASS] bootstrap install complete"
+
+# Also replace placeholders in all .py and .sh files (scripts may reference them)
+echo "Replacing placeholders in scripts..."
+find "${TARGET_ROOT}" -type f \( -name '*.py' -o -name '*.sh' \) \
+  -not -path '*/.git/*' -not -path '*/.uv_cache/*' \
+  -exec sed -i '' \
+    -e "s|{{PROJECT_NAME}}|${PROJECT_NAME}|g" \
+    -e "s|{{FRONTEND_APP_PATH}}|apps/renderer|g" \
+    -e "s|{{DESKTOP_APP_PATH}}|apps/desktop-tauri|g" \
+    -e "s|{{NPM_SCOPE}}|@${PROJECT_DIRNAME}|g" \
+    -e "s|{{FRONTEND_DEV_URL}}|http://127.0.0.1:3000|g" \
+    -e "s|{{FRONTEND_DEV_HOST}}|127.0.0.1:3000|g" \
+    -e "s|{{BACKEND_PORT}}|8000|g" \
+    -e "s|{{LINEAR_WORKSPACE}}|${PROJECT_DIRNAME}|g" \
+    {} + || true

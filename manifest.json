@@ -107,6 +107,11 @@
       "type": "dir"
     },
     {
+      "src": "scripts/*.py",
+      "dest": "scripts/",
+      "type": "glob"
+    },
+    {
       "src": "docs/templates/TEMPLATE_blueprint.md",
       "dest": "docs/templates/TEMPLATE_blueprint.md"
     },
@@ -132,24 +137,18 @@
       "dest": "agents/registry/WORKFLOW_AND_SKILL_INDEX.md"
     },
     { "src": "agents/workflows/archive.md", "dest": "agents/workflows/archive.md" },
-    { "src": "agents/workflows/diagnose.md", "dest": "agents/workflows/diagnose.md" },
     { "src": "agents/workflows/discover.md", "dest": "agents/workflows/discover.md" },
     { "src": "agents/workflows/discuss.md", "dest": "agents/workflows/discuss.md" },
     { "src": "agents/workflows/git.md", "dest": "agents/workflows/git.md" },
-    { "src": "agents/workflows/go.md", "dest": "agents/workflows/go.md" },
-    { "src": "agents/workflows/improve-codebase-architecture.md", "dest": "agents/workflows/improve-codebase-architecture.md" },
-    { "src": "agents/workflows/investigate.md", "dest": "agents/workflows/investigate.md" },
+
     { "src": "agents/workflows/plan.md", "dest": "agents/workflows/plan.md" },
     { "src": "agents/workflows/playwright.md", "dest": "agents/workflows/playwright.md" },
     { "src": "agents/workflows/refactor.md", "dest": "agents/workflows/refactor.md" },
     { "src": "agents/workflows/review.md", "dest": "agents/workflows/review.md" },
     { "src": "agents/workflows/sync.md", "dest": "agents/workflows/sync.md" },
     { "src": "agents/domains/testing/playwright.md", "dest": "agents/domains/testing/playwright.md" },
-    { "src": "agents/skills/diagnose", "dest": "agents/skills/diagnose", "type": "dir" },
     { "src": "agents/skills/discover", "dest": "agents/skills/discover", "type": "dir" },
     { "src": "agents/skills/discuss", "dest": "agents/skills/discuss", "type": "dir" },
-    { "src": "agents/skills/improve-codebase-architecture", "dest": "agents/skills/improve-codebase-architecture", "type": "dir" },
-    { "src": "agents/skills/investigate", "dest": "agents/skills/investigate", "type": "dir" },
     { "src": "agents/skills/plan", "dest": "agents/skills/plan", "type": "dir" },
     { "src": "agents/skills/refactor", "dest": "agents/skills/refactor", "type": "dir" },
     { "src": "agents/skills/review", "dest": "agents/skills/review", "type": "dir" },
