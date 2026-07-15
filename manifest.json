@@ -109,7 +109,14 @@
     {
       "src": "scripts/*.py",
       "dest": "scripts/",
-      "type": "glob"
+      "type": "glob",
+      "exclude": [
+        "casing_scan.py",
+        "verify_ddd_boundaries.py",
+        "verify_no_gate_downgrade.py",
+        "verify_root_clutter.py",
+        "detect_tier.py"
+      ]
     },
     {
       "src": "docs/templates/TEMPLATE_blueprint.md",
