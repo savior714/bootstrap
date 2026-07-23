@@ -1,0 +1,66 @@
+_min_copier_version: "9.1.0"
+_subdirectory: template
+_answers_file: .copier-answers.yml
+_skip_if_exists:
+  - agents/project/PROFILE.md
+  - docs/product/ACTIVE_SCOPE.md
+
+project_name:
+  type: str
+  help: Human-readable project name.
+
+project_slug:
+  type: str
+  default: "{{ project_name | lower | replace(' ', '-') }}"
+  help: Filesystem- and repository-safe identifier.
+
+canonical_branch:
+  type: str
+  default: main
+
+main_only:
+  type: bool
+  default: true
+
+package_tool:
+  type: str
+  choices:
+    - pnpm
+    - uv
+    - npm
+    - cargo
+    - go
+    - other
+  default: pnpm
+
+lint_command:
+  type: str
+  default: ""
+
+typecheck_command:
+  type: str
+  default: ""
+
+targeted_test_command:
+  type: str
+  default: ""
+
+release_check_command:
+  type: str
+  default: ""
+
+has_runtime_visual:
+  type: bool
+  default: false
+
+has_database:
+  type: bool
+  default: false
+
+has_content_provenance:
+  type: bool
+  default: false
+
+regulated_domain:
+  type: bool
+  default: false

@@ -1,0 +1,83 @@
+# {{ project_name }} — Agent Execution Contract
+
+이 문서는 저장소 전체에 적용되는 always-on 실행 계약이다.
+일반 작업은 이 문서만으로 시작하고, 필요한 추가 문서는
+`agents/registry/CONTEXT_ROUTING.md`에서 선택한다.
+
+## 1. 우선순위
+
+1. 현재 사용자 지시
+2. 이 `AGENTS.md`
+3. routing으로 선택된 workflow·project 문서
+4. 코드·테스트·설정이 보여 주는 실제 동작
+5. 도구 기본 동작
+
+충돌하거나 확인되지 않은 규칙은 추측하지 않는다.
+
+## 2. 작업 불변조건
+
+- 한 작업 = 한 failure domain = 한 검증 가능한 가설 = 한 판정 기준
+- 여러 문제가 발견되면 최초 failure만 현재 작업에서 다룬다.
+- 무관 오류와 개선은 별도 잔여 작업으로 남긴다.
+- 수정 전 재현 조건과 binary criterion을 정한다.
+- 수정 후 현재 가설만 targeted validation으로 검증한다.
+- 공통 규칙을 작업 프롬프트에 반복하지 않는다.
+- 단일 프롬프트가 1000줄을 넘을 가능성이 있으면 순차 작업으로 분할한다.
+
+## 3. Context 선택
+
+1. 이 문서를 읽는다.
+2. `agents/registry/CONTEXT_ROUTING.md`에서 변경 경로와 의미를 찾는다.
+3. 관련 문서만 추가로 읽는다.
+4. 추가 문서는 기본 최대 3개다.
+5. 표에 없는 작업은 코드와 가장 가까운 테스트를 먼저 읽는다.
+
+프로젝트 고유 정보는 `agents/project/PROFILE.md`,
+현재 상위 범위는 `docs/product/ACTIVE_SCOPE.md`가 소유한다.
+
+## 4. 구현과 검증
+
+- 실제 경로와 command를 확인한 뒤 수정한다.
+- 기존 구조를 유지하는 최소 변경을 우선한다.
+- 행동 변경에는 가장 작은 회귀 검증을 추가하거나 갱신한다.
+- 작은 변경에서 full release suite를 기본 gate로 실행하지 않는다.
+- source acceptance와 runtime acceptance를 한 작업에 섞지 않는다.
+- mock, skip, snapshot 갱신, 오류 exit 무시로 필수 검증을 우회하지 않는다.
+- required validator를 사용할 수 없으면 BLOCKED로 보고한다.
+
+프로젝트 명령은 `.agent-harness.yml`과 `agents/project/PROFILE.md`에서 확인한다.
+
+## 5. Git
+
+상세 절차는 `agents/workflows/git.md`를 따른다.
+
+- canonical branch: `{{ canonical_branch }}`
+- main-only mode: `{{ main_only }}`
+- 한 시점에 write 세션 하나
+- exact path staging
+- unrelated dirty 보존
+- remote SHA 차이가 아니라 write-set overlap으로 중단 여부 판정
+- force push와 history rewrite 금지
+- 한 작업은 원자적 commit 하나를 기본으로 함
+
+## 6. 완료 조건
+
+- 단일 criterion 판정 완료
+- required targeted validation PASS
+- 의도한 파일만 변경
+- commit·push 성공
+- local HEAD와 remote canonical branch 일치
+- 작업 대상 dirty 없음
+- blocker 없음
+
+runtime-only 작업은 source 변경·commit·push 없음이 정상 조건일 수 있다.
+
+## 7. 완료 보고
+
+- RESULT
+- failure domain과 가설 판정
+- 변경 파일
+- targeted validation
+- blocker 또는 별도 failure domain
+- commit SHA와 push 상태
+- 다음 작업이 필요하면 후보 하나
