@@ -1,0 +1,482 @@
+#!/usr/bin/env python3
+"""Bootstrap v2 Copier CLI Contract Validator.
+
+Validates Copier copy/update lifecycle for v2 foundation.
+"""
+
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+TARGET_COPIER_VERSION = "9.17.0"
+
+SIMPLE_PROFILE = {
+    "project_name": "Simple Smoke",
+    "project_slug": "simple-smoke",
+    "canonical_branch": "main",
+    "main_only": True,
+    "package_tool": "other",
+    "lint_command": "",
+    "typecheck_command": "",
+    "targeted_test_command": "",
+    "release_check_command": "",
+    "has_runtime_visual": False,
+    "has_database": False,
+    "has_content_provenance": False,
+    "regulated_domain": False,
+}
+
+FULL_PROFILE = {
+    "project_name": "Full Capability Smoke",
+    "project_slug": "full-capability-smoke",
+    "canonical_branch": "main",
+    "main_only": True,
+    "package_tool": "uv",
+    "lint_command": "uv run ruff check .",
+    "typecheck_command": "uv run mypy .",
+    "targeted_test_command": "uv run pytest tests/unit/test_target.py",
+    "release_check_command": "uv run pytest",
+    "has_runtime_visual": True,
+    "has_database": True,
+    "has_content_provenance": True,
+    "regulated_domain": True,
+}
+
+REQUIRED_GENERATED_PATHS = [
+    ".copier-answers.yml",
+    ".agent-harness.yml",
+    "AGENTS.md",
+    "agents/project/PROFILE.md",
+    "docs/product/ACTIVE_SCOPE.md",
+]
+
+JINJA_MARKERS = ["{{", "{%", "{#"]
+
+OVERLAY_FILES = [
+    "agents/project/PROFILE.md",
+    "docs/product/ACTIVE_SCOPE.md",
+]
+
+OVERLAY_SENTINELS = {
+    "agents/project/PROFILE.md": "BOOTSTRAP_VALIDATOR_PROFILE_OVERLAY_SENTINEL",
+    "docs/product/ACTIVE_SCOPE.md": "BOOTSTRAP_VALIDATOR_ACTIVE_SCOPE_OVERLAY_SENTINEL",
+}
+
+TEMPLATE_CORE_SENTINEL = "BOOTSTRAP_VALIDATOR_TEMPLATE_CORE_V2_SENTINEL"
+
+
+def run_cmd(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
+    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=False)
+    if check and result.returncode != 0:
+        print(f"COMMAND_FAILED: {' '.join(cmd)}", file=sys.stderr)
+        print(f"STDOUT: {result.stdout}", file=sys.stderr)
+        print(f"STDERR: {result.stderr}", file=sys.stderr)
+        sys.exit(1)
+    return result
+
+
+def check_copier_version() -> None:
+    result = run_cmd(["copier", "--version"], check=False)
+    if result.returncode != 0:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=COPIER_VERSION_MISMATCH")
+        print("DETAIL=copier CLI not available")
+        print(f"COPIER_VERSION=unknown")
+        sys.exit(1)
+
+    match = re.search(r"copier\s+(\d+\.\d+\.\d+)", result.stdout)
+    if not match:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=COPIER_VERSION_MISMATCH")
+        print("DETAIL=could not parse copier version")
+        print(f"COPIER_VERSION=unknown")
+        sys.exit(1)
+
+    actual = match.group(1)
+    if actual != TARGET_COPIER_VERSION:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=COPIER_VERSION_MISMATCH")
+        print(f"DETAIL=expected {TARGET_COPIER_VERSION}, got {actual}")
+        print(f"COPIER_VERSION={actual}")
+        sys.exit(1)
+
+
+def setup_temp_template(template_dir: Path) -> Path:
+    repo_dir = Path(tempfile.mkdtemp(prefix="bootstrap-v2-template-"))
+
+    run_cmd(["git", "init"], cwd=repo_dir)
+    run_cmd(["git", "config", "user.name", "Bootstrap Validator"], cwd=repo_dir)
+    run_cmd(["git", "config", "user.email", "bootstrap-validator@example.invalid"], cwd=repo_dir)
+
+    archive_result = run_cmd(["git", "archive", "HEAD"], check=False)
+    if archive_result.returncode != 0:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=TEMP_TEMPLATE_SETUP_FAILED")
+        print("DETAIL=git archive HEAD failed in working tree")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    extract_dir = Path(tempfile.mkdtemp(prefix="bootstrap-v2-extract-"))
+    import zipfile
+
+    archive_result = subprocess.run(
+        ["git", "archive", "HEAD", "--format", "zip"],
+        cwd=Path("."),
+        capture_output=True,
+    )
+    zip_path = extract_dir / "archive.zip"
+    zip_path.write_bytes(archive_result.stdout)
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        zf.extractall(extract_dir)
+
+    for item in extract_dir.iterdir():
+        if item.name == "bootstrap-v2-template-0":
+            continue
+        dest = repo_dir / item.name
+        if dest.exists():
+            if dest.is_dir():
+                shutil.rmtree(dest)
+            else:
+                dest.unlink()
+        if item.is_dir():
+            shutil.copytree(item, dest)
+        else:
+            shutil.copy2(item, dest)
+
+    shutil.rmtree(extract_dir)
+    zip_path.unlink(missing_ok=True)
+
+    run_cmd(["git", "add", "."], cwd=repo_dir)
+    run_cmd(["git", "commit", "-m", "Initial commit from HEAD archive"], cwd=repo_dir)
+    run_cmd(["git", "tag", "v0.0.1"], cwd=repo_dir)
+
+    return repo_dir
+
+
+def run_copier_copy(template_src: Path, destination: Path, profile: dict[str, Any]) -> None:
+    import yaml as yml
+
+    data_file = Path(tempfile.mktemp(suffix=".yml"))
+    with open(data_file, "w") as f:
+        yml.dump(profile, f)
+
+    cmd = [
+        "copier",
+        "copy",
+        "--defaults",
+        "--vcs-ref",
+        "v0.0.1",
+        "-f",
+        str(template_src),
+        str(destination),
+    ]
+
+    for key, value in profile.items():
+        cmd.extend(["-d", f"{key}={value}"])
+
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=".")
+    if result.returncode != 0:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=SIMPLE_COPY_FAILED" if profile == SIMPLE_PROFILE else "FIRST_FAILURE=FULL_COPY_FAILED")
+        print(f"DETAIL=copier copy failed with exit code {result.returncode}")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        if result.stderr:
+            print(f"STDERR: {result.stderr}", file=sys.stderr)
+        sys.exit(1)
+
+
+def validate_copier_answers(destination: Path, profile: dict[str, Any]) -> None:
+    answers_file = destination / ".copier-answers.yml"
+    if not answers_file.exists():
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=SIMPLE_RENDER_CONTRACT_FAILED" if profile == SIMPLE_PROFILE else "FIRST_RENDER_CONTRACT_FAILED")
+        print("DETAIL=.copier-answers.yml not found")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    with open(answers_file) as f:
+        answers = yaml.safe_load(f)
+
+    if answers.get("project_name") != profile["project_name"]:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=SIMPLE_RENDER_CONTRACT_FAILED" if profile == SIMPLE_PROFILE else "FULL_RENDER_CONTRACT_FAILED")
+        print(f"DETAIL=project_name mismatch: expected {profile['project_name']}, got {answers.get('project_name')}")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    if answers.get("project_slug") != profile["project_slug"]:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=SIMPLE_RENDER_CONTRACT_FAILED" if profile == SIMPLE_PROFILE else "FULL_RENDER_CONTRACT_FAILED")
+        print(f"DETAIL=project_slug mismatch")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    for key in ["has_runtime_visual", "has_database", "has_content_provenance", "regulated_domain"]:
+        if answers.get(key) != profile[key]:
+            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+            print("FIRST_FAILURE=SIMPLE_RENDER_CONTRACT_FAILED" if profile == SIMPLE_PROFILE else "FULL_RENDER_CONTRACT_FAILED")
+            print(f"DETAIL={key} mismatch: expected {profile[key]}, got {answers.get(key)}")
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
+
+    for path in REQUIRED_GENERATED_PATHS:
+        if not (destination / path).exists():
+            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+            print("FIRST_FAILURE=SIMPLE_RENDER_CONTRACT_FAILED" if profile == SIMPLE_PROFILE else "FULL_RENDER_CONTRACT_FAILED")
+            print(f"DETAIL=required path {path} not found")
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
+
+
+def validate_yaml_files(destination: Path) -> None:
+    yaml_files = []
+    for pattern in ["**/*.yml", "**/*.yaml"]:
+        yaml_files.extend(destination.glob(pattern))
+
+    if not yaml_files:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=GENERATED_YAML_PARSE_FAILED")
+        print("DETAIL=no YAML files found")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    for yaml_file in yaml_files:
+        try:
+            with open(yaml_file, encoding="utf-8") as f:
+                list(yaml.safe_load_all(f))
+        except Exception as e:
+            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+            print("FIRST_FAILURE=GENERATED_YAML_PARSE_FAILED")
+            print(f"DETAIL=failed to parse {yaml_file}: {e}")
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
+
+
+def check_unresolved_markers(destination: Path) -> None:
+    for item in destination.rglob("*"):
+        if item.is_dir() or ".git" in str(item):
+            continue
+        if not item.is_file():
+            continue
+
+        try:
+            content = item.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+
+        for marker in JINJA_MARKERS:
+            if marker in content:
+                print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+                print("FIRST_FAILURE=UNRESOLVED_TEMPLATE_MARKER_FOUND")
+                print(f"DETAIL={marker} found in {item}")
+                print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+                sys.exit(1)
+
+
+def get_file_sha256(file_path: Path) -> str:
+    import hashlib
+
+    sha256 = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        sha256.update(f.read())
+    return sha256.hexdigest()
+
+
+def setup_full_destination_git(destination: Path) -> None:
+    run_cmd(["git", "init"], cwd=destination)
+    run_cmd(["git", "config", "user.name", "Bootstrap Validator"], cwd=destination)
+    run_cmd(["git", "config", "user.email", "bootstrap-validator@example.invalid"], cwd=destination)
+    run_cmd(["git", "add", "."], cwd=destination)
+    run_cmd(["git", "commit", "-m", "Initial generated commit"], cwd=destination)
+
+    result = run_cmd(["git", "status", "--porcelain"], cwd=destination, check=False)
+    if result.stdout.strip():
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=GENERATED_PROJECT_GIT_NOT_CLEAN")
+        print("DETAIL=generated repository has uncommitted changes")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+
+def apply_overlay_sentinels(destination: Path) -> dict[str, str]:
+    for file_path in OVERLAY_FILES:
+        full_path = destination / file_path
+        sentinel = OVERLAY_SENTINELS[file_path]
+        with open(full_path, "a", encoding="utf-8") as f:
+            f.write("\n" + sentinel + "\n")
+
+    run_cmd(["git", "add"] + OVERLAY_FILES, cwd=destination)
+    run_cmd(["git", "commit", "-m", "Add overlay sentinels"], cwd=destination)
+
+    result = run_cmd(["git", "status", "--porcelain"], cwd=destination, check=False)
+    if result.stdout.strip():
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=GENERATED_PROJECT_GIT_NOT_CLEAN")
+        print("DETAIL=overlay modification left uncommitted changes")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    sha_map = {}
+    for file_path in OVERLAY_FILES:
+        full_path = destination / file_path
+        sha_map[file_path] = get_file_sha256(full_path)
+
+    return sha_map
+
+
+def update_template_core(template_repo: Path) -> None:
+    jinja_file = template_repo / "template" / "AGENTS.md.jinja"
+    if not jinja_file.exists():
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=TEMPLATE_CORE_UPDATE_MISSING")
+        print("DETAIL=template/AGENTS.md.jinja not found")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    with open(jinja_file, "a", encoding="utf-8") as f:
+        f.write("\n" + TEMPLATE_CORE_SENTINEL + "\n")
+
+    run_cmd(["git", "add", "template/AGENTS.md.jinja"], cwd=template_repo)
+    run_cmd(["git", "commit", "-m", "Add template core sentinel"], cwd=template_repo)
+    run_cmd(["git", "tag", "v0.0.2"], cwd=template_repo)
+
+
+def run_copier_update(destination: Path, template_src: Path) -> None:
+    cmd = ["copier", "update", "--defaults", "--vcs-ref", "v0.0.2", "--conflict", "inline", "."]
+
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=destination)
+    if result.returncode != 0:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=COPIER_UPDATE_FAILED")
+        print(f"DETAIL=copier update failed with exit code {result.returncode}")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        if result.stderr:
+            print(f"STDERR: {result.stderr}", file=sys.stderr)
+        sys.exit(1)
+
+
+def validate_overlay_preserved(destination: Path, original_shas: dict[str, str]) -> None:
+    for file_path in OVERLAY_FILES:
+        current_sha = get_file_sha256(destination / file_path)
+        if current_sha != original_shas[file_path]:
+            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+            print("FIRST_FAILURE=PROJECT_OVERLAY_CHANGED")
+            print(f"DETAIL={file_path} changed during update")
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
+
+        sentinel = OVERLAY_SENTINELS[file_path]
+        content = (destination / file_path).read_text(encoding="utf-8")
+        if sentinel not in content:
+            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+            print("FIRST_FAILURE=PROJECT_OVERLAY_CHANGED")
+            print(f"DETAIL={file_path} sentinel missing after update")
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
+
+    result = run_cmd(["find", ".", "-name", "*.rej"], cwd=destination, check=False)
+    rej_files = [f for f in result.stdout.strip().split("\n") if f]
+    if rej_files:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=UPDATE_CONFLICT_FOUND")
+        print(f"DETAIL=found .rej files: {rej_files}")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    result = run_cmd(["grep", "-r", "<<<<<<<", ".", "--include=*.md"], cwd=destination, check=False)
+    if result.stdout.strip():
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=UPDATE_CONFLICT_FOUND")
+        print("DETAIL=conflict markers found in generated files")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+
+def validate_template_core_applied(destination: Path) -> None:
+    agents_md = destination / "AGENTS.md"
+    if not agents_md.exists():
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=TEMPLATE_CORE_UPDATE_MISSING")
+        print("DETAIL=AGENTS.md not found after update")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    content = agents_md.read_text(encoding="utf-8")
+    if TEMPLATE_CORE_SENTINEL not in content:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=TEMPLATE_CORE_UPDATE_MISSING")
+        print("DETAIL=template core sentinel not found in AGENTS.md")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    answers_file = destination / ".copier-answers.yml"
+    with open(answers_file) as f:
+        answers = yaml.safe_load(f)
+
+    if answers.get("_commit") != "v0.0.2":
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=TEMPLATE_CORE_UPDATE_MISSING")
+        print(f"DETAIL=_commit not updated to v0.0.2, got {answers.get('_commit')}")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    validate_yaml_files(destination)
+    check_unresolved_markers(destination)
+
+
+def main() -> None:
+    check_copier_version()
+
+    with tempfile.TemporaryDirectory(prefix="bootstrap-v2-dest-") as tmpdir:
+        tmpdir = Path(tmpdir)
+        simple_dest = tmpdir / "simple"
+        full_dest = tmpdir / "full"
+
+        template_repo = setup_temp_template(Path("."))
+
+        try:
+            run_copier_copy(template_repo, simple_dest, SIMPLE_PROFILE)
+            validate_copier_answers(simple_dest, SIMPLE_PROFILE)
+            print("SIMPLE_PROFILE_COPY=PASS")
+
+            run_copier_copy(template_repo, full_dest, FULL_PROFILE)
+            validate_copier_answers(full_dest, FULL_PROFILE)
+            print("FULL_PROFILE_COPY=PASS")
+
+            validate_yaml_files(simple_dest)
+            validate_yaml_files(full_dest)
+            print("GENERATED_YAML_PARSE=PASS")
+
+            check_unresolved_markers(simple_dest)
+            check_unresolved_markers(full_dest)
+            print("UNRESOLVED_TEMPLATE_MARKERS=0")
+
+            setup_full_destination_git(full_dest)
+            original_shas = apply_overlay_sentinels(full_dest)
+
+            update_template_core(template_repo)
+
+            run_copier_update(full_dest, template_repo)
+
+            validate_overlay_preserved(full_dest, original_shas)
+            print("PROJECT_OVERLAY_UPDATE_PRESERVED=PASS")
+
+            validate_template_core_applied(full_dest)
+            print("TEMPLATE_CORE_UPDATE_APPLIED=PASS")
+
+            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=PASS")
+
+        finally:
+            shutil.rmtree(template_repo, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    main()
