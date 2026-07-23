@@ -1,0 +1,94 @@
+{%- if has_runtime_visual -%}
+# Runtime Visual Workflow
+
+RUNTIME_VISUAL_CORE_VERSION=1
+
+## Scope
+* runtime·visual acceptance·browser automation 작업에만 적용
+* source implementation task 와 runtime acceptance 를 별도 failure domain 으로 운영
+* runtime 결과를 source-level PASS 와 합치지 않음
+
+## Required project profile
+실행 전 다음 파일을 읽는다:
+
+```text
+agents/project/runtime-visual/PROFILE.md
+```
+
+Profile 이 미완성 상태이면 추측하지 않고 fail-closed 한다.
+
+Stable blocker:
+
+```text
+RUNTIME_VISUAL_PROFILE_INCOMPLETE
+```
+
+## Lane separation
+* source write session 과 runtime acceptance session 을 분리
+* runtime-only 작업에서 application source 수정 금지
+* runtime failure 가 source defect 를 입증하더라도 별도 source task 로 넘김
+* 한 runtime task 는 하나의 재현 상태와 하나의 binary criterion 만 소유
+
+## Browser execution
+* 비시각적 자동화·회귀 검증은 headless 를 기본으로 함
+* 사람이 보는 visual acceptance 는 project profile 에 선언된 stable browser/channel 을 사용
+* 임의 executable path 와 warning suppression flag 를 사용하지 않음
+* browser/runtime binary 가 profile 과 다르면 실행하지 않음
+* 반복적인 browser 재실행으로 failure 를 덮지 않음
+
+## Authentication boundary
+* 자동화 브라우저에서 외부 identity provider credential 직접 입력 금지
+* 기존 인증 state 가 선언된 경우에만 재사용
+* 인증 state 가 없거나 만료됐으면 반복 로그인·polling·우회를 하지 않음
+* provider-specific blocker code 는 project profile 이 소유
+* 인증 차단을 application password 또는 source defect 로 재분류하지 않음
+
+## Runtime identity lock
+실행 전후 다음을 기록:
+* target URL/hostname
+* deployment 또는 application commit identity
+* browser 와 channel
+* auth state source
+* viewport
+* tested route/state
+
+검증 중 deployment identity 가 바뀌면 중단:
+
+```text
+RUNTIME_TARGET_IDENTITY_CHANGED
+```
+
+## Acceptance execution
+* 목표 상태를 한 번 재현
+* action count 와 navigation count 를 제한
+* 무제한 retry/polling 금지
+* DOM/semantic evidence 를 primary evidence 로 사용
+* screenshot 은 supporting evidence
+* source acceptance 와 runtime acceptance 를 별도 보고
+
+## Evidence
+최소 보고 항목:
+* exact target identity
+* exact tested state
+* expected result
+* actual result
+* first failure
+* DOM 또는 semantic evidence
+* screenshot path 가 있을 경우 그 path
+* retries 와 submissions 횟수
+* cleanup 결과
+
+## Cleanup and stop conditions
+* task 가 시작한 browser/process 만 종료
+* 기존 사용자 browser/session 을 종료하지 않음
+* auth failure 후 다른 browser 를 자동으로 시도하지 않음
+* target identity 변경 시 즉시 중단
+* profile 미완성 시 즉시 중단
+* source 수정이 필요하면 runtime 작업 종료
+{%- else -%}
+# Runtime Visual Module Disabled
+
+This file is a placeholder. The `has_runtime_visual` capability is currently disabled.
+
+To enable this module, set `has_runtime_visual: true` in your Copier answers.
+{%- endif -%}
