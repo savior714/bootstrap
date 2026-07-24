@@ -236,6 +236,15 @@ class SyntheticCopierDataFileMaterializationError(RuntimeError):
         self.detail = detail
 
 
+class ProductionCopierDataFileMaterializationError(RuntimeError):
+    """Raised when a required data file write step for production Copier copy fails."""
+
+    def __init__(self, failure_code: str, detail: str) -> None:
+        super().__init__(detail)
+        self.failure_code = failure_code
+        self.detail = detail
+
+
 def run_required_temp_repo_git_step(
     *,
     command: list[str],
@@ -456,6 +465,76 @@ def run_copier_copy(
     data_file.unlink(missing_ok=True)
 
     return exit_code, stdout, stderr
+
+
+def materialize_production_copier_data_files(
+    parent_dir: Path,
+) -> tuple[Path, Path]:
+    """Materialize production Copier data files with fail-closed writes.
+
+    Creates true_data.yml and false_data.yml in parent_dir before any production
+    Copier invocation. Write failures raise ProductionCopierDataFileMaterializationError
+    with stable failure codes.
+
+    Args:
+        parent_dir: Parent directory where data files will be created
+
+    Returns:
+        (true_data_file, false_data_file) tuple of Paths
+
+    Raises:
+        ProductionCopierDataFileMaterializationError: If either write fails
+    """
+    true_data_file = parent_dir / "true_data.yml"
+    false_data_file = parent_dir / "false_data.yml"
+
+    # Write true_data.yml first
+    try:
+        true_data_file.write_text(
+            "project_name: Runtime Visual True Probe\n"
+            "project_slug: runtime-visual-true-probe\n"
+            "canonical_branch: main\n"
+            "main_only: true\n"
+            "package_tool: other\n"
+            "lint_command: \"\"\n"
+            "typecheck_command: \"\"\n"
+            "targeted_test_command: \"\"\n"
+            "release_check_command: \"\"\n"
+            "has_runtime_visual: true\n"
+            "has_database: false\n"
+            "has_content_provenance: false\n"
+            "regulated_domain: false\n"
+        )
+    except Exception as error:
+        raise ProductionCopierDataFileMaterializationError(
+            "PRODUCTION_COPIER_TRUE_DATA_FILE_WRITE_FAILED",
+            str(error),
+        )
+
+    # Write false_data.yml second
+    try:
+        false_data_file.write_text(
+            "project_name: Runtime Visual False Probe\n"
+            "project_slug: runtime-visual-false-probe\n"
+            "canonical_branch: main\n"
+            "main_only: true\n"
+            "package_tool: other\n"
+            "lint_command: \"\"\n"
+            "typecheck_command: \"\"\n"
+            "targeted_test_command: \"\"\n"
+            "release_check_command: \"\"\n"
+            "has_runtime_visual: false\n"
+            "has_database: false\n"
+            "has_content_provenance: false\n"
+            "regulated_domain: false\n"
+        )
+    except Exception as error:
+        raise ProductionCopierDataFileMaterializationError(
+            "PRODUCTION_COPIER_FALSE_DATA_FILE_WRITE_FAILED",
+            str(error),
+        )
+
+    return true_data_file, false_data_file
 
 
 def parse_answers_file_value(answers_path: Path) -> tuple[str, bool]:
@@ -1408,30 +1487,22 @@ def validate_production_template(
     temp_repo: Path,
     dest_true: Path,
     dest_false: Path,
+    true_data_file: Path,
+    false_data_file: Path,
 ) -> tuple[bool, list[str]]:
     """
     Validate production template with true and false profiles.
 
+    Args:
+        temp_repo: Path to temp repo with production template
+        dest_true: Destination for true profile
+        dest_false: Destination for false profile
+        true_data_file: Pre-materialized true data file path
+        false_data_file: Pre-materialized false data file path
+
     Returns (passed, diagnostic_messages).
     """
     # True profile copy
-    true_data_file = dest_true.parent / "true_data.yml"
-    true_data_file.write_text(
-        "project_name: Runtime Visual True Probe\n"
-        "project_slug: runtime-visual-true-probe\n"
-        "canonical_branch: main\n"
-        "main_only: true\n"
-        "package_tool: other\n"
-        "lint_command: \"\"\n"
-        "typecheck_command: \"\"\n"
-        "targeted_test_command: \"\"\n"
-        "release_check_command: \"\"\n"
-        "has_runtime_visual: true\n"
-        "has_database: false\n"
-        "has_content_provenance: false\n"
-        "regulated_domain: false\n"
-    )
-
     exit_code_true, stdout_true, stderr_true = run_local_copier(
         args=(
             "copy",
@@ -1443,26 +1514,8 @@ def validate_production_template(
         ),
         timeout=120,
     )
-    true_data_file.unlink(missing_ok=True)
 
     # False profile copy
-    false_data_file = dest_false.parent / "false_data.yml"
-    false_data_file.write_text(
-        "project_name: Runtime Visual False Probe\n"
-        "project_slug: runtime-visual-false-probe\n"
-        "canonical_branch: main\n"
-        "main_only: true\n"
-        "package_tool: other\n"
-        "lint_command: \"\"\n"
-        "typecheck_command: \"\"\n"
-        "targeted_test_command: \"\"\n"
-        "release_check_command: \"\"\n"
-        "has_runtime_visual: false\n"
-        "has_database: false\n"
-        "has_content_provenance: false\n"
-        "regulated_domain: false\n"
-    )
-
     exit_code_false, stdout_false, stderr_false = run_local_copier(
         args=(
             "copy",
@@ -1474,7 +1527,6 @@ def validate_production_template(
         ),
         timeout=120,
     )
-    false_data_file.unlink(missing_ok=True)
 
     # Use the new evaluation function
     passed, diagnostics, failures = evaluate_production_output_contract(
@@ -1710,10 +1762,25 @@ def main() -> int:
         dest_true_prod = tmpdir_path / "true-prod"
         dest_false_prod = tmpdir_path / "false-prod"
 
+        # Phase 3.3: Materialize production Copier data files (fail-closed)
+        try:
+            true_data_file, false_data_file = materialize_production_copier_data_files(
+                tmpdir_path
+            )
+        except ProductionCopierDataFileMaterializationError as e:
+            print("BOOTSTRAP_PRODUCTION_COPIER_DATA_FILE_MATERIALIZATION_CONTRACT=FAIL")
+            print(f"FIRST_FAILURE={e.failure_code}")
+            print(f"  Detail: {e.detail}")
+            return 1
+
+        print("BOOTSTRAP_PRODUCTION_COPIER_DATA_FILE_MATERIALIZATION_CONTRACT=PASS")
+
         prod_passed, prod_issues = validate_production_template(
             temp_repo,
             dest_true_prod,
             dest_false_prod,
+            true_data_file,
+            false_data_file,
         )
 
         print("\n=== Production Validation Results ===")
