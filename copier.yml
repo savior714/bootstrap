@@ -3,6 +3,7 @@ _subdirectory: template
 _answers_file: .copier-answers.yml
 _skip_if_exists:
   - agents/project/PROFILE.md
+  - agents/project/runtime-visual/PROFILE.md
   - docs/product/ACTIVE_SCOPE.md
 
 project_name:

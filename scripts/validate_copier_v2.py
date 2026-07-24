@@ -59,17 +59,26 @@ REQUIRED_GENERATED_PATHS = [
 
 JINJA_MARKERS = ["{{", "{%", "{#"]
 
+RUNTIME_VISUAL_PROFILE_PATH = (
+    "agents/project/runtime-visual/PROFILE.md"
+)
+
 OVERLAY_FILES = [
     "agents/project/PROFILE.md",
+    "agents/project/runtime-visual/PROFILE.md",
     "docs/product/ACTIVE_SCOPE.md",
 ]
 
 OVERLAY_SENTINELS = {
     "agents/project/PROFILE.md": "BOOTSTRAP_VALIDATOR_PROFILE_OVERLAY_SENTINEL",
+    "agents/project/runtime-visual/PROFILE.md": "BOOTSTRAP_VALIDATOR_RUNTIME_VISUAL_PROFILE_OVERLAY_SENTINEL",
     "docs/product/ACTIVE_SCOPE.md": "BOOTSTRAP_VALIDATOR_ACTIVE_SCOPE_OVERLAY_SENTINEL",
 }
 
 TEMPLATE_CORE_SENTINEL = "BOOTSTRAP_VALIDATOR_TEMPLATE_CORE_V2_SENTINEL"
+RUNTIME_VISUAL_PROFILE_TEMPLATE_SENTINEL = (
+    "BOOTSTRAP_VALIDATOR_RUNTIME_VISUAL_PROFILE_TEMPLATE_UPDATE_SENTINEL"
+)
 
 
 def run_cmd(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
@@ -115,31 +124,7 @@ def setup_temp_template(template_dir: Path) -> Path:
     run_cmd(["git", "config", "user.name", "Bootstrap Validator"], cwd=repo_dir)
     run_cmd(["git", "config", "user.email", "bootstrap-validator@example.invalid"], cwd=repo_dir)
 
-    archive_result = run_cmd(["git", "archive", "HEAD"], check=False)
-    if archive_result.returncode != 0:
-        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-        print("FIRST_FAILURE=TEMP_TEMPLATE_SETUP_FAILED")
-        print("DETAIL=git archive HEAD failed in working tree")
-        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-        sys.exit(1)
-
-    extract_dir = Path(tempfile.mkdtemp(prefix="bootstrap-v2-extract-"))
-    import zipfile
-
-    archive_result = subprocess.run(
-        ["git", "archive", "HEAD", "--format", "zip"],
-        cwd=Path("."),
-        capture_output=True,
-    )
-    zip_path = extract_dir / "archive.zip"
-    zip_path.write_bytes(archive_result.stdout)
-
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        zf.extractall(extract_dir)
-
-    for item in extract_dir.iterdir():
-        if item.name == "bootstrap-v2-template-0":
-            continue
+    for item in template_dir.iterdir():
         dest = repo_dir / item.name
         if dest.exists():
             if dest.is_dir():
@@ -151,11 +136,8 @@ def setup_temp_template(template_dir: Path) -> Path:
         else:
             shutil.copy2(item, dest)
 
-    shutil.rmtree(extract_dir)
-    zip_path.unlink(missing_ok=True)
-
     run_cmd(["git", "add", "."], cwd=repo_dir)
-    run_cmd(["git", "commit", "-m", "Initial commit from HEAD archive"], cwd=repo_dir)
+    run_cmd(["git", "commit", "-m", "Initial commit from working tree"], cwd=repo_dir)
     run_cmd(["git", "tag", "v0.0.1"], cwd=repo_dir)
 
     return repo_dir
@@ -344,8 +326,30 @@ def update_template_core(template_repo: Path) -> None:
     with open(jinja_file, "a", encoding="utf-8") as f:
         f.write("\n" + TEMPLATE_CORE_SENTINEL + "\n")
 
+    runtime_profile_file = (
+        template_repo
+        / "template"
+        / "agents"
+        / "project"
+        / "{% if has_runtime_visual %}runtime-visual{% endif %}"
+        / "{% if has_runtime_visual %}PROFILE.md{% endif %}.jinja"
+    )
+    if not runtime_profile_file.exists():
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=RUNTIME_VISUAL_PROFILE_TEMPLATE_UPDATE_MISSING")
+        print("DETAIL=runtime visual profile template source not found")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    with open(runtime_profile_file, "a", encoding="utf-8") as f:
+        f.write("\n" + RUNTIME_VISUAL_PROFILE_TEMPLATE_SENTINEL + "\n")
+
     run_cmd(["git", "add", "template/AGENTS.md.jinja"], cwd=template_repo)
-    run_cmd(["git", "commit", "-m", "Add template core sentinel"], cwd=template_repo)
+    run_cmd(
+        ["git", "add", "template/agents/project/{% if has_runtime_visual %}runtime-visual{% endif %}/{% if has_runtime_visual %}PROFILE.md{% endif %}.jinja"],
+        cwd=template_repo,
+    )
+    run_cmd(["git", "commit", "-m", "Add template core and runtime profile sentinels"], cwd=template_repo)
     run_cmd(["git", "tag", "v0.0.2"], cwd=template_repo)
 
 
@@ -367,20 +371,42 @@ def validate_overlay_preserved(destination: Path, original_shas: dict[str, str])
     for file_path in OVERLAY_FILES:
         current_sha = get_file_sha256(destination / file_path)
         if current_sha != original_shas[file_path]:
-            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-            print("FIRST_FAILURE=PROJECT_OVERLAY_CHANGED")
-            print(f"DETAIL={file_path} changed during update")
-            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-            sys.exit(1)
+            if file_path == RUNTIME_VISUAL_PROFILE_PATH:
+                print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+                print("FIRST_FAILURE=RUNTIME_VISUAL_PROFILE_UPDATE_CHANGED")
+                print(f"DETAIL={file_path} changed during update")
+                print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+                sys.exit(1)
+            else:
+                print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+                print("FIRST_FAILURE=PROJECT_OVERLAY_CHANGED")
+                print(f"DETAIL={file_path} changed during update")
+                print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+                sys.exit(1)
 
         sentinel = OVERLAY_SENTINELS[file_path]
         content = (destination / file_path).read_text(encoding="utf-8")
         if sentinel not in content:
-            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-            print("FIRST_FAILURE=PROJECT_OVERLAY_CHANGED")
-            print(f"DETAIL={file_path} sentinel missing after update")
-            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-            sys.exit(1)
+            if file_path == RUNTIME_VISUAL_PROFILE_PATH:
+                print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+                print("FIRST_FAILURE=RUNTIME_VISUAL_PROFILE_PROJECT_SENTINEL_MISSING")
+                print(f"DETAIL={file_path} sentinel missing after update")
+                print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+                sys.exit(1)
+            else:
+                print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+                print("FIRST_FAILURE=PROJECT_OVERLAY_CHANGED")
+                print(f"DETAIL={file_path} sentinel missing after update")
+                print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+                sys.exit(1)
+
+    runtime_profile_content = (destination / RUNTIME_VISUAL_PROFILE_PATH).read_text(encoding="utf-8")
+    if RUNTIME_VISUAL_PROFILE_TEMPLATE_SENTINEL in runtime_profile_content:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=RUNTIME_VISUAL_PROFILE_TEMPLATE_SENTINEL_APPLIED")
+        print(f"DETAIL={RUNTIME_VISUAL_PROFILE_PATH} should not contain template update sentinel")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
 
     result = run_cmd(["find", ".", "-name", "*.rej"], cwd=destination, check=False)
     rej_files = [f for f in result.stdout.strip().split("\n") if f]
@@ -468,6 +494,7 @@ def main() -> None:
 
             validate_overlay_preserved(full_dest, original_shas)
             print("PROJECT_OVERLAY_UPDATE_PRESERVED=PASS")
+            print("RUNTIME_VISUAL_PROFILE_UPDATE_PRESERVED=PASS")
 
             validate_template_core_applied(full_dest)
             print("TEMPLATE_CORE_UPDATE_APPLIED=PASS")
