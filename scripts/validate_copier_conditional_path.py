@@ -1174,10 +1174,7 @@ def main() -> int:
                 for issue in false_issues:
                     print(f"  FALSE: {issue}")
 
-        # Phase 2: Marker order contract self-check
-        print("COPIER_LOCAL_TOOLCHAIN_MARKER_ORDER_PROBE=PASS")
-
-        # Phase 3: Validator gate contract self-check
+        # Phase 2: Validator gate contract self-check
         print("\n=== Running validator gate contract self-check ===")
         gate_passed, gate_marker = validate_production_validator_gate_contract()
 
