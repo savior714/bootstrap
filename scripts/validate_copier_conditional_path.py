@@ -245,6 +245,15 @@ class ProductionCopierDataFileMaterializationError(RuntimeError):
         self.detail = detail
 
 
+class ProductionCopierDataFileCleanupError(RuntimeError):
+    """Raised when a required data file cleanup step for production Copier copy fails."""
+
+    def __init__(self, failure_code: str, detail: str) -> None:
+        super().__init__(detail)
+        self.failure_code = failure_code
+        self.detail = detail
+
+
 def run_required_temp_repo_git_step(
     *,
     command: list[str],
@@ -465,6 +474,29 @@ def run_copier_copy(
     data_file.unlink(missing_ok=True)
 
     return exit_code, stdout, stderr
+
+
+def cleanup_production_copier_data_file(
+    *,
+    data_file: Path,
+    failure_code: str,
+) -> None:
+    """Cleanup production Copier data file with fail-closed exception handling.
+
+    Args:
+        data_file: Path to the data file to cleanup
+        failure_code: Stable failure code to use if cleanup fails
+
+    Raises:
+        ProductionCopierDataFileCleanupError: If cleanup fails
+    """
+    try:
+        data_file.unlink(missing_ok=True)
+    except Exception as error:
+        raise ProductionCopierDataFileCleanupError(
+            failure_code,
+            str(error),
+        )
 
 
 def materialize_production_copier_data_files(
@@ -1516,7 +1548,10 @@ def validate_production_template(
     )
 
     # Cleanup true data file
-    true_data_file.unlink(missing_ok=True)
+    cleanup_production_copier_data_file(
+        data_file=true_data_file,
+        failure_code="PRODUCTION_COPIER_TRUE_DATA_FILE_CLEANUP_FAILED",
+    )
 
     # False profile copy
     exit_code_false, stdout_false, stderr_false = run_local_copier(
@@ -1532,7 +1567,13 @@ def validate_production_template(
     )
 
     # Cleanup false data file
-    false_data_file.unlink(missing_ok=True)
+    cleanup_production_copier_data_file(
+        data_file=false_data_file,
+        failure_code="PRODUCTION_COPIER_FALSE_DATA_FILE_CLEANUP_FAILED",
+    )
+
+    # Emit cleanup contract PASS marker before output evaluation
+    print("BOOTSTRAP_PRODUCTION_COPIER_DATA_FILE_CLEANUP_CONTRACT=PASS")
 
     # Use the new evaluation function
     passed, diagnostics, failures = evaluate_production_output_contract(
@@ -1781,13 +1822,19 @@ def main() -> int:
 
         print("BOOTSTRAP_PRODUCTION_COPIER_DATA_FILE_MATERIALIZATION_CONTRACT=PASS")
 
-        prod_passed, prod_issues = validate_production_template(
-            temp_repo,
-            dest_true_prod,
-            dest_false_prod,
-            true_data_file,
-            false_data_file,
-        )
+        try:
+            prod_passed, prod_issues = validate_production_template(
+                temp_repo,
+                dest_true_prod,
+                dest_false_prod,
+                true_data_file,
+                false_data_file,
+            )
+        except ProductionCopierDataFileCleanupError as e:
+            print("BOOTSTRAP_PRODUCTION_COPIER_DATA_FILE_CLEANUP_CONTRACT=FAIL")
+            print(f"FIRST_FAILURE={e.failure_code}")
+            print(f"  Detail: {e.detail}")
+            return 1
 
         print("\n=== Production Validation Results ===")
         for issue in prod_issues:
