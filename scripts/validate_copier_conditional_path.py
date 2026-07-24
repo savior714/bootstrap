@@ -17,7 +17,7 @@ from pathlib import Path
 TARGET_COPIER_VERSION = "9.17.0"
 
 
-def run_cmd(cmd: list[str], cwd: Path | None = None) -> tuple[int, str, str]:
+def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int = 300) -> tuple[int, str, str]:
     """Run command and return (exit_code, stdout, stderr)."""
     try:
         result = subprocess.run(
@@ -26,8 +26,11 @@ def run_cmd(cmd: list[str], cwd: Path | None = None) -> tuple[int, str, str]:
             capture_output=True,
             text=True,
             check=False,
+            timeout=timeout,
         )
         return result.returncode, result.stdout, result.stderr
+    except subprocess.TimeoutExpired as e:
+        return 1, "", f"Command timed out after {timeout}s: {e}"
     except Exception as e:
         return 1, "", str(e)
 
@@ -100,7 +103,7 @@ def run_copier_copy(
     data_file.write_text(f"has_runtime_visual: {str(data['has_runtime_visual']).lower()}\n")
 
     cmd = [
-        "uv", "run", "copier", "copy",
+        "uvx", "copier", "copy",
         "--defaults",
         "--vcs-ref", "v0.0.1",
         "--data-file", str(data_file),
@@ -108,7 +111,7 @@ def run_copier_copy(
         str(dest_dir),
     ]
 
-    exit_code, stdout, stderr = run_cmd(cmd)
+    exit_code, stdout, stderr = run_cmd(cmd, timeout=120)
 
     # Cleanup temp data file
     data_file.unlink(missing_ok=True)
@@ -382,6 +385,336 @@ def create_production_temp_repo(working_tree_root: Path, tmp_dir: Path) -> Path:
     return temp_repo
 
 
+def evaluate_production_output_contract(
+    exit_code_true: int,
+    exit_code_false: int,
+    dest_true: Path,
+    dest_false: Path,
+) -> tuple[bool, list[str], list[str]]:
+    """
+    Evaluate production output contract with explicit boolean checks.
+
+    Returns (passed, diagnostics, failures).
+
+    Explicit boolean checks:
+    - true_copy_ok
+    - false_copy_ok
+    - true_workflow_exists
+    - true_workflow_sentinel_ok
+    - true_workflow_disabled_absent
+    - true_workflow_jinja_resolved
+    - true_profile_exists
+    - true_profile_status_ok
+    - true_profile_disabled_absent
+    - true_profile_jinja_resolved
+    - false_modules_dir_absent
+    - false_project_dir_absent
+    - false_runtime_visual_paths_absent
+    - false_gitkeep_paths_absent
+    - orphan_jinja_absent
+    """
+    diagnostics = []
+    failures = []
+
+    # True copy check
+    true_copy_ok = exit_code_true == 0
+    if not true_copy_ok:
+        failures.append("PRODUCTION_TRUE_COPY_FAILED")
+        diagnostics.append(f"True copy exit code: {exit_code_true}")
+
+    # False copy check
+    false_copy_ok = exit_code_false == 0
+    if not false_copy_ok:
+        failures.append("PRODUCTION_FALSE_COPY_FAILED")
+        diagnostics.append(f"False copy exit code: {exit_code_false}")
+
+    # True workflow checks
+    true_workflow = dest_true / "agents/modules/runtime-visual/WORKFLOW.md"
+    true_workflow_exists = true_workflow.exists()
+
+    # Initialize booleans to False, set to True only when checks pass
+    true_workflow_sentinel_ok = False
+    true_workflow_disabled_absent = False
+    true_workflow_jinja_resolved = False
+
+    if not true_workflow_exists:
+        failures.append("PRODUCTION_TRUE_WORKFLOW_MISSING")
+        diagnostics.append("WORKFLOW.md does not exist")
+    else:
+        content = true_workflow.read_text()
+
+        true_workflow_sentinel_ok = "RUNTIME_VISUAL_CORE_VERSION=1" in content
+        if not true_workflow_sentinel_ok:
+            failures.append("PRODUCTION_TRUE_WORKFLOW_SENTINEL_MISSING")
+            diagnostics.append("RUNTIME_VISUAL_CORE_VERSION=1 not found")
+
+        true_workflow_disabled_absent = "Runtime Visual Module Disabled" not in content
+        if not true_workflow_disabled_absent:
+            failures.append("PRODUCTION_TRUE_WORKFLOW_CONTAINS_DISABLED_PLACEHOLDER")
+            diagnostics.append("Disabled placeholder found")
+
+        true_workflow_jinja_resolved = "{%" not in content and "{{" not in content
+        if not true_workflow_jinja_resolved:
+            failures.append("PRODUCTION_TRUE_WORKFLOW_UNRESOLVED_JINJA")
+            diagnostics.append("Unresolved Jinja markers found")
+
+    # True profile checks
+    true_profile = dest_true / "agents/project/runtime-visual/PROFILE.md"
+    true_profile_exists = true_profile.exists()
+
+    # Initialize booleans to False, set to True only when checks pass
+    true_profile_status_ok = False
+    true_profile_disabled_absent = False
+    true_profile_jinja_resolved = False
+
+    if not true_profile_exists:
+        failures.append("PRODUCTION_TRUE_PROFILE_MISSING")
+        diagnostics.append("PROFILE.md does not exist")
+    else:
+        content = true_profile.read_text()
+
+        true_profile_status_ok = "PROFILE_STATUS: INCOMPLETE" in content
+        if not true_profile_status_ok:
+            failures.append("PRODUCTION_TRUE_PROFILE_STATUS_MISSING")
+            diagnostics.append("PROFILE_STATUS: INCOMPLETE not found")
+
+        true_profile_disabled_absent = "Runtime Visual Module Disabled" not in content
+        if not true_profile_disabled_absent:
+            failures.append("PRODUCTION_TRUE_PROFILE_CONTAINS_DISABLED_PLACEHOLDER")
+            diagnostics.append("Disabled placeholder found")
+
+        true_profile_jinja_resolved = "{%" not in content and "{{" not in content
+        if not true_profile_jinja_resolved:
+            failures.append("PRODUCTION_TRUE_PROFILE_UNRESOLVED_JINJA")
+            diagnostics.append("Unresolved Jinja markers found")
+
+    # False destination checks
+    false_modules_dir = dest_false / "agents/modules/runtime-visual"
+    false_project_dir = dest_false / "agents/project/runtime-visual"
+
+    false_modules_dir_absent = not false_modules_dir.exists()
+    if not false_modules_dir_absent:
+        failures.append("PRODUCTION_FALSE_MODULES_PATH_EXISTS")
+        diagnostics.append("modules/runtime-visual path exists in false dest")
+
+    false_project_dir_absent = not false_project_dir.exists()
+    if not false_project_dir_absent:
+        failures.append("PRODUCTION_FALSE_PROJECT_PATH_EXISTS")
+        diagnostics.append("project/runtime-visual path exists in false dest")
+
+    # Check for any runtime-visual named paths in false destination
+    runtime_visual_paths = []
+    for p in dest_false.rglob("*"):
+        if "runtime-visual" in p.name:
+            runtime_visual_paths.append(str(p.relative_to(dest_false)))
+
+    false_runtime_visual_paths_absent = len(runtime_visual_paths) == 0
+    if not false_runtime_visual_paths_absent:
+        failures.append("PRODUCTION_FALSE_RUNTIME_VISUAL_PATH_EXISTS")
+        diagnostics.append(f"Stray runtime-visual paths: {runtime_visual_paths}")
+
+    # Check for .gitkeep in false destination
+    gitkeep_paths = []
+    for p in dest_false.rglob(".gitkeep"):
+        rel = str(p.relative_to(dest_false))
+        gitkeep_paths.append(rel)
+
+    false_gitkeep_paths_absent = len(gitkeep_paths) == 0
+    if not false_gitkeep_paths_absent:
+        failures.append("PRODUCTION_FALSE_GITKEEP_EXISTS")
+        diagnostics.append(f".gitkeep paths: {gitkeep_paths}")
+
+    # Check for orphan .jinja files in both destinations
+    orphan_jinja = []
+    for dest in [dest_true, dest_false]:
+        for p in dest.rglob("*.jinja"):
+            rel = str(p.relative_to(dest))
+            if rel not in orphan_jinja:
+                orphan_jinja.append(rel)
+
+    orphan_jinja_absent = len(orphan_jinja) == 0
+    if not orphan_jinja_absent:
+        failures.append("PRODUCTION_ORPHAN_JINJA_EXISTS")
+        diagnostics.append(f"Orphan .jinja paths: {orphan_jinja}")
+
+    # Final passed: all booleans must be True
+    passed = all(
+        [
+            true_copy_ok,
+            false_copy_ok,
+            true_workflow_exists,
+            true_workflow_sentinel_ok,
+            true_workflow_disabled_absent,
+            true_workflow_jinja_resolved,
+            true_profile_exists,
+            true_profile_status_ok,
+            true_profile_disabled_absent,
+            true_profile_jinja_resolved,
+            false_modules_dir_absent,
+            false_project_dir_absent,
+            false_runtime_visual_paths_absent,
+            false_gitkeep_paths_absent,
+            orphan_jinja_absent,
+        ]
+    )
+
+    return passed, diagnostics, failures
+
+
+def validate_production_validator_gate_contract() -> tuple[bool, str]:
+    """
+    Durable fail-closed probe: self-check with deterministic test cases.
+
+    Tests that the validator correctly fails on invalid outputs.
+
+    Returns (passed, marker).
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        tmpdir_path = Path(tmp)
+
+        test_cases = [
+            # Case 1: Valid baseline → PASS
+            (
+                "VALID_BASELINE",
+                True,
+                {
+                    "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
+                    "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
+                    "false_stray_paths": False,
+                    "false_gitkeep": False,
+                    "orphan_jinja": False,
+                },
+                True,
+            ),
+            # Case 2: Missing workflow sentinel → FAIL
+            (
+                "MISSING_WORKFLOW_SENTINEL",
+                True,
+                {
+                    "true_workflow_content": "Some content\n",
+                    "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
+                    "false_stray_paths": False,
+                    "false_gitkeep": False,
+                    "orphan_jinja": False,
+                },
+                False,
+            ),
+            # Case 3: Missing profile status → FAIL
+            (
+                "MISSING_PROFILE_STATUS",
+                True,
+                {
+                    "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
+                    "true_profile_content": "Some content\n",
+                    "false_stray_paths": False,
+                    "false_gitkeep": False,
+                    "orphan_jinja": False,
+                },
+                False,
+            ),
+            # Case 4: Unresolved workflow Jinja → FAIL
+            (
+                "UNRESOLVED_WORKFLOW_JINJA",
+                True,
+                {
+                    "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n{{ broken }}\n",
+                    "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
+                    "false_stray_paths": False,
+                    "false_gitkeep": False,
+                    "orphan_jinja": False,
+                },
+                False,
+            ),
+            # Case 5: Unresolved profile Jinja → FAIL
+            (
+                "UNRESOLVED_PROFILE_JINJA",
+                True,
+                {
+                    "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
+                    "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n{% broken %}\n",
+                    "false_stray_paths": False,
+                    "false_gitkeep": False,
+                    "orphan_jinja": False,
+                },
+                False,
+            ),
+            # Case 6: False stray runtime path → FAIL
+            (
+                "FALSE_STRAY_RUNTIME_VISUAL_PATH",
+                True,
+                {
+                    "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
+                    "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
+                    "false_stray_paths": True,
+                    "false_gitkeep": False,
+                    "orphan_jinja": False,
+                },
+                False,
+            ),
+            # Case 7: False .gitkeep → FAIL
+            (
+                "FALSE_GITKEEP",
+                True,
+                {
+                    "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
+                    "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
+                    "false_stray_paths": False,
+                    "false_gitkeep": True,
+                    "orphan_jinja": False,
+                },
+                False,
+            ),
+        ]
+
+        for case_name, true_copy_ok, config, expected_pass in test_cases:
+            dest_true = tmpdir_path / f"true_{case_name}"
+            dest_false = tmpdir_path / f"false_{case_name}"
+            dest_true.mkdir()
+            dest_false.mkdir()
+
+            # Create true destination structure
+            if config["true_workflow_content"]:
+                workflow_dir = dest_true / "agents/modules/runtime-visual"
+                workflow_dir.mkdir(parents=True)
+                workflow = workflow_dir / "WORKFLOW.md"
+                workflow.write_text(config["true_workflow_content"])
+
+            if config["true_profile_content"]:
+                profile_dir = dest_true / "agents/project/runtime-visual"
+                profile_dir.mkdir(parents=True)
+                profile = profile_dir / "PROFILE.md"
+                profile.write_text(config["true_profile_content"])
+
+            # Create false destination stray paths
+            if config["false_stray_paths"]:
+                stray_dir = dest_false / "agents/other/stray-runtime-visual"
+                stray_dir.mkdir(parents=True)
+
+            # Create false destination .gitkeep
+            if config["false_gitkeep"]:
+                stray_dir = dest_false / "agents/other/stray-runtime-visual"
+                stray_dir.mkdir(parents=True)
+                gitkeep = stray_dir / ".gitkeep"
+                gitkeep.write_text("")
+
+            # Evaluate
+            passed, diagnostics, failures = evaluate_production_output_contract(
+                exit_code_true=0 if true_copy_ok else 1,
+                exit_code_false=0,
+                dest_true=dest_true,
+                dest_false=dest_false,
+            )
+
+            if passed != expected_pass:
+                return False, f"{case_name}: expected {expected_pass}, got {passed}"
+
+            # For FAIL cases, verify failure code is present
+            if not expected_pass and len(failures) == 0:
+                return False, f"{case_name}: expected failures but got none"
+
+        return True, "BOOTSTRAP_RUNTIME_VISUAL_PRODUCTION_VALIDATOR_GATE_CONTRACT=PASS"
+
+
 def validate_production_template(
     temp_repo: Path,
     dest_true: Path,
@@ -392,8 +725,6 @@ def validate_production_template(
 
     Returns (passed, diagnostic_messages).
     """
-    issues = []
-
     # True profile copy
     true_data_file = dest_true.parent / "true_data.yml"
     true_data_file.write_text(
@@ -413,14 +744,14 @@ def validate_production_template(
     )
 
     cmd_true = [
-        "uv", "run", "copier", "copy",
+        "uvx", "copier", "copy",
         "--defaults",
         "--vcs-ref", "v0.0.1",
         "--data-file", str(true_data_file),
         str(temp_repo),
         str(dest_true),
     ]
-    exit_code_true, stdout_true, stderr_true = run_cmd(cmd_true)
+    exit_code_true, stdout_true, stderr_true = run_cmd(cmd_true, timeout=120)
     true_data_file.unlink(missing_ok=True)
 
     # False profile copy
@@ -442,109 +773,26 @@ def validate_production_template(
     )
 
     cmd_false = [
-        "uv", "run", "copier", "copy",
+        "uvx", "copier", "copy",
         "--defaults",
         "--vcs-ref", "v0.0.1",
         "--data-file", str(false_data_file),
         str(temp_repo),
         str(dest_false),
     ]
-    exit_code_false, stdout_false, stderr_false = run_cmd(cmd_false)
+    exit_code_false, stdout_false, stderr_false = run_cmd(cmd_false, timeout=120)
     false_data_file.unlink(missing_ok=True)
 
-    # Check true profile
-    true_workflow = dest_true / "agents/modules/runtime-visual/WORKFLOW.md"
-    true_profile = dest_true / "agents/project/runtime-visual/PROFILE.md"
-
-    if exit_code_true != 0:
-        issues.append(f"PRODUCTION_TRUE_COPY_EXIT_CODE={exit_code_true}")
-    else:
-        issues.append("PRODUCTION_TRUE_COPY_EXIT_CODE=0")
-
-    if not true_workflow.exists():
-        issues.append("PRODUCTION_TRUE_WORKFLOW=missing")
-    else:
-        issues.append("PRODUCTION_TRUE_WORKFLOW=present")
-        content = true_workflow.read_text()
-        if "RUNTIME_VISUAL_CORE_VERSION=1" not in content:
-            issues.append("PRODUCTION_TRUE_WORKFLOW_MISSING_SENTINEL")
-        if "Runtime Visual Module Disabled" in content:
-            issues.append("PRODUCTION_TRUE_WORKFLOW_CONTAINS_DISABLED_PLACEHOLDER")
-        # Check for unresolved Jinja markers
-        if "{%" in content or "{{" in content:
-            issues.append("PRODUCTION_TRUE_WORKFLOW_HAS_UNRESOLVED_JINJA")
-
-    if not true_profile.exists():
-        issues.append("PRODUCTION_TRUE_PROFILE=missing")
-    else:
-        issues.append("PRODUCTION_TRUE_PROFILE=present")
-        content = true_profile.read_text()
-        if "PROFILE_STATUS: INCOMPLETE" not in content:
-            issues.append("PRODUCTION_TRUE_PROFILE_MISSING_STATUS")
-        if "Runtime Visual Module Disabled" in content:
-            issues.append("PRODUCTION_TRUE_PROFILE_CONTAINS_DISABLED_PLACEHOLDER")
-        if "{%" in content or "{{" in content:
-            issues.append("PRODUCTION_TRUE_PROFILE_HAS_UNRESOLVED_JINJA")
-
-    # Check false profile
-    false_modules_dir = dest_false / "agents/modules/runtime-visual"
-    false_project_dir = dest_false / "agents/project/runtime-visual"
-
-    if exit_code_false != 0:
-        issues.append(f"PRODUCTION_FALSE_COPY_EXIT_CODE={exit_code_false}")
-    else:
-        issues.append("PRODUCTION_FALSE_COPY_EXIT_CODE=0")
-
-    if false_modules_dir.exists():
-        issues.append("PRODUCTION_FALSE_MODULES_PATH_EXISTS")
-
-    if false_project_dir.exists():
-        issues.append("PRODUCTION_FALSE_PROJECT_PATH_EXISTS")
-
-    # Check for any runtime-visual named paths in false destination
-    runtime_visual_paths = []
-    for p in dest_false.rglob("*"):
-        if "runtime-visual" in p.name:
-            runtime_visual_paths.append(str(p.relative_to(dest_false)))
-
-    if runtime_visual_paths:
-        issues.append(f"PRODUCTION_FALSE_RUNTIME_VISUAL_PATHS={runtime_visual_paths}")
-    else:
-        issues.append("PRODUCTION_FALSE_RUNTIME_VISUAL_PATHS=none")
-
-    # Check for orphan .jinja files in both destinations
-    orphan_jinja = []
-    for dest in [dest_true, dest_false]:
-        for p in dest.rglob("*.jinja"):
-            rel = str(p.relative_to(dest))
-            if rel not in orphan_jinja:
-                orphan_jinja.append(rel)
-
-    if orphan_jinja:
-        issues.append(f"PRODUCTION_ORPHAN_JINJA_PATHS={orphan_jinja}")
-    else:
-        issues.append("PRODUCTION_ORPHAN_JINJA_PATHS=none")
-
-    # Check for .gitkeep in false destination
-    gitkeep_paths = []
-    for p in dest_false.rglob(".gitkeep"):
-        rel = str(p.relative_to(dest_false))
-        gitkeep_paths.append(rel)
-
-    if gitkeep_paths:
-        issues.append(f"PRODUCTION_FALSE_GITKEEP_PATHS={gitkeep_paths}")
-
-    passed = (
-        exit_code_true == 0 and
-        exit_code_false == 0 and
-        true_workflow.exists() and
-        true_profile.exists() and
-        not false_modules_dir.exists() and
-        not false_project_dir.exists() and
-        "Runtime Visual Module Disabled" not in true_workflow.read_text() and
-        "Runtime Visual Module Disabled" not in true_profile.read_text() and
-        not orphan_jinja
+    # Use the new evaluation function
+    passed, diagnostics, failures = evaluate_production_output_contract(
+        exit_code_true=exit_code_true,
+        exit_code_false=exit_code_false,
+        dest_true=dest_true,
+        dest_false=dest_false,
     )
+
+    # Combine diagnostics and failures for backward compatibility
+    issues = diagnostics + failures
 
     return passed, issues
 
@@ -561,7 +809,7 @@ def main() -> int:
     print("BOOTSTRAP_COPIER_ANSWERS_EXACT_KEY_CONTRACT=PASS")
 
     # Check Copier version
-    exit_code, stdout, stderr = run_cmd(["uv", "run", "copier", "--version"])
+    exit_code, stdout, stderr = run_cmd(["uvx", "copier", "--version"], timeout=30)
     if exit_code != 0:
         print(f"Failed to get Copier version: {stderr}")
         return 1
@@ -638,7 +886,19 @@ def main() -> int:
                 for issue in false_issues:
                     print(f"  FALSE: {issue}")
 
-        # Phase 2: Production template validation
+        # Phase 2: Validator gate contract self-check
+        print("\n=== Running validator gate contract self-check ===")
+        gate_passed, gate_marker = validate_production_validator_gate_contract()
+
+        if not gate_passed:
+            print(f"\nBOOTSTRAP_RUNTIME_VISUAL_PRODUCTION_VALIDATOR_GATE_CONTRACT=FAIL")
+            print(f"  Reason: {gate_marker}")
+            print("\nSome contracts failed.")
+            return 1
+
+        print(f"\n{gate_marker}")
+
+        # Phase 3: Production template validation
         print("\n=== Running production template validation ===")
 
         # Create temp repo from working tree
@@ -667,7 +927,7 @@ def main() -> int:
 
         # Final overall result
         print("\n=== Overall Validation Summary ===")
-        if synthetic_all_pass and prod_passed:
+        if synthetic_all_pass and gate_passed and prod_passed:
             print("\nAll contracts passed.")
             return 0
         else:
