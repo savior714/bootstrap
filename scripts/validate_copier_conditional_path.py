@@ -1287,9 +1287,18 @@ def main() -> int:
 
     # Phase 0.5: Portability marker isolation self-check
     isolation_passed, isolation_error = validate_checkout_portability_marker_isolation_contract()
+    if not isolation_passed:
+        print(
+            "BOOTSTRAP_COPIER_CHECKOUT_PORTABILITY_"
+            "MARKER_ISOLATION_CONTRACT=FAIL"
+        )
+        print(f"FIRST_FAILURE={isolation_error}")
+        return 1
 
     # Phase 0.1: Local toolchain contract self-check (synthetic probe only)
     self_check_passed, _ = validate_local_copier_toolchain_contract()
+    if self_check_passed:
+        print("COPIER_LOCAL_TOOLCHAIN_SYNTHETIC_PROBE=PASS")
     if not self_check_passed:
         print("BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=FAIL")
         print("FIRST_FAILURE=LOCAL_TOOLCHAIN_SELF_CHECK_FAILED")
@@ -1297,6 +1306,8 @@ def main() -> int:
 
     # Phase 1: Parser contract self-check
     parser_contract_pass = validate_answers_parser_contract()
+    if parser_contract_pass:
+        print("BOOTSTRAP_COPIER_ANSWERS_EXACT_KEY_CONTRACT=PASS")
     if not parser_contract_pass:
         print("BOOTSTRAP_COPIER_ANSWERS_EXACT_KEY_CONTRACT=FAIL")
         print("FIRST_FAILURE=PARSER_CONTRACT_SELF_CHECK_FAILED")
