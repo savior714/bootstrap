@@ -18,6 +18,8 @@ TARGET_COPIER_VERSION = "9.17.0"
 
 COPIER_COMMAND = ("uv", "run", "copier")
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
 
 def evaluate_local_copier_toolchain_contract(
     command: tuple[str, ...],
@@ -229,7 +231,7 @@ def run_copier_copy(
         str(dest_dir),
     ]
 
-    exit_code, stdout, stderr = run_cmd(cmd, timeout=120)
+    exit_code, stdout, stderr = run_cmd(cmd, cwd=REPOSITORY_ROOT, timeout=120)
 
     # Cleanup temp data file
     data_file.unlink(missing_ok=True)
@@ -478,11 +480,12 @@ def create_production_temp_repo(working_tree_root: Path, tmp_dir: Path) -> Path:
 
     Returns the path to the temp repo directory.
     """
+    import shutil
+
     temp_repo = tmp_dir / "production-template"
     temp_repo.mkdir()
 
     # Copy copier.yml and template/ from working tree
-    import shutil
     copier_yml_src = working_tree_root / "copier.yml"
     template_src = working_tree_root / "template"
 
@@ -1021,7 +1024,7 @@ def validate_production_template(
         str(temp_repo),
         str(dest_true),
     ]
-    exit_code_true, stdout_true, stderr_true = run_cmd(cmd_true, timeout=120)
+    exit_code_true, stdout_true, stderr_true = run_cmd(cmd_true, cwd=REPOSITORY_ROOT, timeout=120)
     true_data_file.unlink(missing_ok=True)
 
     # False profile copy
@@ -1051,7 +1054,7 @@ def validate_production_template(
         str(temp_repo),
         str(dest_false),
     ]
-    exit_code_false, stdout_false, stderr_false = run_cmd(cmd_false, timeout=120)
+    exit_code_false, stdout_false, stderr_false = run_cmd(cmd_false, cwd=REPOSITORY_ROOT, timeout=120)
     false_data_file.unlink(missing_ok=True)
 
     # Use the new evaluation function
@@ -1070,6 +1073,22 @@ def validate_production_template(
 
 def main() -> int:
     """Run the validator."""
+    # Phase 0: Repository root preflight
+    copier_yml_path = REPOSITORY_ROOT / "copier.yml"
+    template_dir_path = REPOSITORY_ROOT / "template"
+
+    if not copier_yml_path.is_file():
+        print("BOOTSTRAP_COPIER_VALIDATOR_CHECKOUT_PORTABILITY_CONTRACT=FAIL")
+        print("FIRST_FAILURE=VALIDATOR_REPOSITORY_ROOT_INVALID")
+        print(f"  Reason: copier.yml not found at {copier_yml_path}")
+        return 1
+
+    if not template_dir_path.is_dir():
+        print("BOOTSTRAP_COPIER_VALIDATOR_CHECKOUT_PORTABILITY_CONTRACT=FAIL")
+        print("FIRST_FAILURE=VALIDATOR_REPOSITORY_ROOT_INVALID")
+        print(f"  Reason: template directory not found at {template_dir_path}")
+        return 1
+
     # Phase 0: Local toolchain contract self-check (synthetic probe only)
     self_check_passed, _ = validate_local_copier_toolchain_contract()
     if not self_check_passed:
@@ -1088,7 +1107,7 @@ def main() -> int:
     print("BOOTSTRAP_COPIER_ANSWERS_EXACT_KEY_CONTRACT=PASS")
 
     # Phase 2: Actual local toolchain validation with real command execution
-    exit_code, stdout, stderr = run_cmd([*COPIER_COMMAND, "--version"], timeout=30)
+    exit_code, stdout, stderr = run_cmd([*COPIER_COMMAND, "--version"], cwd=REPOSITORY_ROOT, timeout=30)
     contract_passed, error_code = evaluate_actual_local_toolchain_result(
         exit_code=exit_code,
         command=tuple(COPIER_COMMAND),
@@ -1190,9 +1209,7 @@ def main() -> int:
         print("\n=== Running production template validation ===")
 
         # Create temp repo from working tree
-        import shutil
-        working_tree = Path("/Users/seungjulee/Desktop/Dev/bootstrap")
-        temp_repo = create_production_temp_repo(working_tree, tmpdir_path)
+        temp_repo = create_production_temp_repo(REPOSITORY_ROOT, tmpdir_path)
 
         # Create destinations for production test
         dest_true_prod = tmpdir_path / "true-prod"
@@ -1227,9 +1244,11 @@ def main() -> int:
         # Final overall result
         print("\n=== Overall Validation Summary ===")
         if synthetic_all_pass and gate_passed and prod_passed:
+            print("\nBOOTSTRAP_COPIER_VALIDATOR_CHECKOUT_PORTABILITY_CONTRACT=PASS")
             print("\nAll contracts passed.")
             return 0
         else:
+            print("\nBOOTSTRAP_COPIER_VALIDATOR_CHECKOUT_PORTABILITY_CONTRACT=FAIL")
             print("\nSome contracts failed.")
             return 1
 
