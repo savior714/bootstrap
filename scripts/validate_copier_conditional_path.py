@@ -209,6 +209,15 @@ class ProductionTempRepoGitSetupError(RuntimeError):
         self.detail = detail
 
 
+class SyntheticFixtureMaterializationError(RuntimeError):
+    """Raised when a required filesystem materialization step for synthetic fixture fails."""
+
+    def __init__(self, failure_code: str, detail: str) -> None:
+        super().__init__(detail)
+        self.failure_code = failure_code
+        self.detail = detail
+
+
 class SyntheticFixtureGitSetupError(RuntimeError):
     """Raised when a required git setup step for synthetic fixture fails."""
 
@@ -265,11 +274,35 @@ def run_required_synthetic_fixture_git_step(
 
 
 def create_fixture(fixture_dir: Path) -> None:
-    """Create minimal fixture structure."""
-    # Create copier.yml
+    """Create minimal fixture structure.
+
+    Performs five filesystem materialization steps in sequence:
+    1. Create fixture root directory
+    2. Write copier.yml
+    3. Create template directory
+    4. Write answers template
+    5. Write conditional template
+
+    Each step is wrapped in fail-closed exception handling.
+    Any failure raises SyntheticFixtureMaterializationError with a stable failure code.
+
+    Raises:
+        SyntheticFixtureMaterializationError: If any materialization step fails
+    """
+    # Step 1: Create fixture root directory
+    try:
+        fixture_dir.mkdir(parents=True, exist_ok=False)
+    except Exception as e:
+        raise SyntheticFixtureMaterializationError(
+            "SYNTHETIC_FIXTURE_DIRECTORY_CREATE_FAILED",
+            str(e),
+        )
+
+    # Step 2: Write copier.yml
     copier_yml = fixture_dir / "copier.yml"
-    copier_yml.write_text(
-        """_min_copier_version: "9.1.0"
+    try:
+        copier_yml.write_text(
+            """_min_copier_version: "9.1.0"
 _subdirectory: template
 _answers_file: .copier-answers.yml
 
@@ -277,22 +310,43 @@ has_runtime_visual:
   type: bool
   default: false
 """
-    )
+        )
+    except Exception as e:
+        raise SyntheticFixtureMaterializationError(
+            "SYNTHETIC_FIXTURE_COPIER_YML_WRITE_FAILED",
+            str(e),
+        )
 
-    # Create template directory and conditional file
+    # Step 3: Create template directory
     template_dir = fixture_dir / "template"
-    template_dir.mkdir(exist_ok=True)
+    try:
+        template_dir.mkdir()
+    except Exception as e:
+        raise SyntheticFixtureMaterializationError(
+            "SYNTHETIC_FIXTURE_TEMPLATE_DIRECTORY_CREATE_FAILED",
+            str(e),
+        )
 
-    # Create answers file template (required for Copier to generate answers)
-    # This must exist in the template for answers file to be generated
+    # Step 4: Write answers template
     answers_template = template_dir / "{{_copier_conf.answers_file}}.jinja"
-    answers_template.write_text("# Changes here will be overwritten by Copier\n{{ _copier_answers|to_nice_yaml -}}\n")
+    try:
+        answers_template.write_text("# Changes here will be overwritten by Copier\n{{ _copier_answers|to_nice_yaml -}}\n")
+    except Exception as e:
+        raise SyntheticFixtureMaterializationError(
+            "SYNTHETIC_FIXTURE_ANSWERS_TEMPLATE_WRITE_FAILED",
+            str(e),
+        )
 
-    # Create conditional template file
-    # Filename: {% if has_runtime_visual %}runtime-visual.md{% endif %}.jinja
+    # Step 5: Write conditional template
     conditional_filename = "{% if has_runtime_visual %}runtime-visual.md{% endif %}.jinja"
     template_file = template_dir / conditional_filename
-    template_file.write_text("BOOTSTRAP_RUNTIME_VISUAL_CONDITIONAL_SENTINEL\n")
+    try:
+        template_file.write_text("BOOTSTRAP_RUNTIME_VISUAL_CONDITIONAL_SENTINEL\n")
+    except Exception as e:
+        raise SyntheticFixtureMaterializationError(
+            "SYNTHETIC_FIXTURE_CONDITIONAL_TEMPLATE_WRITE_FAILED",
+            str(e),
+        )
 
 
 def init_fixture_git(fixture_dir: Path) -> None:
@@ -1476,8 +1530,19 @@ def main() -> int:
 
         # Create fixture for synthetic conditional path test
         fixture_dir = tmpdir_path / "fixture"
-        fixture_dir.mkdir()
-        create_fixture(fixture_dir)
+
+        # Phase 1: Synthetic fixture materialization (fail-closed)
+        try:
+            create_fixture(fixture_dir)
+        except SyntheticFixtureMaterializationError as e:
+            print("BOOTSTRAP_SYNTHETIC_FIXTURE_MATERIALIZATION_CONTRACT=FAIL")
+            print(f"FIRST_FAILURE={e.failure_code}")
+            print(f"  Detail: {e.detail}")
+            return 1
+
+        print("BOOTSTRAP_SYNTHETIC_FIXTURE_MATERIALIZATION_CONTRACT=PASS")
+
+        # Phase 2: Synthetic fixture Git setup
         try:
             init_fixture_git(fixture_dir)
         except SyntheticFixtureGitSetupError as e:
