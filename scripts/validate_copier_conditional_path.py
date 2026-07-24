@@ -200,6 +200,15 @@ class ProductionTempRepoGitSetupError(RuntimeError):
         self.detail = detail
 
 
+class SyntheticFixtureGitSetupError(RuntimeError):
+    """Raised when a required git setup step for synthetic fixture fails."""
+
+    def __init__(self, failure_code: str, detail: str) -> None:
+        super().__init__(detail)
+        self.failure_code = failure_code
+        self.detail = detail
+
+
 def run_required_temp_repo_git_step(
     *,
     command: list[str],
@@ -221,6 +230,29 @@ def run_required_temp_repo_git_step(
     if exit_code != 0:
         detail = stderr.strip() or stdout.strip() or f"exit code {exit_code}"
         raise ProductionTempRepoGitSetupError(failure_code, detail)
+
+
+def run_required_synthetic_fixture_git_step(
+    *,
+    command: list[str],
+    cwd: Path,
+    failure_code: str,
+) -> None:
+    """Run a required git step for synthetic fixture and raise on failure.
+
+    Args:
+        command: Git command to execute
+        cwd: Working directory for the command
+        failure_code: Stable failure code to use if command fails
+
+    Raises:
+        SyntheticFixtureGitSetupError: If command exits with non-zero code
+    """
+    exit_code, stdout, stderr = run_cmd(command, cwd=cwd)
+
+    if exit_code != 0:
+        detail = stderr.strip() or stdout.strip() or f"exit code {exit_code}"
+        raise SyntheticFixtureGitSetupError(failure_code, detail)
 
 
 def create_fixture(fixture_dir: Path) -> None:
@@ -255,29 +287,37 @@ has_runtime_visual:
 
 
 def init_fixture_git(fixture_dir: Path) -> None:
-    """Initialize fixture as Git repo, commit, and tag."""
-    # git init
-    exit_code, _, _ = run_cmd(["git", "init"], cwd=fixture_dir)
-    if exit_code != 0:
-        raise RuntimeError("Failed to init fixture git")
-
-    # git add .
-    exit_code, _, _ = run_cmd(["git", "add", "."], cwd=fixture_dir)
-    if exit_code != 0:
-        raise RuntimeError("Failed to add fixture files")
-
-    # git commit
-    exit_code, _, _ = run_cmd(
-        ["git", "commit", "-m", "Initial fixture for conditional path test"],
+    """Initialize fixture as Git repo, config identity, commit, and tag."""
+    run_required_synthetic_fixture_git_step(
+        command=["git", "init"],
         cwd=fixture_dir,
+        failure_code="SYNTHETIC_FIXTURE_GIT_INIT_FAILED",
     )
-    if exit_code != 0:
-        raise RuntimeError("Failed to commit fixture")
-
-    # git tag v0.0.1
-    exit_code, _, _ = run_cmd(["git", "tag", "v0.0.1"], cwd=fixture_dir)
-    if exit_code != 0:
-        raise RuntimeError("Failed to tag fixture")
+    run_required_synthetic_fixture_git_step(
+        command=["git", "config", "user.name", "Validator"],
+        cwd=fixture_dir,
+        failure_code="SYNTHETIC_FIXTURE_GIT_CONFIG_NAME_FAILED",
+    )
+    run_required_synthetic_fixture_git_step(
+        command=["git", "config", "user.email", "validator@localhost"],
+        cwd=fixture_dir,
+        failure_code="SYNTHETIC_FIXTURE_GIT_CONFIG_EMAIL_FAILED",
+    )
+    run_required_synthetic_fixture_git_step(
+        command=["git", "add", "."],
+        cwd=fixture_dir,
+        failure_code="SYNTHETIC_FIXTURE_GIT_ADD_FAILED",
+    )
+    run_required_synthetic_fixture_git_step(
+        command=["git", "commit", "-m", "Initial fixture for conditional path test"],
+        cwd=fixture_dir,
+        failure_code="SYNTHETIC_FIXTURE_GIT_COMMIT_FAILED",
+    )
+    run_required_synthetic_fixture_git_step(
+        command=["git", "tag", "v0.0.1"],
+        cwd=fixture_dir,
+        failure_code="SYNTHETIC_FIXTURE_GIT_TAG_FAILED",
+    )
 
 
 def run_copier_copy(
@@ -1407,7 +1447,15 @@ def main() -> int:
         fixture_dir = tmpdir_path / "fixture"
         fixture_dir.mkdir()
         create_fixture(fixture_dir)
-        init_fixture_git(fixture_dir)
+        try:
+            init_fixture_git(fixture_dir)
+        except SyntheticFixtureGitSetupError as e:
+            print("BOOTSTRAP_SYNTHETIC_FIXTURE_GIT_SETUP_CONTRACT=FAIL")
+            print(f"FIRST_FAILURE={e.failure_code}")
+            print(f"  Detail: {e.detail}")
+            return 1
+
+        print("BOOTSTRAP_SYNTHETIC_FIXTURE_GIT_SETUP_CONTRACT=PASS")
 
         # Create destinations for synthetic test
         true_dest_synthetic = tmpdir_path / "true-dest"
