@@ -116,45 +116,61 @@ def run_copier_copy(
     return exit_code, stdout, stderr
 
 
-def parse_answers_file_value(answers_path: Path, expected_answer: bool) -> tuple[str, bool]:
+def parse_answers_file_value(answers_path: Path) -> tuple[str, bool]:
     """
     Parse .copier-answers.yml and extract has_runtime_visual value.
-    
+
+    Requires exact key match and lowercase boolean value.
+    Rejects:
+    - Prefixed/suffixed keys (e.g., not_has_runtime_visual)
+    - Duplicate exact keys
+    - Invalid boolean values (only 'true' or 'false' allowed)
+
     Returns:
-        - extracted_value: 'true', 'false', or 'NOT_FOUND'
-        - parse_ok: True if parsing succeeded without errors
+        - extracted_value: 'true', 'false', or error indicator
+        - parse_ok: True if parsing succeeded with exact key found once
     """
     if not answers_path.exists():
         return "NOT_FOUND", False
-    
+
     content = answers_path.read_text()
     lines = content.split("\n")
-    
-    found_key = False
+
+    found_key_count = 0
     extracted_value = "NOT_FOUND"
-    
+
     for line in lines:
         stripped = line.strip()
         if stripped.startswith("#"):
             continue
-        if "has_runtime_visual:" in stripped:
-            # Extract value after the colon
-            if ":" in stripped:
-                value_part = stripped.split(":", 1)[1].strip()
-                # Only allow lowercase 'true' or 'false'
-                if value_part == "true":
-                    extracted_value = "true"
-                    found_key = True
-                elif value_part == "false":
-                    extracted_value = "false"
-                    found_key = True
-                else:
-                    # Invalid value format
-                    return value_part, False
-    
-    if not found_key:
+        if ":" not in stripped:
+            continue
+
+        key, separator, value_part = stripped.partition(":")
+        if separator != ":":
+            continue
+
+        key = key.strip()
+        value_part = value_part.strip()
+
+        if key != "has_runtime_visual":
+            continue
+
+        found_key_count += 1
+
+        if found_key_count > 1:
+            return "DUPLICATE", False
+
+        if value_part == "true":
+            extracted_value = "true"
+        elif value_part == "false":
+            extracted_value = "false"
+        else:
+            return value_part if value_part else "EMPTY_VALUE", False
+
+    if found_key_count == 0:
         return "NOT_FOUND", False
-    
+
     return extracted_value, True
 
 
@@ -166,15 +182,16 @@ def evaluate_profile_result(
     destination: Path,
     expected_has_file: bool,
     expected_answer: bool,
+    expected_answer_str: str,
 ) -> tuple[bool, list[str], list[str]]:
     """
     Evaluate a single profile's Copier copy result.
-    
+
     Checks:
     1. Copier command exit code (must be 0)
     2. .copier-answers.yml existence and value correctness
     3. Generated path correctness (runtime-visual.md presence/absence)
-    
+
     Args:
         label: Profile label ('TRUE' or 'FALSE')
         exit_code: Copier copy command exit code
@@ -183,7 +200,7 @@ def evaluate_profile_result(
         destination: Destination directory path
         expected_has_file: Whether runtime-visual.md should exist
         expected_answer: Expected has_runtime_visual value in answers file
-    
+
     Returns:
         - profile_pass: bool (True if all checks pass)
         - orphan_paths: list[str] (orphan .jinja paths)
@@ -191,7 +208,7 @@ def evaluate_profile_result(
     """
     issues = []
     orphan_paths = []
-    
+
     # Gate 1: Copier exit code
     if exit_code != 0:
         issue_code = f"{label}_COPY_COMMAND_FAILED"
@@ -200,34 +217,34 @@ def evaluate_profile_result(
         for p in destination.rglob("*.jinja"):
             orphan_paths.append(str(p.relative_to(destination)))
         return False, orphan_paths, issues
-    
+
     # Gate 2: Answers file existence and value
     answers_path = destination / ".copier-answers.yml"
-    extracted_value, parse_ok = parse_answers_file_value(answers_path, expected_answer)
-    
+    extracted_value, parse_ok = parse_answers_file_value(answers_path)
+
     if not parse_ok or extracted_value == "NOT_FOUND":
         issue_code = f"{label}_ANSWERS_FILE_MISSING"
         issues.append(f"{issue_code}: answers file missing or invalid")
         return False, orphan_paths, issues
-    
+
     expected_str = "true" if expected_answer else "false"
     if extracted_value != expected_str:
         issue_code = f"{label}_ANSWER_VALUE_MISMATCH"
         issues.append(f"{issue_code}: expected={expected_str}, got={extracted_value}")
         return False, orphan_paths, issues
-    
+
     # Gate 3: Generated path correctness
     runtime_file = destination / "runtime-visual.md"
-    
+
     # Check for orphan .jinja files
     for p in destination.rglob("*.jinja"):
         orphan_paths.append(str(p.relative_to(destination)))
-    
+
     # Check for orphan bare .jinja in root
     bare_jinja = destination / ".jinja"
     if bare_jinja.exists():
         orphan_paths.append(".jinja")
-    
+
     if expected_has_file:
         if not runtime_file.exists():
             issues.append(f"{label}_RUNTIME_FILE_MISSING: runtime-visual.md should exist but not found")
@@ -238,13 +255,62 @@ def evaluate_profile_result(
     else:
         if runtime_file.exists():
             issues.append(f"{label}_RUNTIME_FILE_UNEXPECTED: runtime-visual.md should NOT exist but found")
-    
+
     # Check orphans
     if orphan_paths:
         issues.append(f"{label}_ORPHAN_JINJA_PATHS: {orphan_paths}")
-    
+
     profile_pass = len(issues) == 0
     return profile_pass, orphan_paths, issues
+
+
+def validate_answers_parser_contract() -> bool:
+    """
+    Self-check: validate parser contract with deterministic test cases.
+
+    Returns True if all cases pass, False otherwise.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+
+        test_cases = [
+            ("VALID_TRUE", "has_runtime_visual: true\n", ("true", True)),
+            ("VALID_FALSE", "has_runtime_visual: false\n", ("false", True)),
+            ("PREFIXED_KEY", "not_has_runtime_visual: true\n", ("NOT_FOUND", False)),
+            ("SUFFIXED_KEY", "has_runtime_visual_extra: true\n", ("NOT_FOUND", False)),
+            ("DUPLICATE_SAME", "has_runtime_visual: true\nhas_runtime_visual: true\n", ("DUPLICATE", False)),
+            ("DUPLICATE_CONFLICTING", "has_runtime_visual: true\nhas_runtime_visual: false\n", ("DUPLICATE", False)),
+            ("INVALID_BOOLEAN", "has_runtime_visual: yes\n", ("yes", False)),
+            ("INVALID_BOOLEAN_UPPERCASE", "has_runtime_visual: TRUE\n", ("TRUE", False)),
+            ("EMPTY_VALUE", "has_runtime_visual: \n", ("EMPTY_VALUE", False)),
+        ]
+
+        for case_name, content, expected in test_cases:
+            test_file = root / f"{case_name}.yml"
+            test_file.write_text(content, encoding="utf-8")
+            result, ok = parse_answers_file_value(test_file)
+
+            expected_val, expected_ok = expected
+            if result != expected_val or ok != expected_ok:
+                print(f"CONTRACT_PROBE_FAIL: {case_name}")
+                print(f"  Expected: {expected_val}, {expected_ok}")
+                print(f"  Got: {result}, {ok}")
+                return False
+
+        # Special case: commented fake + exact key should pass
+        commented_exact = root / "commented_exact.yml"
+        commented_exact.write_text(
+            "# not_has_runtime_visual: true\nhas_runtime_visual: true\n",
+            encoding="utf-8",
+        )
+        result, ok = parse_answers_file_value(commented_exact)
+        if result != "true" or ok != True:
+            print(f"CONTRACT_PROBE_FAIL: COMMENTED_FAKE_WITH_VALID_EXACT")
+            print(f"  Expected: true, True")
+            print(f"  Got: {result}, {ok}")
+            return False
+
+        return True
 
 
 def check_destination(dest_dir: Path, expected_has_file: bool) -> tuple[bool, list[str], str]:
@@ -284,6 +350,15 @@ def check_destination(dest_dir: Path, expected_has_file: bool) -> tuple[bool, li
 
 def main() -> int:
     """Run the validator."""
+    # Phase 1: Parser contract self-check
+    parser_contract_pass = validate_answers_parser_contract()
+    if not parser_contract_pass:
+        print("BOOTSTRAP_COPIER_ANSWERS_EXACT_KEY_CONTRACT=FAIL")
+        print("Parser contract self-check failed")
+        return 1
+
+    print("BOOTSTRAP_COPIER_ANSWERS_EXACT_KEY_CONTRACT=PASS")
+
     # Check Copier version
     exit_code, stdout, stderr = run_cmd(["uv", "run", "copier", "--version"])
     if exit_code != 0:
@@ -348,6 +423,7 @@ def main() -> int:
             destination=true_dest,
             expected_has_file=True,
             expected_answer=True,
+            expected_answer_str="true",
         )
 
         false_profile_pass, false_orphans, false_issues = evaluate_profile_result(
@@ -358,9 +434,10 @@ def main() -> int:
             destination=false_dest,
             expected_has_file=False,
             expected_answer=False,
+            expected_answer_str="false",
         )
 
-        # Read answers files for diagnostic
+        # Read answers files for diagnostic using parser SSOT
         true_answers = true_dest / ".copier-answers.yml"
         false_answers = false_dest / ".copier-answers.yml"
 
@@ -370,21 +447,11 @@ def main() -> int:
         if true_answers.exists():
             true_content = true_answers.read_text()
             print(f"\nTrue destination answers:\n{true_content}")
-            # Extract value for diagnostic
-            for line in true_content.split("\n"):
-                if "has_runtime_visual:" in line:
-                    val = line.split(":", 1)[1].strip()
-                    true_answer_value = val
-                    break
+            true_answer_value, _ = parse_answers_file_value(true_answers)
         if false_answers.exists():
             false_content = false_answers.read_text()
             print(f"\nFalse destination answers:\n{false_content}")
-            # Extract value for diagnostic
-            for line in false_content.split("\n"):
-                if "has_runtime_visual:" in line:
-                    val = line.split(":", 1)[1].strip()
-                    false_answer_value = val
-                    break
+            false_answer_value, _ = parse_answers_file_value(false_answers)
 
         # Final verdict - both profiles must pass
         all_pass = true_profile_pass and false_profile_pass
