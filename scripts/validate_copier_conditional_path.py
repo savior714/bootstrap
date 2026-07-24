@@ -51,6 +51,11 @@ has_runtime_visual:
     template_dir = fixture_dir / "template"
     template_dir.mkdir(exist_ok=True)
 
+    # Create answers file template (required for Copier to generate answers)
+    # This must exist in the template for answers file to be generated
+    answers_template = template_dir / "{{_copier_conf.answers_file}}.jinja"
+    answers_template.write_text("# Changes here will be overwritten by Copier\n{{ _copier_answers|to_nice_yaml -}}\n")
+
     # Create conditional template file
     # Filename: {% if has_runtime_visual %}runtime-visual.md{% endif %}.jinja
     conditional_filename = "{% if has_runtime_visual %}runtime-visual.md{% endif %}.jinja"
@@ -111,8 +116,139 @@ def run_copier_copy(
     return exit_code, stdout, stderr
 
 
+def parse_answers_file_value(answers_path: Path, expected_answer: bool) -> tuple[str, bool]:
+    """
+    Parse .copier-answers.yml and extract has_runtime_visual value.
+    
+    Returns:
+        - extracted_value: 'true', 'false', or 'NOT_FOUND'
+        - parse_ok: True if parsing succeeded without errors
+    """
+    if not answers_path.exists():
+        return "NOT_FOUND", False
+    
+    content = answers_path.read_text()
+    lines = content.split("\n")
+    
+    found_key = False
+    extracted_value = "NOT_FOUND"
+    
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        if "has_runtime_visual:" in stripped:
+            # Extract value after the colon
+            if ":" in stripped:
+                value_part = stripped.split(":", 1)[1].strip()
+                # Only allow lowercase 'true' or 'false'
+                if value_part == "true":
+                    extracted_value = "true"
+                    found_key = True
+                elif value_part == "false":
+                    extracted_value = "false"
+                    found_key = True
+                else:
+                    # Invalid value format
+                    return value_part, False
+    
+    if not found_key:
+        return "NOT_FOUND", False
+    
+    return extracted_value, True
+
+
+def evaluate_profile_result(
+    label: str,
+    exit_code: int,
+    stdout: str,
+    stderr: str,
+    destination: Path,
+    expected_has_file: bool,
+    expected_answer: bool,
+) -> tuple[bool, list[str], list[str]]:
+    """
+    Evaluate a single profile's Copier copy result.
+    
+    Checks:
+    1. Copier command exit code (must be 0)
+    2. .copier-answers.yml existence and value correctness
+    3. Generated path correctness (runtime-visual.md presence/absence)
+    
+    Args:
+        label: Profile label ('TRUE' or 'FALSE')
+        exit_code: Copier copy command exit code
+        stdout: Copier copy stdout
+        stderr: Copier copy stderr
+        destination: Destination directory path
+        expected_has_file: Whether runtime-visual.md should exist
+        expected_answer: Expected has_runtime_visual value in answers file
+    
+    Returns:
+        - profile_pass: bool (True if all checks pass)
+        - orphan_paths: list[str] (orphan .jinja paths)
+        - issues: list[str] (issue descriptions)
+    """
+    issues = []
+    orphan_paths = []
+    
+    # Gate 1: Copier exit code
+    if exit_code != 0:
+        issue_code = f"{label}_COPY_COMMAND_FAILED"
+        issues.append(f"{issue_code}: exit_code={exit_code}")
+        # Even if copy failed, still check for orphan paths for diagnostic
+        for p in destination.rglob("*.jinja"):
+            orphan_paths.append(str(p.relative_to(destination)))
+        return False, orphan_paths, issues
+    
+    # Gate 2: Answers file existence and value
+    answers_path = destination / ".copier-answers.yml"
+    extracted_value, parse_ok = parse_answers_file_value(answers_path, expected_answer)
+    
+    if not parse_ok or extracted_value == "NOT_FOUND":
+        issue_code = f"{label}_ANSWERS_FILE_MISSING"
+        issues.append(f"{issue_code}: answers file missing or invalid")
+        return False, orphan_paths, issues
+    
+    expected_str = "true" if expected_answer else "false"
+    if extracted_value != expected_str:
+        issue_code = f"{label}_ANSWER_VALUE_MISMATCH"
+        issues.append(f"{issue_code}: expected={expected_str}, got={extracted_value}")
+        return False, orphan_paths, issues
+    
+    # Gate 3: Generated path correctness
+    runtime_file = destination / "runtime-visual.md"
+    
+    # Check for orphan .jinja files
+    for p in destination.rglob("*.jinja"):
+        orphan_paths.append(str(p.relative_to(destination)))
+    
+    # Check for orphan bare .jinja in root
+    bare_jinja = destination / ".jinja"
+    if bare_jinja.exists():
+        orphan_paths.append(".jinja")
+    
+    if expected_has_file:
+        if not runtime_file.exists():
+            issues.append(f"{label}_RUNTIME_FILE_MISSING: runtime-visual.md should exist but not found")
+        else:
+            content = runtime_file.read_text()
+            if "BOOTSTRAP_RUNTIME_VISUAL_CONDITIONAL_SENTINEL" not in content:
+                issues.append(f"{label}_RUNTIME_FILE_MISSING_SENTINEL: sentinel not found")
+    else:
+        if runtime_file.exists():
+            issues.append(f"{label}_RUNTIME_FILE_UNEXPECTED: runtime-visual.md should NOT exist but found")
+    
+    # Check orphans
+    if orphan_paths:
+        issues.append(f"{label}_ORPHAN_JINJA_PATHS: {orphan_paths}")
+    
+    profile_pass = len(issues) == 0
+    return profile_pass, orphan_paths, issues
+
+
 def check_destination(dest_dir: Path, expected_has_file: bool) -> tuple[bool, list[str], str]:
-    """Check destination for expected files and orphans."""
+    """Check destination for expected files and orphans (legacy function, kept for reference)."""
     issues = []
     runtime_file = dest_dir / "runtime-visual.md"
     orphan_jinja = []
@@ -201,34 +337,84 @@ def main() -> int:
         if stderr2:
             print(f"STDERR: {stderr2[:500]}")
 
-        # Check results
-        print("\n=== Checking results ===")
+        # Check results using evaluate_profile_result
+        print("\n=== Evaluating profile results ===")
 
-        true_pass, true_orphans, true_issues = check_destination(true_dest, expected_has_file=True)
-        false_pass, false_orphans, false_issues = check_destination(false_dest, expected_has_file=False)
+        true_profile_pass, true_orphans, true_issues = evaluate_profile_result(
+            label="TRUE",
+            exit_code=exit_code,
+            stdout=stdout,
+            stderr=stderr,
+            destination=true_dest,
+            expected_has_file=True,
+            expected_answer=True,
+        )
+
+        false_profile_pass, false_orphans, false_issues = evaluate_profile_result(
+            label="FALSE",
+            exit_code=exit_code2,
+            stdout=stdout2,
+            stderr=stderr2,
+            destination=false_dest,
+            expected_has_file=False,
+            expected_answer=False,
+        )
 
         # Read answers files for diagnostic
         true_answers = true_dest / ".copier-answers.yml"
         false_answers = false_dest / ".copier-answers.yml"
 
-        if true_answers.exists():
-            print(f"\nTrue destination answers:\n{true_answers.read_text()}")
-        if false_answers.exists():
-            print(f"\nFalse destination answers:\n{false_answers.read_text()}")
+        true_answer_value = "NOT_FOUND"
+        false_answer_value = "NOT_FOUND"
 
-        # Final verdict
-        all_pass = true_pass and false_pass
+        if true_answers.exists():
+            true_content = true_answers.read_text()
+            print(f"\nTrue destination answers:\n{true_content}")
+            # Extract value for diagnostic
+            for line in true_content.split("\n"):
+                if "has_runtime_visual:" in line:
+                    val = line.split(":", 1)[1].strip()
+                    true_answer_value = val
+                    break
+        if false_answers.exists():
+            false_content = false_answers.read_text()
+            print(f"\nFalse destination answers:\n{false_content}")
+            # Extract value for diagnostic
+            for line in false_content.split("\n"):
+                if "has_runtime_visual:" in line:
+                    val = line.split(":", 1)[1].strip()
+                    false_answer_value = val
+                    break
+
+        # Final verdict - both profiles must pass
+        all_pass = true_profile_pass and false_profile_pass
+
+        # Runtime visual presence diagnostic
+        true_runtime_present = "present" if (true_dest / "runtime-visual.md").exists() else "absent"
+        false_runtime_present = "present" if (false_dest / "runtime-visual.md").exists() else "absent"
+
+        # Combine all orphan paths
+        all_orphans = true_orphans + false_orphans
 
         print("\n=== Final Results ===")
-        print(f"True profile - runtime-visual.md present: {'PASS' if true_pass else 'FAIL'}")
-        print(f"False profile - runtime-visual.md absent: {'PASS' if false_pass else 'FAIL'}")
-        print(f"Orphan .jinja paths (true): {true_orphans if true_orphans else 'none'}")
-        print(f"Orphan .jinja paths (false): {false_orphans if false_orphans else 'none'}")
+        print(f"TRUE_COPY_EXIT_CODE={exit_code}")
+        print(f"FALSE_COPY_EXIT_CODE={exit_code2}")
+        print(f"TRUE_ANSWER_VALUE={true_answer_value}")
+        print(f"FALSE_ANSWER_VALUE={false_answer_value}")
+        print(f"TRUE_PROFILE_RUNTIME_VISUAL={true_runtime_present}")
+        print(f"FALSE_PROFILE_RUNTIME_VISUAL={false_runtime_present}")
+        print(f"ORPHAN_TEMPLATE_PATHS={all_orphans if all_orphans else 'none'}")
+        print(f"\nTrue profile - runtime-visual.md present: {'PASS' if true_profile_pass else 'FAIL'}")
+        print(f"False profile - runtime-visual.md absent: {'PASS' if false_profile_pass else 'FAIL'}")
 
-        if not true_pass:
-            print(f"\nTrue profile issues:\n{true_issues}")
-        if not false_pass:
-            print(f"\nFalse profile issues:\n{false_issues}")
+        if not true_profile_pass:
+            print(f"\nTrue profile issues:")
+            for issue in true_issues:
+                print(f"  - {issue}")
+        if not false_profile_pass:
+            print(f"\nFalse profile issues:")
+            for issue in false_issues:
+                print(f"  - {issue}")
 
         if all_pass:
             print("\nBOOTSTRAP_COPIER_CONDITIONAL_PATH_CONTRACT=PASS")
