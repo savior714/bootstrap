@@ -191,6 +191,38 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int = 300) -> tupl
         return 1, "", str(e)
 
 
+class ProductionTempRepoGitSetupError(RuntimeError):
+    """Raised when a required git setup step for production temp repo fails."""
+
+    def __init__(self, failure_code: str, detail: str) -> None:
+        super().__init__(detail)
+        self.failure_code = failure_code
+        self.detail = detail
+
+
+def run_required_temp_repo_git_step(
+    *,
+    command: list[str],
+    cwd: Path,
+    failure_code: str,
+) -> None:
+    """Run a required git step and raise on failure.
+
+    Args:
+        command: Git command to execute
+        cwd: Working directory for the command
+        failure_code: Stable failure code to use if command fails
+
+    Raises:
+        ProductionTempRepoGitSetupError: If command exits with non-zero code
+    """
+    exit_code, stdout, stderr = run_cmd(command, cwd=cwd)
+
+    if exit_code != 0:
+        detail = stderr.strip() or stdout.strip() or f"exit code {exit_code}"
+        raise ProductionTempRepoGitSetupError(failure_code, detail)
+
+
 def create_fixture(fixture_dir: Path) -> None:
     """Create minimal fixture structure."""
     # Create copier.yml
@@ -516,6 +548,9 @@ def create_production_temp_repo(working_tree_root: Path, tmp_dir: Path) -> Path:
     validation before commit.
 
     Returns the path to the temp repo directory.
+
+    Raises:
+        ProductionTempRepoGitSetupError: If any git setup step fails
     """
     import shutil
 
@@ -532,13 +567,37 @@ def create_production_temp_repo(working_tree_root: Path, tmp_dir: Path) -> Path:
     if template_src.exists():
         shutil.copytree(template_src, temp_repo / "template")
 
-    # Initialize git repo
-    run_cmd(["git", "init"], cwd=temp_repo)
-    run_cmd(["git", "config", "user.name", "Validator"], cwd=temp_repo)
-    run_cmd(["git", "config", "user.email", "validator@localhost"], cwd=temp_repo)
-    run_cmd(["git", "add", "."], cwd=temp_repo)
-    run_cmd(["git", "commit", "-m", "Production template for validation"], cwd=temp_repo)
-    run_cmd(["git", "tag", "v0.0.1"], cwd=temp_repo)
+    # Initialize git repo with fail-closed wrapper
+    run_required_temp_repo_git_step(
+        command=["git", "init"],
+        cwd=temp_repo,
+        failure_code="PRODUCTION_TEMP_REPO_GIT_INIT_FAILED",
+    )
+    run_required_temp_repo_git_step(
+        command=["git", "config", "user.name", "Validator"],
+        cwd=temp_repo,
+        failure_code="PRODUCTION_TEMP_REPO_GIT_CONFIG_NAME_FAILED",
+    )
+    run_required_temp_repo_git_step(
+        command=["git", "config", "user.email", "validator@localhost"],
+        cwd=temp_repo,
+        failure_code="PRODUCTION_TEMP_REPO_GIT_CONFIG_EMAIL_FAILED",
+    )
+    run_required_temp_repo_git_step(
+        command=["git", "add", "."],
+        cwd=temp_repo,
+        failure_code="PRODUCTION_TEMP_REPO_GIT_ADD_FAILED",
+    )
+    run_required_temp_repo_git_step(
+        command=["git", "commit", "-m", "Production template for validation"],
+        cwd=temp_repo,
+        failure_code="PRODUCTION_TEMP_REPO_GIT_COMMIT_FAILED",
+    )
+    run_required_temp_repo_git_step(
+        command=["git", "tag", "v0.0.1"],
+        cwd=temp_repo,
+        failure_code="PRODUCTION_TEMP_REPO_GIT_TAG_FAILED",
+    )
 
     return temp_repo
 
@@ -1420,8 +1479,17 @@ def main() -> int:
         # Phase 3: Production template validation
         print("\n=== Running production template validation ===")
 
-        # Create temp repo from working tree
-        temp_repo = create_production_temp_repo(REPOSITORY_ROOT, tmpdir_path)
+        # Create temp repo from working tree with fail-closed git setup
+        try:
+            temp_repo = create_production_temp_repo(REPOSITORY_ROOT, tmpdir_path)
+        except ProductionTempRepoGitSetupError as e:
+            print("BOOTSTRAP_PRODUCTION_TEMP_REPO_GIT_SETUP_CONTRACT=FAIL")
+            print(f"FIRST_FAILURE={e.failure_code}")
+            print(f"  Detail: {e.detail}")
+            return 1
+
+        # Emit PASS marker only after successful git setup (commit + tag)
+        print("BOOTSTRAP_PRODUCTION_TEMP_REPO_GIT_SETUP_CONTRACT=PASS")
 
         # Create destinations for production test
         dest_true_prod = tmpdir_path / "true-prod"
