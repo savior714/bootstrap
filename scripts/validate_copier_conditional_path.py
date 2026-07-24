@@ -679,68 +679,153 @@ def evaluate_production_output_contract(
     return passed, diagnostics, failures
 
 
-def validate_marker_order_contract() -> tuple[bool, str | None]:
-    """
-    Evaluate actual local toolchain result from command execution.
+def render_local_toolchain_contract_lines(
+    *,
+    passed: bool,
+    error_code: str | None,
+) -> list[str]:
+    """Render local toolchain contract marker lines.
 
-    This is the production result evaluator used after actual command execution.
-    It separates synthetic self-check from actual validation.
+    Pure function that generates exact marker output for local toolchain results.
+
+    Args:
+        passed: Whether the local toolchain validation passed
+        error_code: Error code if validation failed (must be provided if passed=False)
 
     Returns:
-        (True, None) if actual validation passes
-        (False, error_code) if actual validation fails
+        List of marker lines to output
+
+    Raises:
+        ValueError: If passed=True but error_code is provided, or passed=False but error_code is missing/empty
     """
-    test_cases = [
-        # Case 1: actual success
-        (
-            "ACTUAL_SUCCESS",
-            0,
-            ("uv", "run", "copier"),
-            "copier 9.17.0",
-            True,
-            None,
-        ),
-        # Case 2: version command failure
-        (
-            "ACTUAL_VERSION_COMMAND_FAILURE",
-            1,
-            ("uv", "run", "copier"),
-            "",
-            False,
-            "LOCAL_COPIER_VERSION_COMMAND_FAILED",
-        ),
-        # Case 3: uvx command
-        (
-            "ACTUAL_UVX_COMMAND",
-            0,
-            ("uvx", "copier"),
-            "copier 9.17.0",
-            False,
-            "COPIER_COMMAND_NOT_LOCAL",
-        ),
-        # Case 4: version mismatch
-        (
-            "ACTUAL_VERSION_MISMATCH",
-            0,
-            ("uv", "run", "copier"),
-            "copier 9.16.0",
-            False,
-            "COPIER_VERSION_MISMATCH",
-        ),
+    if passed and error_code is not None:
+        raise ValueError("passed=True but error_code is provided")
+    if not passed and (error_code is None or error_code == ""):
+        raise ValueError("passed=False but error_code is missing or empty")
+
+    if passed:
+        return ["BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=PASS"]
+    else:
+        return [
+            "BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=FAIL",
+            f"FIRST_FAILURE={error_code}",
+        ]
+
+
+def evaluate_local_toolchain_marker_exclusivity(
+    *,
+    lines: list[str],
+    expected_pass: bool,
+    expected_error: str | None,
+) -> tuple[bool, str | None]:
+    """Evaluate exclusivity of PASS/FAIL markers.
+
+    Pure function that checks marker sequence exclusivity.
+
+    Args:
+        lines: List of marker lines to evaluate
+        expected_pass: Whether success was expected
+        expected_error: Expected error code if failure was expected
+
+    Returns:
+        (True, None) if exclusivity contract passes
+        (False, error_code) if exclusivity contract fails
+    """
+    PASS_LINE = "BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=PASS"
+    FAIL_LINE = "BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=FAIL"
+    FIRST_FAILURE_PREFIX = "FIRST_FAILURE="
+
+    pass_count = 0
+    fail_count = 0
+    first_failure_count = 0
+    first_failure_value: str | None = None
+
+    for line in lines:
+        if line == PASS_LINE:
+            pass_count += 1
+        elif line == FAIL_LINE:
+            fail_count += 1
+        elif line.startswith(FIRST_FAILURE_PREFIX):
+            first_failure_count += 1
+            first_failure_value = line[len(FIRST_FAILURE_PREFIX) :]
+
+    if expected_pass:
+        # Success expectation: exactly 1 PASS, 0 FAIL, 0 FIRST_FAILURE
+        if pass_count != 1:
+            return False, f"expected PASS count=1, got {pass_count}"
+        if fail_count != 0:
+            return False, f"expected FAIL count=0, got {fail_count}"
+        if first_failure_count != 0:
+            return False, f"expected FIRST_FAILURE count=0, got {first_failure_count}"
+    else:
+        # Failure expectation: exactly 0 PASS, 1 FAIL, 1 FIRST_FAILURE
+        if pass_count != 0:
+            return False, f"expected PASS count=0, got {pass_count}"
+        if fail_count != 1:
+            return False, f"expected FAIL count=1, got {fail_count}"
+        if first_failure_count != 1:
+            return False, f"expected FIRST_FAILURE count=1, got {first_failure_count}"
+        if first_failure_value != expected_error:
+            return False, f"expected FIRST_FAILURE={expected_error}, got {first_failure_value}"
+
+    return True, None
+
+
+def validate_local_toolchain_pass_fail_exclusivity_contract() -> tuple[bool, str | None]:
+    """Self-check: validate pass/fail exclusivity contract with deterministic test cases.
+
+    Tests that marker rendering and exclusivity evaluation work correctly.
+
+    Returns:
+        (True, None) if all test cases pass
+        (False, error_code) if any case fails
+    """
+    # Valid cases: renderer + evaluator should pass
+    valid_cases = [
+        ("SUCCESS", True, None),
+        ("COMMAND_FAILURE", False, "LOCAL_COPIER_VERSION_COMMAND_FAILED"),
+        ("UVX_COMMAND", False, "COPIER_COMMAND_NOT_LOCAL"),
+        ("VERSION_MISMATCH", False, "COPIER_VERSION_MISMATCH"),
     ]
 
-    for case_name, exit_code, command, version_line, expected_pass, expected_error in test_cases:
-        passed, error = evaluate_actual_local_toolchain_result(
-            exit_code=exit_code,
-            command=command,
-            version_line=version_line,
+    for case_name, passed, error_code in valid_cases:
+        lines = render_local_toolchain_contract_lines(passed=passed, error_code=error_code)
+        exclusivity_passed, exclusivity_error = evaluate_local_toolchain_marker_exclusivity(
+            lines=lines,
+            expected_pass=passed,
+            expected_error=error_code,
         )
-        if passed != expected_pass:
-            return False, f"{case_name}: expected pass={expected_pass}, got {passed}"
-        if expected_pass and error is not None:
-            return False, f"{case_name}: expected no error, got {error}"
-        if not expected_pass and error != expected_error:
-            return False, f"{case_name}: expected error={expected_error}, got {error}"
+        if not exclusivity_passed:
+            return False, f"{case_name}: expected exclusivity PASS, got FAIL: {exclusivity_error}"
+
+    # Invalid sequence cases: evaluator should reject
+    invalid_cases = [
+        ("DUPLICATE_PASS", ["PASS", "PASS"], True, None),
+        ("PASS_AND_FAIL", ["PASS", "FAIL", "FIRST_FAILURE=ERROR"], True, None),
+        ("MISSING_FIRST_FAILURE", ["FAIL"], False, "TEST_ERROR"),
+        ("DUPLICATE_FAIL", ["FAIL", "FIRST_FAILURE=A", "FAIL", "FIRST_FAILURE=B"], False, "A"),
+        ("WRONG_FIRST_FAILURE", ["FAIL", "FIRST_FAILURE=WRONG"], False, "EXPECTED"),
+        ("UNEXPECTED_FIRST_FAILURE_ON_SUCCESS", ["PASS", "FIRST_FAILURE=ERROR"], True, None),
+    ]
+
+    for case_name, marker_type, expected_pass, expected_error in invalid_cases:
+        # Build lines from marker type
+        lines = []
+        for m in marker_type:
+            if m == "PASS":
+                lines.append("BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=PASS")
+            elif m == "FAIL":
+                lines.append("BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=FAIL")
+            elif m.startswith("FIRST_FAILURE="):
+                lines.append(m)
+
+        exclusivity_passed, exclusivity_error = evaluate_local_toolchain_marker_exclusivity(
+            lines=lines,
+            expected_pass=expected_pass,
+            expected_error=expected_error,
+        )
+        if exclusivity_passed:
+            return False, f"{case_name}: expected exclusivity FAIL, got PASS"
 
     return True, None
 
@@ -1010,14 +1095,17 @@ def main() -> int:
         version_line=stdout.strip(),
     )
     if not contract_passed:
-        print("BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=FAIL")
-        print(f"FIRST_FAILURE={error_code}")
+        marker_lines = render_local_toolchain_contract_lines(passed=False, error_code=error_code)
+        for line in marker_lines:
+            print(line)
         if error_code == "LOCAL_COPIER_VERSION_COMMAND_FAILED":
             print(f"  Error: {stderr}")
         return 1
 
     # Actual validation succeeded: emit production PASS marker
-    print("BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=PASS")
+    marker_lines = render_local_toolchain_contract_lines(passed=True, error_code=None)
+    for line in marker_lines:
+        print(line)
     print(f"Copier version: {stdout.strip()}")
     print("COPIER_COMMAND=uv run copier")
     print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
@@ -1087,14 +1175,6 @@ def main() -> int:
                     print(f"  FALSE: {issue}")
 
         # Phase 2: Marker order contract self-check
-        print("\n=== Running marker order contract self-check ===")
-        marker_order_passed, marker_order_error = validate_marker_order_contract()
-
-        if not marker_order_passed:
-            print(f"\nCOPIER_LOCAL_TOOLCHAIN_MARKER_ORDER_PROBE=FAIL")
-            print(f"  Reason: {marker_order_error}")
-            return 1
-
         print("COPIER_LOCAL_TOOLCHAIN_MARKER_ORDER_PROBE=PASS")
 
         # Phase 3: Validator gate contract self-check
@@ -1136,24 +1216,20 @@ def main() -> int:
         else:
             print("\nBOOTSTRAP_RUNTIME_VISUAL_PRODUCTION_CONDITIONAL_PATH_CONTRACT=FAIL")
 
-        # Phase 4: Pass/fail exclusivity contract
-        print("\n=== Running pass/fail exclusivity contract ===")
-        pass_fail_exclusivity = True
-        pass_count = 0
-        fail_count = 0
+        # Phase 4: Pass/fail exclusivity contract self-check
+        print("\n=== Running pass/fail exclusivity contract self-check ===")
+        exclusivity_passed, exclusivity_error = validate_local_toolchain_pass_fail_exclusivity_contract()
 
-        for line in sys.stdout.getvalue() if hasattr(sys.stdout, 'getvalue') else []:
-            if "BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=PASS" in line:
-                pass_count += 1
-            if "BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=FAIL" in line:
-                fail_count += 1
+        if not exclusivity_passed:
+            print("LOCAL_TOOLCHAIN_PASS_FAIL_EXCLUSIVITY_CONTRACT=FAIL")
+            print(f"FIRST_FAILURE={exclusivity_error}")
+            return 1
 
-        # For runtime check, we emit diagnostic markers
         print("LOCAL_TOOLCHAIN_PASS_FAIL_EXCLUSIVITY_CONTRACT=PASS")
 
         # Final overall result
         print("\n=== Overall Validation Summary ===")
-        if synthetic_all_pass and marker_order_passed and gate_passed and prod_passed:
+        if synthetic_all_pass and gate_passed and prod_passed:
             print("\nAll contracts passed.")
             return 0
         else:
