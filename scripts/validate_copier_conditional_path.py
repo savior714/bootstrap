@@ -191,6 +191,15 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int = 300) -> tupl
         return 1, "", str(e)
 
 
+class ProductionTempRepoMaterializationError(RuntimeError):
+    """Raised when a required filesystem materialization step for production temp repo fails."""
+
+    def __init__(self, failure_code: str, detail: str) -> None:
+        super().__init__(detail)
+        self.failure_code = failure_code
+        self.detail = detail
+
+
 class ProductionTempRepoGitSetupError(RuntimeError):
     """Raised when a required git setup step for production temp repo fails."""
 
@@ -590,22 +599,38 @@ def create_production_temp_repo(working_tree_root: Path, tmp_dir: Path) -> Path:
     Returns the path to the temp repo directory.
 
     Raises:
+        ProductionTempRepoMaterializationError: If any filesystem materialization step fails
         ProductionTempRepoGitSetupError: If any git setup step fails
     """
     import shutil
 
     temp_repo = tmp_dir / "production-template"
-    temp_repo.mkdir()
 
-    # Copy copier.yml and template/ from working tree
+    # Step 1: Create directory (fail-closed)
+    try:
+        temp_repo.mkdir()
+    except Exception as e:
+        raise ProductionTempRepoMaterializationError(
+            "PRODUCTION_TEMP_REPO_DIRECTORY_CREATE_FAILED", str(e)
+        )
+
+    # Step 2: Copy copier.yml (fail-closed, required)
     copier_yml_src = working_tree_root / "copier.yml"
-    template_src = working_tree_root / "template"
-
-    if copier_yml_src.exists():
+    try:
         shutil.copy2(copier_yml_src, temp_repo / "copier.yml")
+    except Exception as e:
+        raise ProductionTempRepoMaterializationError(
+            "PRODUCTION_TEMP_REPO_COPIER_YML_COPY_FAILED", str(e)
+        )
 
-    if template_src.exists():
+    # Step 3: Copy template/ (fail-closed, required)
+    template_src = working_tree_root / "template"
+    try:
         shutil.copytree(template_src, temp_repo / "template")
+    except Exception as e:
+        raise ProductionTempRepoMaterializationError(
+            "PRODUCTION_TEMP_REPO_TEMPLATE_COPY_FAILED", str(e)
+        )
 
     # Initialize git repo with fail-closed wrapper
     run_required_temp_repo_git_step(
@@ -1527,14 +1552,22 @@ def main() -> int:
         # Phase 3: Production template validation
         print("\n=== Running production template validation ===")
 
-        # Create temp repo from working tree with fail-closed git setup
+        # Create temp repo from working tree with fail-closed materialization and git setup
         try:
             temp_repo = create_production_temp_repo(REPOSITORY_ROOT, tmpdir_path)
+        except ProductionTempRepoMaterializationError as e:
+            print("BOOTSTRAP_PRODUCTION_TEMP_REPO_MATERIALIZATION_CONTRACT=FAIL")
+            print(f"FIRST_FAILURE={e.failure_code}")
+            print(f"  Detail: {e.detail}")
+            return 1
         except ProductionTempRepoGitSetupError as e:
             print("BOOTSTRAP_PRODUCTION_TEMP_REPO_GIT_SETUP_CONTRACT=FAIL")
             print(f"FIRST_FAILURE={e.failure_code}")
             print(f"  Detail: {e.detail}")
             return 1
+
+        # Emit materialization PASS marker after successful filesystem materialization
+        print("BOOTSTRAP_PRODUCTION_TEMP_REPO_MATERIALIZATION_CONTRACT=PASS")
 
         # Emit PASS marker only after successful git setup (commit + tag)
         print("BOOTSTRAP_PRODUCTION_TEMP_REPO_GIT_SETUP_CONTRACT=PASS")
