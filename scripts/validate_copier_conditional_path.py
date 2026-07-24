@@ -62,7 +62,7 @@ def evaluate_actual_local_toolchain_result(
     if exit_code != 0:
         return False, "LOCAL_COPIER_VERSION_COMMAND_FAILED"
 
-    if command != ("uv", "run", "copier"):
+    if not command[:3] == ("uv", "run", "copier"):
         return False, "COPIER_COMMAND_NOT_LOCAL"
 
     if "9.17.0" not in version_line:
@@ -134,6 +134,43 @@ def validate_local_copier_toolchain_contract() -> tuple[bool, str | None]:
             return False, f"{case_name}: expected error={expected_error}, got {error}"
 
     return True, None
+
+
+def build_local_copier_invocation(
+    args: tuple[str, ...],
+    *,
+    timeout: int,
+) -> tuple[tuple[str, ...], Path, int]:
+    """Build local Copier invocation spec.
+
+    Returns:
+        (command, cwd, timeout) tuple for local Copier execution.
+    """
+    return (
+        (*COPIER_COMMAND, *args),
+        REPOSITORY_ROOT,
+        timeout,
+    )
+
+
+def run_local_copier(
+    args: tuple[str, ...],
+    *,
+    timeout: int,
+) -> tuple[int, str, str]:
+    """Run Copier command with local invocation spec.
+
+    Wrapper that enforces repository-root CWD and uv run copier command prefix.
+    """
+    command, cwd, resolved_timeout = build_local_copier_invocation(
+        args,
+        timeout=timeout,
+    )
+    return run_cmd(
+        list(command),
+        cwd=cwd,
+        timeout=resolved_timeout,
+    )
 
 
 def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int = 300) -> tuple[int, str, str]:
@@ -221,17 +258,17 @@ def run_copier_copy(
     data_file = dest_dir.parent / f"data_{dest_dir.name}.yml"
     data_file.write_text(f"has_runtime_visual: {str(data['has_runtime_visual']).lower()}\n")
 
-    cmd = [
-        *COPIER_COMMAND,
-        "copy",
-        "--defaults",
-        "--vcs-ref", "v0.0.1",
-        "--data-file", str(data_file),
-        str(fixture_path),
-        str(dest_dir),
-    ]
-
-    exit_code, stdout, stderr = run_cmd(cmd, cwd=REPOSITORY_ROOT, timeout=120)
+    exit_code, stdout, stderr = run_local_copier(
+        args=(
+            "copy",
+            "--defaults",
+            "--vcs-ref", "v0.0.1",
+            "--data-file", str(data_file),
+            str(fixture_path),
+            str(dest_dir),
+        ),
+        timeout=120,
+    )
 
     # Cleanup temp data file
     data_file.unlink(missing_ok=True)
@@ -504,6 +541,155 @@ def create_production_temp_repo(working_tree_root: Path, tmp_dir: Path) -> Path:
     run_cmd(["git", "tag", "v0.0.1"], cwd=temp_repo)
 
     return temp_repo
+
+
+def evaluate_checkout_portability_contract(
+    *,
+    repository_root: Path,
+    copier_yml_is_file: bool,
+    template_is_dir: bool,
+    invocation_command: tuple[str, ...],
+    invocation_cwd: Path,
+) -> tuple[bool, str | None]:
+    """Evaluate checkout portability contract.
+
+    Pure evaluator that checks:
+    1. repository_root contains copier.yml
+    2. repository_root contains template/
+    3. invocation command starts with ("uv", "run", "copier")
+    4. invocation cwd equals repository_root
+
+    Returns:
+        (True, None) if contract passes
+        (False, error_code) if contract fails
+    """
+    if not copier_yml_is_file:
+        return False, "VALIDATOR_REPOSITORY_ROOT_INVALID"
+
+    if not template_is_dir:
+        return False, "VALIDATOR_REPOSITORY_ROOT_INVALID"
+
+    if not invocation_command[:3] == ("uv", "run", "copier"):
+        return False, "PORTABLE_COPIER_COMMAND_PREFIX_INVALID"
+
+    if invocation_cwd != repository_root:
+        return False, "PORTABLE_COPIER_CWD_INVALID"
+
+    return True, None
+
+
+def validate_checkout_portability_marker_isolation_contract() -> tuple[bool, str | None]:
+    """Self-check: validate checkout portability marker isolation contract.
+
+    Tests that portability evaluation is independent of synthetic/gate/prod results.
+
+    Returns:
+        (True, None) if all test cases pass
+        (False, error_code) if any case fails
+    """
+    test_cases = [
+        # Case 1: Valid baseline
+        (
+            "VALID_BASELINE",
+            True,
+            True,
+            ("uv", "run", "copier", "--version"),
+            REPOSITORY_ROOT,
+            True,
+            None,
+        ),
+        # Case 2: Missing copier.yml
+        (
+            "MISSING_COPIER_YML",
+            False,
+            True,
+            ("uv", "run", "copier", "--version"),
+            REPOSITORY_ROOT,
+            False,
+            "VALIDATOR_REPOSITORY_ROOT_INVALID",
+        ),
+        # Case 3: Missing template
+        (
+            "MISSING_TEMPLATE",
+            True,
+            False,
+            ("uv", "run", "copier", "--version"),
+            REPOSITORY_ROOT,
+            False,
+            "VALIDATOR_REPOSITORY_ROOT_INVALID",
+        ),
+        # Case 4: uvx command
+        (
+            "UVX_COMMAND",
+            True,
+            True,
+            ("uvx", "copier", "--version"),
+            REPOSITORY_ROOT,
+            False,
+            "PORTABLE_COPIER_COMMAND_PREFIX_INVALID",
+        ),
+        # Case 5: bare copier command
+        (
+            "BARE_COPIER_COMMAND",
+            True,
+            True,
+            ("copier", "--version"),
+            REPOSITORY_ROOT,
+            False,
+            "PORTABLE_COPIER_COMMAND_PREFIX_INVALID",
+        ),
+        # Case 6: wrong cwd
+        (
+            "WRONG_CWD",
+            True,
+            True,
+            ("uv", "run", "copier", "--version"),
+            Path("/tmp"),
+            False,
+            "PORTABLE_COPIER_CWD_INVALID",
+        ),
+    ]
+
+    for (
+        case_name,
+        has_copier_yml,
+        has_template,
+        command,
+        cwd,
+        expected_pass,
+        expected_error,
+    ) in test_cases:
+        passed, error = evaluate_checkout_portability_contract(
+            repository_root=REPOSITORY_ROOT,
+            copier_yml_is_file=has_copier_yml,
+            template_is_dir=has_template,
+            invocation_command=command,
+            invocation_cwd=cwd,
+        )
+
+        if passed != expected_pass:
+            return False, f"{case_name}: expected pass={expected_pass}, got {passed}"
+
+        if expected_pass and error is not None:
+            return False, f"{case_name}: expected no error, got {error}"
+
+        if not expected_pass and error != expected_error:
+            return False, f"{case_name}: expected error={expected_error}, got {error}"
+
+    # Isolation cases: portability should remain True regardless of synthetic/gate/prod
+    # This proves portability evaluator doesn't depend on unrelated contract results
+    portability_passed, _ = evaluate_checkout_portability_contract(
+        repository_root=REPOSITORY_ROOT,
+        copier_yml_is_file=True,
+        template_is_dir=True,
+        invocation_command=("uv", "run", "copier", "--version"),
+        invocation_cwd=REPOSITORY_ROOT,
+    )
+
+    if not portability_passed:
+        return False, "ISOLATION_BASELINE_PORTABILITY_FAILED"
+
+    return True, None
 
 
 def evaluate_production_output_contract(
@@ -1015,16 +1201,17 @@ def validate_production_template(
         "regulated_domain: false\n"
     )
 
-    cmd_true = [
-        *COPIER_COMMAND,
-        "copy",
-        "--defaults",
-        "--vcs-ref", "v0.0.1",
-        "--data-file", str(true_data_file),
-        str(temp_repo),
-        str(dest_true),
-    ]
-    exit_code_true, stdout_true, stderr_true = run_cmd(cmd_true, cwd=REPOSITORY_ROOT, timeout=120)
+    exit_code_true, stdout_true, stderr_true = run_local_copier(
+        args=(
+            "copy",
+            "--defaults",
+            "--vcs-ref", "v0.0.1",
+            "--data-file", str(true_data_file),
+            str(temp_repo),
+            str(dest_true),
+        ),
+        timeout=120,
+    )
     true_data_file.unlink(missing_ok=True)
 
     # False profile copy
@@ -1045,16 +1232,17 @@ def validate_production_template(
         "regulated_domain: false\n"
     )
 
-    cmd_false = [
-        *COPIER_COMMAND,
-        "copy",
-        "--defaults",
-        "--vcs-ref", "v0.0.1",
-        "--data-file", str(false_data_file),
-        str(temp_repo),
-        str(dest_false),
-    ]
-    exit_code_false, stdout_false, stderr_false = run_cmd(cmd_false, cwd=REPOSITORY_ROOT, timeout=120)
+    exit_code_false, stdout_false, stderr_false = run_local_copier(
+        args=(
+            "copy",
+            "--defaults",
+            "--vcs-ref", "v0.0.1",
+            "--data-file", str(false_data_file),
+            str(temp_repo),
+            str(dest_false),
+        ),
+        timeout=120,
+    )
     false_data_file.unlink(missing_ok=True)
 
     # Use the new evaluation function
@@ -1073,23 +1261,42 @@ def validate_production_template(
 
 def main() -> int:
     """Run the validator."""
-    # Phase 0: Repository root preflight
+    # Phase 0: Repository root preflight and portability contract evaluation
     copier_yml_path = REPOSITORY_ROOT / "copier.yml"
     template_dir_path = REPOSITORY_ROOT / "template"
 
-    if not copier_yml_path.is_file():
+    # Build representative invocation spec for portability evaluation
+    version_command, version_cwd, _ = build_local_copier_invocation(
+        ("--version",),
+        timeout=30,
+    )
+
+    # Evaluate checkout portability contract
+    portability_passed, portability_error = evaluate_checkout_portability_contract(
+        repository_root=REPOSITORY_ROOT,
+        copier_yml_is_file=copier_yml_path.is_file(),
+        template_is_dir=template_dir_path.is_dir(),
+        invocation_command=version_command,
+        invocation_cwd=version_cwd,
+    )
+
+    if not portability_passed:
         print("BOOTSTRAP_COPIER_VALIDATOR_CHECKOUT_PORTABILITY_CONTRACT=FAIL")
-        print("FIRST_FAILURE=VALIDATOR_REPOSITORY_ROOT_INVALID")
-        print(f"  Reason: copier.yml not found at {copier_yml_path}")
+        print(f"FIRST_FAILURE={portability_error}")
         return 1
 
-    if not template_dir_path.is_dir():
-        print("BOOTSTRAP_COPIER_VALIDATOR_CHECKOUT_PORTABILITY_CONTRACT=FAIL")
-        print("FIRST_FAILURE=VALIDATOR_REPOSITORY_ROOT_INVALID")
-        print(f"  Reason: template directory not found at {template_dir_path}")
+    print("BOOTSTRAP_COPIER_VALIDATOR_CHECKOUT_PORTABILITY_CONTRACT=PASS")
+
+    # Phase 0.5: Portability marker isolation self-check
+    isolation_passed, isolation_error = validate_checkout_portability_marker_isolation_contract()
+    if not isolation_passed:
+        print("BOOTSTRAP_COPIER_CHECKOUT_PORTABILITY_MARKER_ISOLATION_CONTRACT=FAIL")
+        print(f"FIRST_FAILURE={isolation_error}")
         return 1
 
-    # Phase 0: Local toolchain contract self-check (synthetic probe only)
+    print("BOOTSTRAP_COPIER_CHECKOUT_PORTABILITY_MARKER_ISOLATION_CONTRACT=PASS")
+
+    # Phase 0.1: Local toolchain contract self-check (synthetic probe only)
     self_check_passed, _ = validate_local_copier_toolchain_contract()
     if not self_check_passed:
         print("BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=FAIL")
@@ -1107,10 +1314,13 @@ def main() -> int:
     print("BOOTSTRAP_COPIER_ANSWERS_EXACT_KEY_CONTRACT=PASS")
 
     # Phase 2: Actual local toolchain validation with real command execution
-    exit_code, stdout, stderr = run_cmd([*COPIER_COMMAND, "--version"], cwd=REPOSITORY_ROOT, timeout=30)
+    exit_code, stdout, stderr = run_local_copier(
+        args=("--version",),
+        timeout=30,
+    )
     contract_passed, error_code = evaluate_actual_local_toolchain_result(
         exit_code=exit_code,
-        command=tuple(COPIER_COMMAND),
+        command=tuple(version_command),
         version_line=stdout.strip(),
     )
     if not contract_passed:
@@ -1244,11 +1454,9 @@ def main() -> int:
         # Final overall result
         print("\n=== Overall Validation Summary ===")
         if synthetic_all_pass and gate_passed and prod_passed:
-            print("\nBOOTSTRAP_COPIER_VALIDATOR_CHECKOUT_PORTABILITY_CONTRACT=PASS")
             print("\nAll contracts passed.")
             return 0
         else:
-            print("\nBOOTSTRAP_COPIER_VALIDATOR_CHECKOUT_PORTABILITY_CONTRACT=FAIL")
             print("\nSome contracts failed.")
             return 1
 
