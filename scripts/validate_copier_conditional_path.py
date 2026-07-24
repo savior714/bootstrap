@@ -236,6 +236,15 @@ class SyntheticCopierDataFileMaterializationError(RuntimeError):
         self.detail = detail
 
 
+class SyntheticCopierDataFileCleanupError(RuntimeError):
+    """Raised when a required data file cleanup step for synthetic Copier copy fails."""
+
+    def __init__(self, failure_code: str, detail: str) -> None:
+        super().__init__(detail)
+        self.failure_code = failure_code
+        self.detail = detail
+
+
 class ProductionCopierDataFileMaterializationError(RuntimeError):
     """Raised when a required data file write step for production Copier copy fails."""
 
@@ -438,6 +447,29 @@ def write_synthetic_copier_data_file(
         )
 
 
+def cleanup_synthetic_copier_data_file(
+    *,
+    data_file: Path,
+    failure_code: str,
+) -> None:
+    """Cleanup synthetic Copier data file with fail-closed exception handling.
+
+    Args:
+        data_file: Path to the data file to cleanup
+        failure_code: Stable failure code to use if cleanup fails
+
+    Raises:
+        SyntheticCopierDataFileCleanupError: If cleanup fails
+    """
+    try:
+        data_file.unlink(missing_ok=True)
+    except Exception as error:
+        raise SyntheticCopierDataFileCleanupError(
+            failure_code,
+            str(error),
+        )
+
+
 def run_copier_copy(
     fixture_path: Path,
     data: dict[str, bool],
@@ -447,15 +479,20 @@ def run_copier_copy(
     # Create temp data file
     data_file = dest_dir.parent / f"data_{dest_dir.name}.yml"
     has_runtime_visual = data["has_runtime_visual"]
-    failure_code = (
+    write_failure_code = (
         "SYNTHETIC_COPIER_TRUE_DATA_FILE_WRITE_FAILED"
         if has_runtime_visual
         else "SYNTHETIC_COPIER_FALSE_DATA_FILE_WRITE_FAILED"
     )
+    cleanup_failure_code = (
+        "SYNTHETIC_COPIER_TRUE_DATA_FILE_CLEANUP_FAILED"
+        if has_runtime_visual
+        else "SYNTHETIC_COPIER_FALSE_DATA_FILE_CLEANUP_FAILED"
+    )
     write_synthetic_copier_data_file(
         data_file=data_file,
         has_runtime_visual=has_runtime_visual,
-        failure_code=failure_code,
+        failure_code=write_failure_code,
     )
 
     exit_code, stdout, stderr = run_local_copier(
@@ -471,7 +508,10 @@ def run_copier_copy(
     )
 
     # Cleanup temp data file
-    data_file.unlink(missing_ok=True)
+    cleanup_synthetic_copier_data_file(
+        data_file=data_file,
+        failure_code=cleanup_failure_code,
+    )
 
     return exit_code, stdout, stderr
 
@@ -1724,10 +1764,22 @@ def main() -> int:
             print(f"FIRST_FAILURE={error.failure_code}")
             print(f"  Detail: {error.detail}")
             return 1
+        except SyntheticCopierDataFileCleanupError as error:
+            print(
+                "BOOTSTRAP_SYNTHETIC_COPIER_"
+                "DATA_FILE_CLEANUP_CONTRACT=FAIL"
+            )
+            print(f"FIRST_FAILURE={error.failure_code}")
+            print(f"  Detail: {error.detail}")
+            return 1
 
         print(
             "BOOTSTRAP_SYNTHETIC_COPIER_"
             "DATA_FILE_MATERIALIZATION_CONTRACT=PASS"
+        )
+        print(
+            "BOOTSTRAP_SYNTHETIC_COPIER_"
+            "DATA_FILE_CLEANUP_CONTRACT=PASS"
         )
 
         # Check synthetic results
