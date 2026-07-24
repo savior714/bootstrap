@@ -12,9 +12,11 @@
 | 배포 전 전체 검증 | `agents/project/PROFILE.md` | exact candidate commit에서 release command |
 
 {% if has_runtime_visual -%}
-Runtime·visual acceptance는 source task와 분리한다.
-초기 foundation에는 별도 runtime workflow module이 포함되지 않으므로,
-프로젝트 overlay가 검증된 command와 auth policy를 소유해야 한다.
+Runtime·visual acceptance 는 source task 와 분리한다.
+runtime·visual, browser automation, authenticated runtime 작업은 다음 문서를 읽는다.
+
+| agents/modules/runtime-visual/WORKFLOW.md | runtime·visual acceptance, browser automation, authenticated runtime workflow |
+| agents/project/runtime-visual/PROFILE.md | runtime visual project profile |
 {% endif -%}
 
 {% if has_database -%}

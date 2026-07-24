@@ -1101,6 +1101,12 @@ def evaluate_production_output_contract(
     - false_runtime_visual_paths_absent
     - false_gitkeep_paths_absent
     - orphan_jinja_absent
+    - true_context_routing_exists
+    - true_context_routing_workflow_reference_ok
+    - true_context_routing_profile_reference_ok
+    - true_context_routing_stale_text_absent
+    - false_context_routing_exists
+    - false_context_routing_runtime_visual_absent
     """
     diagnostics = []
     failures = []
@@ -1226,6 +1232,54 @@ def evaluate_production_output_contract(
         failures.append("PRODUCTION_ORPHAN_JINJA_EXISTS")
         diagnostics.append(f"Orphan .jinja paths: {orphan_jinja}")
 
+    # Context routing checks for true destination
+    true_context_routing = dest_true / "agents/registry/CONTEXT_ROUTING.md"
+    true_context_routing_exists = true_context_routing.exists()
+
+    # Initialize booleans to False, set to True only when checks pass
+    true_context_routing_workflow_reference_ok = False
+    true_context_routing_profile_reference_ok = False
+    true_context_routing_stale_text_absent = False
+
+    if not true_context_routing_exists:
+        failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_MISSING")
+        diagnostics.append("CONTEXT_ROUTING.md does not exist in true dest")
+    else:
+        routing_content = true_context_routing.read_text()
+
+        true_context_routing_workflow_reference_ok = "agents/modules/runtime-visual/WORKFLOW.md" in routing_content
+        if not true_context_routing_workflow_reference_ok:
+            failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_WORKFLOW_REFERENCE_MISSING")
+            diagnostics.append("runtime-visual WORKFLOW.md reference not found in CONTEXT_ROUTING.md")
+
+        true_context_routing_profile_reference_ok = "agents/project/runtime-visual/PROFILE.md" in routing_content
+        if not true_context_routing_profile_reference_ok:
+            failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_PROFILE_REFERENCE_MISSING")
+            diagnostics.append("runtime-visual PROFILE.md reference not found in CONTEXT_ROUTING.md")
+
+        true_context_routing_stale_text_absent = "별도 runtime workflow module 이 포함되지 않" not in routing_content
+        if not true_context_routing_stale_text_absent:
+            failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_STALE_FOUNDATION_TEXT_PRESENT")
+            diagnostics.append("Stale foundation text found in CONTEXT_ROUTING.md")
+
+    # Context routing checks for false destination
+    false_context_routing = dest_false / "agents/registry/CONTEXT_ROUTING.md"
+    false_context_routing_exists = false_context_routing.exists()
+
+    # Initialize boolean to False, set to True only when check passes
+    false_context_routing_runtime_visual_absent = False
+
+    if not false_context_routing_exists:
+        failures.append("PRODUCTION_FALSE_CONTEXT_ROUTING_MISSING")
+        diagnostics.append("CONTEXT_ROUTING.md does not exist in false dest")
+    else:
+        false_routing_content = false_context_routing.read_text()
+
+        false_context_routing_runtime_visual_absent = "runtime-visual" not in false_routing_content
+        if not false_context_routing_runtime_visual_absent:
+            failures.append("PRODUCTION_FALSE_CONTEXT_ROUTING_RUNTIME_VISUAL_REFERENCE_PRESENT")
+            diagnostics.append("runtime-visual reference found in false CONTEXT_ROUTING.md")
+
     # Final passed: all booleans must be True
     passed = all(
         [
@@ -1244,6 +1298,12 @@ def evaluate_production_output_contract(
             false_runtime_visual_paths_absent,
             false_gitkeep_paths_absent,
             orphan_jinja_absent,
+            true_context_routing_exists,
+            true_context_routing_workflow_reference_ok,
+            true_context_routing_profile_reference_ok,
+            true_context_routing_stale_text_absent,
+            false_context_routing_exists,
+            false_context_routing_runtime_visual_absent,
         ]
     )
 
@@ -1420,6 +1480,7 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
+                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
                     "false_stray_paths": False,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
@@ -1433,6 +1494,7 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "Some content\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
+                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
                     "false_stray_paths": False,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
@@ -1446,6 +1508,7 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "Some content\n",
+                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
                     "false_stray_paths": False,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
@@ -1459,6 +1522,7 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n{{ broken }}\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
+                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
                     "false_stray_paths": False,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
@@ -1472,6 +1536,7 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n{% broken %}\n",
+                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
                     "false_stray_paths": False,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
@@ -1485,6 +1550,7 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
+                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
                     "false_stray_paths": True,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
@@ -1498,8 +1564,66 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
+                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
                     "false_stray_paths": False,
                     "false_gitkeep": True,
+                    "orphan_jinja": False,
+                },
+                False,
+            ),
+            # Case 8: True context routing missing workflow reference → FAIL
+            (
+                "TRUE_ROUTING_WORKFLOW_REFERENCE_MISSING",
+                True,
+                {
+                    "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
+                    "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
+                    "true_context_routing_content": "| agents/project/runtime-visual/PROFILE.md |\n",
+                    "false_stray_paths": False,
+                    "false_gitkeep": False,
+                    "orphan_jinja": False,
+                },
+                False,
+            ),
+            # Case 9: True context routing missing profile reference → FAIL
+            (
+                "TRUE_ROUTING_PROFILE_REFERENCE_MISSING",
+                True,
+                {
+                    "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
+                    "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
+                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n",
+                    "false_stray_paths": False,
+                    "false_gitkeep": False,
+                    "orphan_jinja": False,
+                },
+                False,
+            ),
+            # Case 10: True context routing stale foundation text → FAIL
+            (
+                "TRUE_ROUTING_STALE_FOUNDATION_TEXT_PRESENT",
+                True,
+                {
+                    "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
+                    "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
+                    "true_context_routing_content": "별도 runtime workflow module 이 포함되지 않는다\n",
+                    "false_stray_paths": False,
+                    "false_gitkeep": False,
+                    "orphan_jinja": False,
+                },
+                False,
+            ),
+            # Case 11: False context routing has runtime-visual reference → FAIL
+            (
+                "FALSE_ROUTING_RUNTIME_VISUAL_REFERENCE_PRESENT",
+                True,
+                {
+                    "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
+                    "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
+                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
+                    "false_context_routing_content": "runtime-visual\n",
+                    "false_stray_paths": False,
+                    "false_gitkeep": False,
                     "orphan_jinja": False,
                 },
                 False,
@@ -1525,6 +1649,13 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 profile = profile_dir / "PROFILE.md"
                 profile.write_text(config["true_profile_content"])
 
+            # Create true destination context routing
+            if "true_context_routing_content" in config:
+                context_routing_dir = dest_true / "agents/registry"
+                context_routing_dir.mkdir(parents=True, exist_ok=True)
+                context_routing = context_routing_dir / "CONTEXT_ROUTING.md"
+                context_routing.write_text(config["true_context_routing_content"])
+
             # Create false destination stray paths
             if config["false_stray_paths"]:
                 stray_dir = dest_false / "agents/other/stray-runtime-visual"
@@ -1536,6 +1667,19 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 stray_dir.mkdir(parents=True)
                 gitkeep = stray_dir / ".gitkeep"
                 gitkeep.write_text("")
+
+            # Create false destination context routing
+            if "false_context_routing_content" in config:
+                context_routing_dir = dest_false / "agents/registry"
+                context_routing_dir.mkdir(parents=True, exist_ok=True)
+                context_routing = context_routing_dir / "CONTEXT_ROUTING.md"
+                context_routing.write_text(config["false_context_routing_content"])
+            else:
+                # Always create an empty context routing for false case if not specified
+                context_routing_dir = dest_false / "agents/registry"
+                context_routing_dir.mkdir(parents=True, exist_ok=True)
+                context_routing = context_routing_dir / "CONTEXT_ROUTING.md"
+                context_routing.write_text("")
 
             # Evaluate
             passed, diagnostics, failures = evaluate_production_output_contract(
