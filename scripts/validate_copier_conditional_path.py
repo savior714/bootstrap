@@ -1919,11 +1919,11 @@ def main() -> int:
 
         print(
             "BOOTSTRAP_SYNTHETIC_COPIER_"
-            "DATA_FILE_MATERIALIZATION_CONTRACT=PASS"
+            "DATA_FILE_CLEANUP_CONTRACT=PASS"
         )
         print(
             "BOOTSTRAP_SYNTHETIC_COPIER_"
-            "DATA_FILE_CLEANUP_CONTRACT=PASS"
+            "DATA_FILE_MATERIALIZATION_CONTRACT=PASS"
         )
 
         # Check synthetic results
