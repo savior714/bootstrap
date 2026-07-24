@@ -16,6 +16,8 @@ from pathlib import Path
 
 TARGET_COPIER_VERSION = "9.17.0"
 
+COPIER_COMMAND = ("uv", "run", "copier")
+
 
 def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int = 300) -> tuple[int, str, str]:
     """Run command and return (exit_code, stdout, stderr)."""
@@ -103,7 +105,8 @@ def run_copier_copy(
     data_file.write_text(f"has_runtime_visual: {str(data['has_runtime_visual']).lower()}\n")
 
     cmd = [
-        "uvx", "copier", "copy",
+        *COPIER_COMMAND,
+        "copy",
         "--defaults",
         "--vcs-ref", "v0.0.1",
         "--data-file", str(data_file),
@@ -744,7 +747,8 @@ def validate_production_template(
     )
 
     cmd_true = [
-        "uvx", "copier", "copy",
+        *COPIER_COMMAND,
+        "copy",
         "--defaults",
         "--vcs-ref", "v0.0.1",
         "--data-file", str(true_data_file),
@@ -773,7 +777,8 @@ def validate_production_template(
     )
 
     cmd_false = [
-        "uvx", "copier", "copy",
+        *COPIER_COMMAND,
+        "copy",
         "--defaults",
         "--vcs-ref", "v0.0.1",
         "--data-file", str(false_data_file),
@@ -809,7 +814,7 @@ def main() -> int:
     print("BOOTSTRAP_COPIER_ANSWERS_EXACT_KEY_CONTRACT=PASS")
 
     # Check Copier version
-    exit_code, stdout, stderr = run_cmd(["uvx", "copier", "--version"], timeout=30)
+    exit_code, stdout, stderr = run_cmd([*COPIER_COMMAND, "--version"], timeout=30)
     if exit_code != 0:
         print(f"Failed to get Copier version: {stderr}")
         return 1
