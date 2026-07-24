@@ -19,6 +19,91 @@ TARGET_COPIER_VERSION = "9.17.0"
 COPIER_COMMAND = ("uv", "run", "copier")
 
 
+def evaluate_local_copier_toolchain_contract(
+    command: tuple[str, ...],
+    version_line: str,
+) -> tuple[bool, str | None]:
+    """Evaluate local copier toolchain contract.
+
+    Contract:
+    - command must be exactly ("uv", "run", "copier")
+    - version_line must contain "9.17.0"
+
+    Returns:
+        (True, None) if contract passes
+        (False, error_code) if contract fails
+    """
+    if command != ("uv", "run", "copier"):
+        return False, "COPIER_COMMAND_NOT_LOCAL"
+
+    if "9.17.0" not in version_line:
+        return False, "COPIER_VERSION_MISMATCH"
+
+    return True, None
+
+
+def validate_local_copier_toolchain_contract() -> tuple[bool, str]:
+    """Self-check: validate local copier toolchain contract with deterministic test cases.
+
+    Returns:
+        (True, "BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=PASS") if all cases pass
+        (False, error_code) if any case fails
+    """
+    test_cases = [
+        # Case 1: Valid local command and version
+        (
+            "VALID_LOCAL_COMMAND_AND_VERSION",
+            ("uv", "run", "copier"),
+            "copier 9.17.0",
+            True,
+            None,
+        ),
+        # Case 2: uvx command should fail
+        (
+            "UVX_COMMAND",
+            ("uvx", "copier"),
+            "copier 9.17.0",
+            False,
+            "COPIER_COMMAND_NOT_LOCAL",
+        ),
+        # Case 3: bare copier command should fail
+        (
+            "BARE_COPIER_COMMAND",
+            ("copier",),
+            "copier 9.17.0",
+            False,
+            "COPIER_COMMAND_NOT_LOCAL",
+        ),
+        # Case 4: wrong version should fail
+        (
+            "WRONG_VERSION",
+            ("uv", "run", "copier"),
+            "copier 9.16.0",
+            False,
+            "COPIER_VERSION_MISMATCH",
+        ),
+        # Case 5: empty version should fail
+        (
+            "EMPTY_VERSION",
+            ("uv", "run", "copier"),
+            "",
+            False,
+            "COPIER_VERSION_MISMATCH",
+        ),
+    ]
+
+    for case_name, command, version, expected_pass, expected_error in test_cases:
+        passed, error = evaluate_local_copier_toolchain_contract(command, version)
+        if passed != expected_pass:
+            return False, f"{case_name}: expected pass={expected_pass}, got {passed}"
+        if expected_pass and error is not None:
+            return False, f"{case_name}: expected no error, got {error}"
+        if not expected_pass and error != expected_error:
+            return False, f"{case_name}: expected error={expected_error}, got {error}"
+
+    return True, "BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=PASS"
+
+
 def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int = 300) -> tuple[int, str, str]:
     """Run command and return (exit_code, stdout, stderr)."""
     try:
@@ -804,6 +889,14 @@ def validate_production_template(
 
 def main() -> int:
     """Run the validator."""
+    # Phase 0: Local toolchain contract self-check
+    self_check_passed, self_check_marker = validate_local_copier_toolchain_contract()
+    if not self_check_passed:
+        print("BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=FAIL")
+        print(f"  FIRST_FAILURE={self_check_marker}")
+        return 1
+    print(self_check_marker)
+
     # Phase 1: Parser contract self-check
     parser_contract_pass = validate_answers_parser_contract()
     if not parser_contract_pass:
@@ -813,19 +906,29 @@ def main() -> int:
 
     print("BOOTSTRAP_COPIER_ANSWERS_EXACT_KEY_CONTRACT=PASS")
 
-    # Check Copier version
+    # Check Copier version with actual command execution
     exit_code, stdout, stderr = run_cmd([*COPIER_COMMAND, "--version"], timeout=30)
     if exit_code != 0:
-        print(f"Failed to get Copier version: {stderr}")
+        print("BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=FAIL")
+        print(f"  FIRST_FAILURE=LOCAL_COPIER_VERSION_COMMAND_FAILED")
+        print(f"  Error: {stderr}")
         return 1
 
     version_line = stdout.strip()
-    if TARGET_COPIER_VERSION not in version_line:
-        print(f"RESULT: BLOCKED_COPIER_VERSION_MISMATCH")
-        print(f"Expected: {TARGET_COPIER_VERSION}, Got: {version_line}")
+
+    # Evaluate actual command and version against contract
+    contract_passed, error_code = evaluate_local_copier_toolchain_contract(
+        tuple(COPIER_COMMAND),
+        version_line,
+    )
+    if not contract_passed:
+        print("BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=FAIL")
+        print(f"  FIRST_FAILURE={error_code}")
         return 1
 
     print(f"Copier version: {version_line}")
+    print("COPIER_COMMAND=uv run copier")
+    print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = Path(tmpdir)
