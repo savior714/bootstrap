@@ -1074,6 +1074,22 @@ def validate_checkout_portability_marker_isolation_contract() -> tuple[bool, str
     return True, None
 
 
+def read_required_production_output_text(
+    *,
+    path: Path,
+    failure_code: str,
+    label: str,
+    failures: list[str],
+    diagnostics: list[str],
+) -> str | None:
+    try:
+        return path.read_text()
+    except Exception as error:
+        failures.append(failure_code)
+        diagnostics.append(f"{label} read failed: {error}")
+        return None
+
+
 def evaluate_production_output_contract(
     exit_code_true: int,
     exit_code_false: int,
@@ -1135,23 +1151,36 @@ def evaluate_production_output_contract(
     if not true_workflow_exists:
         failures.append("PRODUCTION_TRUE_WORKFLOW_MISSING")
         diagnostics.append("WORKFLOW.md does not exist")
+        true_workflow_sentinel_ok = False
+        true_workflow_disabled_absent = False
+        true_workflow_jinja_resolved = False
     else:
-        content = true_workflow.read_text()
+        content = read_required_production_output_text(
+            path=true_workflow,
+            failure_code="PRODUCTION_TRUE_WORKFLOW_READ_FAILED",
+            label="WORKFLOW.md",
+            failures=failures,
+            diagnostics=diagnostics,
+        )
+        if content is not None:
+            true_workflow_sentinel_ok = "RUNTIME_VISUAL_CORE_VERSION=1" in content
+            if not true_workflow_sentinel_ok:
+                failures.append("PRODUCTION_TRUE_WORKFLOW_SENTINEL_MISSING")
+                diagnostics.append("RUNTIME_VISUAL_CORE_VERSION=1 not found")
 
-        true_workflow_sentinel_ok = "RUNTIME_VISUAL_CORE_VERSION=1" in content
-        if not true_workflow_sentinel_ok:
-            failures.append("PRODUCTION_TRUE_WORKFLOW_SENTINEL_MISSING")
-            diagnostics.append("RUNTIME_VISUAL_CORE_VERSION=1 not found")
+            true_workflow_disabled_absent = "Runtime Visual Module Disabled" not in content
+            if not true_workflow_disabled_absent:
+                failures.append("PRODUCTION_TRUE_WORKFLOW_CONTAINS_DISABLED_PLACEHOLDER")
+                diagnostics.append("Disabled placeholder found")
 
-        true_workflow_disabled_absent = "Runtime Visual Module Disabled" not in content
-        if not true_workflow_disabled_absent:
-            failures.append("PRODUCTION_TRUE_WORKFLOW_CONTAINS_DISABLED_PLACEHOLDER")
-            diagnostics.append("Disabled placeholder found")
-
-        true_workflow_jinja_resolved = "{%" not in content and "{{" not in content
-        if not true_workflow_jinja_resolved:
-            failures.append("PRODUCTION_TRUE_WORKFLOW_UNRESOLVED_JINJA")
-            diagnostics.append("Unresolved Jinja markers found")
+            true_workflow_jinja_resolved = "{%" not in content and "{{" not in content
+            if not true_workflow_jinja_resolved:
+                failures.append("PRODUCTION_TRUE_WORKFLOW_UNRESOLVED_JINJA")
+                diagnostics.append("Unresolved Jinja markers found")
+        else:
+            true_workflow_sentinel_ok = False
+            true_workflow_disabled_absent = False
+            true_workflow_jinja_resolved = False
 
     # True profile checks
     true_profile = dest_true / "agents/project/runtime-visual/PROFILE.md"
@@ -1165,23 +1194,36 @@ def evaluate_production_output_contract(
     if not true_profile_exists:
         failures.append("PRODUCTION_TRUE_PROFILE_MISSING")
         diagnostics.append("PROFILE.md does not exist")
+        true_profile_status_ok = False
+        true_profile_disabled_absent = False
+        true_profile_jinja_resolved = False
     else:
-        content = true_profile.read_text()
+        content = read_required_production_output_text(
+            path=true_profile,
+            failure_code="PRODUCTION_TRUE_PROFILE_READ_FAILED",
+            label="PROFILE.md",
+            failures=failures,
+            diagnostics=diagnostics,
+        )
+        if content is not None:
+            true_profile_status_ok = "PROFILE_STATUS: INCOMPLETE" in content
+            if not true_profile_status_ok:
+                failures.append("PRODUCTION_TRUE_PROFILE_STATUS_MISSING")
+                diagnostics.append("PROFILE_STATUS: INCOMPLETE not found")
 
-        true_profile_status_ok = "PROFILE_STATUS: INCOMPLETE" in content
-        if not true_profile_status_ok:
-            failures.append("PRODUCTION_TRUE_PROFILE_STATUS_MISSING")
-            diagnostics.append("PROFILE_STATUS: INCOMPLETE not found")
+            true_profile_disabled_absent = "Runtime Visual Module Disabled" not in content
+            if not true_profile_disabled_absent:
+                failures.append("PRODUCTION_TRUE_PROFILE_CONTAINS_DISABLED_PLACEHOLDER")
+                diagnostics.append("Disabled placeholder found")
 
-        true_profile_disabled_absent = "Runtime Visual Module Disabled" not in content
-        if not true_profile_disabled_absent:
-            failures.append("PRODUCTION_TRUE_PROFILE_CONTAINS_DISABLED_PLACEHOLDER")
-            diagnostics.append("Disabled placeholder found")
-
-        true_profile_jinja_resolved = "{%" not in content and "{{" not in content
-        if not true_profile_jinja_resolved:
-            failures.append("PRODUCTION_TRUE_PROFILE_UNRESOLVED_JINJA")
-            diagnostics.append("Unresolved Jinja markers found")
+            true_profile_jinja_resolved = "{%" not in content and "{{" not in content
+            if not true_profile_jinja_resolved:
+                failures.append("PRODUCTION_TRUE_PROFILE_UNRESOLVED_JINJA")
+                diagnostics.append("Unresolved Jinja markers found")
+        else:
+            true_profile_status_ok = False
+            true_profile_disabled_absent = False
+            true_profile_jinja_resolved = False
 
     # False destination checks
     false_modules_dir = dest_false / "agents/modules/runtime-visual"
@@ -1244,23 +1286,36 @@ def evaluate_production_output_contract(
     if not true_context_routing_exists:
         failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_MISSING")
         diagnostics.append("CONTEXT_ROUTING.md does not exist in true dest")
+        true_context_routing_workflow_reference_ok = False
+        true_context_routing_profile_reference_ok = False
+        true_context_routing_stale_text_absent = False
     else:
-        routing_content = true_context_routing.read_text()
+        routing_content = read_required_production_output_text(
+            path=true_context_routing,
+            failure_code="PRODUCTION_TRUE_CONTEXT_ROUTING_READ_FAILED",
+            label="CONTEXT_ROUTING.md (true)",
+            failures=failures,
+            diagnostics=diagnostics,
+        )
+        if routing_content is not None:
+            true_context_routing_workflow_reference_ok = "agents/modules/runtime-visual/WORKFLOW.md" in routing_content
+            if not true_context_routing_workflow_reference_ok:
+                failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_WORKFLOW_REFERENCE_MISSING")
+                diagnostics.append("runtime-visual WORKFLOW.md reference not found in CONTEXT_ROUTING.md")
 
-        true_context_routing_workflow_reference_ok = "agents/modules/runtime-visual/WORKFLOW.md" in routing_content
-        if not true_context_routing_workflow_reference_ok:
-            failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_WORKFLOW_REFERENCE_MISSING")
-            diagnostics.append("runtime-visual WORKFLOW.md reference not found in CONTEXT_ROUTING.md")
+            true_context_routing_profile_reference_ok = "agents/project/runtime-visual/PROFILE.md" in routing_content
+            if not true_context_routing_profile_reference_ok:
+                failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_PROFILE_REFERENCE_MISSING")
+                diagnostics.append("runtime-visual PROFILE.md reference not found in CONTEXT_ROUTING.md")
 
-        true_context_routing_profile_reference_ok = "agents/project/runtime-visual/PROFILE.md" in routing_content
-        if not true_context_routing_profile_reference_ok:
-            failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_PROFILE_REFERENCE_MISSING")
-            diagnostics.append("runtime-visual PROFILE.md reference not found in CONTEXT_ROUTING.md")
-
-        true_context_routing_stale_text_absent = "별도 runtime workflow module이 포함되지 않" not in routing_content
-        if not true_context_routing_stale_text_absent:
-            failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_STALE_FOUNDATION_TEXT_PRESENT")
-            diagnostics.append("Stale foundation text found in CONTEXT_ROUTING.md")
+            true_context_routing_stale_text_absent = "별도 runtime workflow module이 포함되지 않" not in routing_content
+            if not true_context_routing_stale_text_absent:
+                failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_STALE_FOUNDATION_TEXT_PRESENT")
+                diagnostics.append("Stale foundation text found in CONTEXT_ROUTING.md")
+        else:
+            true_context_routing_workflow_reference_ok = False
+            true_context_routing_profile_reference_ok = False
+            true_context_routing_stale_text_absent = False
 
     # Context routing checks for false destination
     false_context_routing = dest_false / "agents/registry/CONTEXT_ROUTING.md"
@@ -1272,13 +1327,22 @@ def evaluate_production_output_contract(
     if not false_context_routing_exists:
         failures.append("PRODUCTION_FALSE_CONTEXT_ROUTING_MISSING")
         diagnostics.append("CONTEXT_ROUTING.md does not exist in false dest")
+        false_context_routing_runtime_visual_absent = False
     else:
-        false_routing_content = false_context_routing.read_text()
-
-        false_context_routing_runtime_visual_absent = "runtime-visual" not in false_routing_content
-        if not false_context_routing_runtime_visual_absent:
-            failures.append("PRODUCTION_FALSE_CONTEXT_ROUTING_RUNTIME_VISUAL_REFERENCE_PRESENT")
-            diagnostics.append("runtime-visual reference found in false CONTEXT_ROUTING.md")
+        false_routing_content = read_required_production_output_text(
+            path=false_context_routing,
+            failure_code="PRODUCTION_FALSE_CONTEXT_ROUTING_READ_FAILED",
+            label="CONTEXT_ROUTING.md (false)",
+            failures=failures,
+            diagnostics=diagnostics,
+        )
+        if false_routing_content is not None:
+            false_context_routing_runtime_visual_absent = "runtime-visual" not in false_routing_content
+            if not false_context_routing_runtime_visual_absent:
+                failures.append("PRODUCTION_FALSE_CONTEXT_ROUTING_RUNTIME_VISUAL_REFERENCE_PRESENT")
+                diagnostics.append("runtime-visual reference found in false CONTEXT_ROUTING.md")
+        else:
+            false_context_routing_runtime_visual_absent = False
 
     # Final passed: all booleans must be True
     passed = all(
