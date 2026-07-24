@@ -1626,6 +1626,11 @@ def main() -> int:
             print(f"  Detail: {error.detail}")
             return 1
 
+        print(
+            "BOOTSTRAP_SYNTHETIC_COPIER_"
+            "DATA_FILE_MATERIALIZATION_CONTRACT=PASS"
+        )
+
         # Check synthetic results
         print("\n=== Evaluating synthetic profile results ===")
 
@@ -1652,11 +1657,6 @@ def main() -> int:
         )
 
         synthetic_all_pass = true_profile_pass and false_profile_pass
-
-        print(
-            "BOOTSTRAP_SYNTHETIC_COPIER_"
-            "DATA_FILE_MATERIALIZATION_CONTRACT=PASS"
-        )
 
         if synthetic_all_pass:
             print("\nBOOTSTRAP_COPIER_CONDITIONAL_PATH_CONTRACT=PASS")
