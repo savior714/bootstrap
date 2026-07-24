@@ -227,6 +227,15 @@ class SyntheticFixtureGitSetupError(RuntimeError):
         self.detail = detail
 
 
+class SyntheticCopierDataFileMaterializationError(RuntimeError):
+    """Raised when a required data file write step for synthetic Copier copy fails."""
+
+    def __init__(self, failure_code: str, detail: str) -> None:
+        super().__init__(detail)
+        self.failure_code = failure_code
+        self.detail = detail
+
+
 def run_required_temp_repo_git_step(
     *,
     command: list[str],
@@ -383,6 +392,34 @@ def init_fixture_git(fixture_dir: Path) -> None:
     )
 
 
+def write_synthetic_copier_data_file(
+    *,
+    data_file: Path,
+    has_runtime_visual: bool,
+    failure_code: str,
+) -> None:
+    """Write synthetic Copier data file with fail-closed exception handling.
+
+    Args:
+        data_file: Path to the data file to write
+        has_runtime_visual: Boolean value for has_runtime_visual
+        failure_code: Stable failure code to use if write fails
+
+    Raises:
+        SyntheticCopierDataFileMaterializationError: If write fails
+    """
+    try:
+        data_file.write_text(
+            "has_runtime_visual: "
+            f"{str(has_runtime_visual).lower()}\n"
+        )
+    except Exception as error:
+        raise SyntheticCopierDataFileMaterializationError(
+            failure_code,
+            str(error),
+        )
+
+
 def run_copier_copy(
     fixture_path: Path,
     data: dict[str, bool],
@@ -391,7 +428,17 @@ def run_copier_copy(
     """Run copier copy with given data."""
     # Create temp data file
     data_file = dest_dir.parent / f"data_{dest_dir.name}.yml"
-    data_file.write_text(f"has_runtime_visual: {str(data['has_runtime_visual']).lower()}\n")
+    has_runtime_visual = data["has_runtime_visual"]
+    failure_code = (
+        "SYNTHETIC_COPIER_TRUE_DATA_FILE_WRITE_FAILED"
+        if has_runtime_visual
+        else "SYNTHETIC_COPIER_FALSE_DATA_FILE_WRITE_FAILED"
+    )
+    write_synthetic_copier_data_file(
+        data_file=data_file,
+        has_runtime_visual=has_runtime_visual,
+        failure_code=failure_code,
+    )
 
     exit_code, stdout, stderr = run_local_copier(
         args=(
@@ -1559,16 +1606,25 @@ def main() -> int:
 
         # Run copier for synthetic test
         print("\n=== Running synthetic conditional path test ===")
-        exit_code_syn, stdout_syn, stderr_syn = run_copier_copy(
-            fixture_dir,
-            {"has_runtime_visual": True},
-            true_dest_synthetic,
-        )
-        exit_code_syn2, stdout_syn2, stderr_syn2 = run_copier_copy(
-            fixture_dir,
-            {"has_runtime_visual": False},
-            false_dest_synthetic,
-        )
+        try:
+            exit_code_syn, stdout_syn, stderr_syn = run_copier_copy(
+                fixture_dir,
+                {"has_runtime_visual": True},
+                true_dest_synthetic,
+            )
+            exit_code_syn2, stdout_syn2, stderr_syn2 = run_copier_copy(
+                fixture_dir,
+                {"has_runtime_visual": False},
+                false_dest_synthetic,
+            )
+        except SyntheticCopierDataFileMaterializationError as error:
+            print(
+                "BOOTSTRAP_SYNTHETIC_COPIER_"
+                "DATA_FILE_MATERIALIZATION_CONTRACT=FAIL"
+            )
+            print(f"FIRST_FAILURE={error.failure_code}")
+            print(f"  Detail: {error.detail}")
+            return 1
 
         # Check synthetic results
         print("\n=== Evaluating synthetic profile results ===")
@@ -1596,6 +1652,11 @@ def main() -> int:
         )
 
         synthetic_all_pass = true_profile_pass and false_profile_pass
+
+        print(
+            "BOOTSTRAP_SYNTHETIC_COPIER_"
+            "DATA_FILE_MATERIALIZATION_CONTRACT=PASS"
+        )
 
         if synthetic_all_pass:
             print("\nBOOTSTRAP_COPIER_CONDITIONAL_PATH_CONTRACT=PASS")
