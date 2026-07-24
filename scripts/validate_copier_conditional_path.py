@@ -1090,6 +1090,32 @@ def read_required_production_output_text(
         return None
 
 
+def scan_production_output_relative_paths(
+    *,
+    root: Path,
+    pattern: str,
+    failure_code: str,
+    label: str,
+    failures: list[str],
+    diagnostics: list[str],
+    name_contains: str | None = None,
+) -> list[str] | None:
+    try:
+        relative_paths: list[str] = []
+
+        for path in root.rglob(pattern):
+            if name_contains is not None and name_contains not in path.name:
+                continue
+
+            relative_paths.append(str(path.relative_to(root)))
+
+        return relative_paths
+    except Exception as error:
+        failures.append(failure_code)
+        diagnostics.append(f"{label} scan failed: {error}")
+        return None
+
+
 def evaluate_production_output_contract(
     exit_code_true: int,
     exit_code_false: int,
@@ -1240,37 +1266,76 @@ def evaluate_production_output_contract(
         diagnostics.append("project/runtime-visual path exists in false dest")
 
     # Check for any runtime-visual named paths in false destination
-    runtime_visual_paths = []
-    for p in dest_false.rglob("*"):
-        if "runtime-visual" in p.name:
-            runtime_visual_paths.append(str(p.relative_to(dest_false)))
+    runtime_visual_paths = scan_production_output_relative_paths(
+        root=dest_false,
+        pattern="*",
+        failure_code="PRODUCTION_FALSE_RUNTIME_VISUAL_PATH_SCAN_FAILED",
+        label="Runtime-visual path",
+        failures=failures,
+        diagnostics=diagnostics,
+        name_contains="runtime-visual",
+    )
 
-    false_runtime_visual_paths_absent = len(runtime_visual_paths) == 0
-    if not false_runtime_visual_paths_absent:
+    false_runtime_visual_paths_absent = runtime_visual_paths is None or len(runtime_visual_paths) == 0
+    if runtime_visual_paths is not None and not false_runtime_visual_paths_absent:
         failures.append("PRODUCTION_FALSE_RUNTIME_VISUAL_PATH_EXISTS")
         diagnostics.append(f"Stray runtime-visual paths: {runtime_visual_paths}")
 
     # Check for .gitkeep in false destination
-    gitkeep_paths = []
-    for p in dest_false.rglob(".gitkeep"):
-        rel = str(p.relative_to(dest_false))
-        gitkeep_paths.append(rel)
+    gitkeep_paths = scan_production_output_relative_paths(
+        root=dest_false,
+        pattern=".gitkeep",
+        failure_code="PRODUCTION_FALSE_GITKEEP_SCAN_FAILED",
+        label=".gitkeep",
+        failures=failures,
+        diagnostics=diagnostics,
+    )
 
-    false_gitkeep_paths_absent = len(gitkeep_paths) == 0
-    if not false_gitkeep_paths_absent:
+    false_gitkeep_paths_absent = gitkeep_paths is None or len(gitkeep_paths) == 0
+    if gitkeep_paths is not None and not false_gitkeep_paths_absent:
         failures.append("PRODUCTION_FALSE_GITKEEP_EXISTS")
         diagnostics.append(f".gitkeep paths: {gitkeep_paths}")
 
-    # Check for orphan .jinja files in both destinations
-    orphan_jinja = []
-    for dest in [dest_true, dest_false]:
-        for p in dest.rglob("*.jinja"):
-            rel = str(p.relative_to(dest))
-            if rel not in orphan_jinja:
-                orphan_jinja.append(rel)
+    # Check for orphan .jinja files in true destination
+    true_orphan_jinja = scan_production_output_relative_paths(
+        root=dest_true,
+        pattern="*.jinja",
+        failure_code="PRODUCTION_TRUE_ORPHAN_JINJA_SCAN_FAILED",
+        label="True orphan Jinja",
+        failures=failures,
+        diagnostics=diagnostics,
+    )
 
-    orphan_jinja_absent = len(orphan_jinja) == 0
-    if not orphan_jinja_absent:
+    # Check for orphan .jinja files in false destination
+    false_orphan_jinja = scan_production_output_relative_paths(
+        root=dest_false,
+        pattern="*.jinja",
+        failure_code="PRODUCTION_FALSE_ORPHAN_JINJA_SCAN_FAILED",
+        label="False orphan Jinja",
+        failures=failures,
+        diagnostics=diagnostics,
+    )
+
+    # Combine results only if both scans succeeded
+    orphan_jinja_absent = (
+        true_orphan_jinja is not None
+        and false_orphan_jinja is not None
+        and len(true_orphan_jinja) == 0
+        and len(false_orphan_jinja) == 0
+    )
+
+    if true_orphan_jinja is not None and false_orphan_jinja is not None:
+        orphan_jinja: list[str] = []
+        for path in true_orphan_jinja:
+            if path not in orphan_jinja:
+                orphan_jinja.append(path)
+        for path in false_orphan_jinja:
+            if path not in orphan_jinja:
+                orphan_jinja.append(path)
+    else:
+        orphan_jinja = []
+
+    if not orphan_jinja_absent and true_orphan_jinja is not None and false_orphan_jinja is not None:
         failures.append("PRODUCTION_ORPHAN_JINJA_EXISTS")
         diagnostics.append(f"Orphan .jinja paths: {orphan_jinja}")
 
