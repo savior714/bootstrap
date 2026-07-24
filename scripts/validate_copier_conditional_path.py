@@ -1257,7 +1257,7 @@ def evaluate_production_output_contract(
             failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_PROFILE_REFERENCE_MISSING")
             diagnostics.append("runtime-visual PROFILE.md reference not found in CONTEXT_ROUTING.md")
 
-        true_context_routing_stale_text_absent = "별도 runtime workflow module 이 포함되지 않" not in routing_content
+        true_context_routing_stale_text_absent = "별도 runtime workflow module이 포함되지 않" not in routing_content
         if not true_context_routing_stale_text_absent:
             failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_STALE_FOUNDATION_TEXT_PRESENT")
             diagnostics.append("Stale foundation text found in CONTEXT_ROUTING.md")
@@ -1606,7 +1606,11 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
-                    "true_context_routing_content": "별도 runtime workflow module 이 포함되지 않는다\n",
+                    "true_context_routing_content": (
+                        "agents/modules/runtime-visual/WORKFLOW.md\n"
+                        "agents/project/runtime-visual/PROFILE.md\n"
+                        "별도 runtime workflow module이 포함되지 않으므로\n"
+                    ),
                     "false_stray_paths": False,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
