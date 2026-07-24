@@ -1515,6 +1515,9 @@ def validate_production_template(
         timeout=120,
     )
 
+    # Cleanup true data file
+    true_data_file.unlink(missing_ok=True)
+
     # False profile copy
     exit_code_false, stdout_false, stderr_false = run_local_copier(
         args=(
@@ -1527,6 +1530,9 @@ def validate_production_template(
         ),
         timeout=120,
     )
+
+    # Cleanup false data file
+    false_data_file.unlink(missing_ok=True)
 
     # Use the new evaluation function
     passed, diagnostics, failures = evaluate_production_output_contract(
