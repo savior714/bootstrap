@@ -125,6 +125,8 @@ def setup_temp_template(template_dir: Path) -> Path:
     run_cmd(["git", "config", "user.email", "bootstrap-validator@example.invalid"], cwd=repo_dir)
 
     for item in template_dir.iterdir():
+        if item.name == ".git":
+            continue
         dest = repo_dir / item.name
         if dest.exists():
             if dest.is_dir():
