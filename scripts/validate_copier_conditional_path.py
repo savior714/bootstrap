@@ -591,16 +591,14 @@ def check_destination(dest_dir: Path, expected_has_file: bool) -> tuple[bool, li
 
 def create_production_temp_repo(working_tree_root: Path, tmp_dir: Path) -> Path:
     """
-    Create a temporary git repository from current working tree for production validation.
+    Create a temporary directory with production template files for validation.
 
-    Does NOT use git archive. Copies working tree files directly to allow
-    validation before commit.
+    Does NOT initialize git repository. Only performs filesystem materialization.
 
-    Returns the path to the temp repo directory.
+    Returns the path to the temp directory.
 
     Raises:
         ProductionTempRepoMaterializationError: If any filesystem materialization step fails
-        ProductionTempRepoGitSetupError: If any git setup step fails
     """
     import shutil
 
@@ -632,7 +630,17 @@ def create_production_temp_repo(working_tree_root: Path, tmp_dir: Path) -> Path:
             "PRODUCTION_TEMP_REPO_TEMPLATE_COPY_FAILED", str(e)
         )
 
-    # Initialize git repo with fail-closed wrapper
+    return temp_repo
+
+
+def init_production_temp_repo_git(temp_repo: Path) -> None:
+    """Initialize production temp repo as git repository.
+
+    Performs required git steps: init, config, add, commit, tag.
+
+    Raises:
+        ProductionTempRepoGitSetupError: If any git setup step fails
+    """
     run_required_temp_repo_git_step(
         command=["git", "init"],
         cwd=temp_repo,
@@ -663,8 +671,6 @@ def create_production_temp_repo(working_tree_root: Path, tmp_dir: Path) -> Path:
         cwd=temp_repo,
         failure_code="PRODUCTION_TEMP_REPO_GIT_TAG_FAILED",
     )
-
-    return temp_repo
 
 
 def evaluate_checkout_portability_contract(
@@ -1552,7 +1558,7 @@ def main() -> int:
         # Phase 3: Production template validation
         print("\n=== Running production template validation ===")
 
-        # Create temp repo from working tree with fail-closed materialization and git setup
+        # Phase 3.1: Materialization
         try:
             temp_repo = create_production_temp_repo(REPOSITORY_ROOT, tmpdir_path)
         except ProductionTempRepoMaterializationError as e:
@@ -1560,16 +1566,18 @@ def main() -> int:
             print(f"FIRST_FAILURE={e.failure_code}")
             print(f"  Detail: {e.detail}")
             return 1
+
+        print("BOOTSTRAP_PRODUCTION_TEMP_REPO_MATERIALIZATION_CONTRACT=PASS")
+
+        # Phase 3.2: Git setup
+        try:
+            init_production_temp_repo_git(temp_repo)
         except ProductionTempRepoGitSetupError as e:
             print("BOOTSTRAP_PRODUCTION_TEMP_REPO_GIT_SETUP_CONTRACT=FAIL")
             print(f"FIRST_FAILURE={e.failure_code}")
             print(f"  Detail: {e.detail}")
             return 1
 
-        # Emit materialization PASS marker after successful filesystem materialization
-        print("BOOTSTRAP_PRODUCTION_TEMP_REPO_MATERIALIZATION_CONTRACT=PASS")
-
-        # Emit PASS marker only after successful git setup (commit + tag)
         print("BOOTSTRAP_PRODUCTION_TEMP_REPO_GIT_SETUP_CONTRACT=PASS")
 
         # Create destinations for production test
