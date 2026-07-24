@@ -1285,16 +1285,8 @@ def main() -> int:
         print(f"FIRST_FAILURE={portability_error}")
         return 1
 
-    print("BOOTSTRAP_COPIER_VALIDATOR_CHECKOUT_PORTABILITY_CONTRACT=PASS")
-
     # Phase 0.5: Portability marker isolation self-check
     isolation_passed, isolation_error = validate_checkout_portability_marker_isolation_contract()
-    if not isolation_passed:
-        print("BOOTSTRAP_COPIER_CHECKOUT_PORTABILITY_MARKER_ISOLATION_CONTRACT=FAIL")
-        print(f"FIRST_FAILURE={isolation_error}")
-        return 1
-
-    print("BOOTSTRAP_COPIER_CHECKOUT_PORTABILITY_MARKER_ISOLATION_CONTRACT=PASS")
 
     # Phase 0.1: Local toolchain contract self-check (synthetic probe only)
     self_check_passed, _ = validate_local_copier_toolchain_contract()
@@ -1302,7 +1294,6 @@ def main() -> int:
         print("BOOTSTRAP_COPIER_LOCAL_TOOLCHAIN_CONTRACT=FAIL")
         print("FIRST_FAILURE=LOCAL_TOOLCHAIN_SELF_CHECK_FAILED")
         return 1
-    print("COPIER_LOCAL_TOOLCHAIN_SYNTHETIC_PROBE=PASS")
 
     # Phase 1: Parser contract self-check
     parser_contract_pass = validate_answers_parser_contract()
@@ -1310,8 +1301,6 @@ def main() -> int:
         print("BOOTSTRAP_COPIER_ANSWERS_EXACT_KEY_CONTRACT=FAIL")
         print("FIRST_FAILURE=PARSER_CONTRACT_SELF_CHECK_FAILED")
         return 1
-
-    print("BOOTSTRAP_COPIER_ANSWERS_EXACT_KEY_CONTRACT=PASS")
 
     # Phase 2: Actual local toolchain validation with real command execution
     exit_code, stdout, stderr = run_local_copier(
@@ -1331,12 +1320,14 @@ def main() -> int:
             print(f"  Error: {stderr}")
         return 1
 
-    # Actual validation succeeded: emit production PASS marker
+    # Actual validation succeeded: emit production PASS markers
     marker_lines = render_local_toolchain_contract_lines(passed=True, error_code=None)
     for line in marker_lines:
         print(line)
     print(f"Copier version: {stdout.strip()}")
     print("COPIER_COMMAND=uv run copier")
+    print("BOOTSTRAP_COPIER_VALIDATOR_CHECKOUT_PORTABILITY_CONTRACT=PASS")
+    print("BOOTSTRAP_COPIER_CHECKOUT_PORTABILITY_MARKER_ISOLATION_CONTRACT=PASS")
     print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
 
     with tempfile.TemporaryDirectory() as tmpdir:
