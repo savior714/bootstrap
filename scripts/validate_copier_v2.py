@@ -80,6 +80,18 @@ RUNTIME_VISUAL_PROFILE_TEMPLATE_SENTINEL = (
     "BOOTSTRAP_VALIDATOR_RUNTIME_VISUAL_PROFILE_TEMPLATE_UPDATE_SENTINEL"
 )
 
+TEMP_TEMPLATE_SOURCE_ROOTS = (
+    "copier.yml",
+    "template",
+)
+
+TEMP_TEMPLATE_REQUIRED_SOURCE_MISSING = "TEMP_TEMPLATE_REQUIRED_SOURCE_MISSING"
+TEMP_TEMPLATE_CANDIDATE_SOURCE_MISSING = "TEMP_TEMPLATE_CANDIDATE_SOURCE_MISSING"
+TEMP_TEMPLATE_UNRELATED_SOURCE_COPIED = "TEMP_TEMPLATE_UNRELATED_SOURCE_COPIED"
+TEMP_TEMPLATE_SOURCE_GIT_METADATA_COPIED = "TEMP_TEMPLATE_SOURCE_GIT_METADATA_COPIED"
+TEMP_TEMPLATE_REPOSITORY_NOT_CLEAN = "TEMP_TEMPLATE_REPOSITORY_NOT_CLEAN"
+TEMP_TEMPLATE_INITIAL_TAG_MISSING = "TEMP_TEMPLATE_INITIAL_TAG_MISSING"
+
 
 def run_cmd(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
     result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=False)
@@ -124,19 +136,24 @@ def setup_temp_template(template_dir: Path) -> Path:
     run_cmd(["git", "config", "user.name", "Bootstrap Validator"], cwd=repo_dir)
     run_cmd(["git", "config", "user.email", "bootstrap-validator@example.invalid"], cwd=repo_dir)
 
-    for item in template_dir.iterdir():
-        if item.name == ".git":
-            continue
-        dest = repo_dir / item.name
-        if dest.exists():
-            if dest.is_dir():
-                shutil.rmtree(dest)
+    for relative_path in TEMP_TEMPLATE_SOURCE_ROOTS:
+        source = template_dir / relative_path
+        destination = repo_dir / relative_path
+        if not source.exists():
+            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+            print("FIRST_FAILURE=TEMP_TEMPLATE_REQUIRED_SOURCE_MISSING")
+            print(f"DETAIL=required source {relative_path} not found")
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
+        if destination.exists():
+            if destination.is_dir():
+                shutil.rmtree(destination)
             else:
-                dest.unlink()
-        if item.is_dir():
-            shutil.copytree(item, dest)
+                destination.unlink()
+        if source.is_dir():
+            shutil.copytree(source, destination)
         else:
-            shutil.copy2(item, dest)
+            shutil.copy2(source, destination)
 
     run_cmd(["git", "add", "."], cwd=repo_dir)
     run_cmd(["git", "commit", "-m", "Initial commit from working tree"], cwd=repo_dir)
@@ -460,8 +477,84 @@ def validate_template_core_applied(destination: Path) -> None:
     check_unresolved_markers(destination)
 
 
+def validate_temp_template_source_isolation_contract() -> None:
+    fixture_dir = Path(tempfile.mkdtemp(prefix="bootstrap-v2-isolation-fixture-"))
+    temp_template = None
+    try:
+        copier_yml = fixture_dir / "copier.yml"
+        shutil.copy2("copier.yml", copier_yml)
+
+        template_dir = fixture_dir / "template"
+        template_dir.mkdir()
+        candidate_sentinel = template_dir / "CANDIDATE_WORKTREE_SENTINEL.txt"
+        candidate_sentinel.write_text("CANDIDATE_SOURCE_TEST_CONTENT\n")
+
+        unrelated_sentinel = fixture_dir / "UNRELATED_WORKTREE_SENTINEL.txt"
+        unrelated_sentinel.write_text("UNRELATED_SOURCE_TEST_CONTENT\n")
+
+        git_dir = fixture_dir / ".git"
+        git_dir.mkdir()
+        git_sentinel = git_dir / "SOURCE_GIT_METADATA_SENTINEL.txt"
+        git_sentinel.write_text("SOURCE_GIT_METADATA_TEST_CONTENT\n")
+
+        temp_template = setup_temp_template(fixture_dir)
+
+        if not (temp_template / "copier.yml").exists():
+            print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=FAIL")
+            print("FIRST_FAILURE=TEMP_TEMPLATE_COPIER_YML_MISSING")
+            print("DETAIL=copier.yml not copied to temp template")
+            sys.exit(1)
+
+        if not (temp_template / "template" / "CANDIDATE_WORKTREE_SENTINEL.txt").exists():
+            print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=FAIL")
+            print("FIRST_FAILURE=TEMP_TEMPLATE_CANDIDATE_SENTINEL_MISSING")
+            print("DETAIL=candidate sentinel not copied to temp template")
+            sys.exit(1)
+
+        if (temp_template / "UNRELATED_WORKTREE_SENTINEL.txt").exists():
+            print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=FAIL")
+            print("FIRST_FAILURE=TEMP_TEMPLATE_UNRELATED_SOURCE_COPIED")
+            print("DETAIL=unrelated root content was copied to temp template")
+            sys.exit(1)
+
+        git_metadata_path = temp_template / ".git" / "SOURCE_GIT_METADATA_SENTINEL.txt"
+        if git_metadata_path.exists():
+            print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=FAIL")
+            print("FIRST_FAILURE=TEMP_TEMPLATE_SOURCE_GIT_METADATA_COPIED")
+            print("DETAIL=source .git metadata was copied to temp template")
+            sys.exit(1)
+
+        if not (temp_template / ".git").exists():
+            print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=FAIL")
+            print("FIRST_FAILURE=TEMP_TEMPLATE_GIT_MISSING")
+            print("DETAIL=temp template .git directory not created")
+            sys.exit(1)
+
+        result = run_cmd(["git", "status", "--porcelain"], cwd=temp_template, check=False)
+        if result.stdout.strip():
+            print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=FAIL")
+            print("FIRST_FAILURE=TEMP_TEMPLATE_REPOSITORY_NOT_CLEAN")
+            print("DETAIL=temp template has uncommitted changes")
+            sys.exit(1)
+
+        result = run_cmd(["git", "tag", "-l"], cwd=temp_template, check=False)
+        if "v0.0.1" not in result.stdout:
+            print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=FAIL")
+            print("FIRST_FAILURE=TEMP_TEMPLATE_INITIAL_TAG_MISSING")
+            print("DETAIL=v0.0.1 tag not found in temp template")
+            sys.exit(1)
+
+    finally:
+        if temp_template:
+            shutil.rmtree(temp_template, ignore_errors=True)
+        shutil.rmtree(fixture_dir, ignore_errors=True)
+
+
 def main() -> None:
     check_copier_version()
+
+    validate_temp_template_source_isolation_contract()
+    print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=PASS")
 
     with tempfile.TemporaryDirectory(prefix="bootstrap-v2-dest-") as tmpdir:
         tmpdir = Path(tmpdir)
