@@ -30,7 +30,6 @@
       "src": "scripts/bootstrap/scaffold/Justfile.snippet",
       "dest": "Justfile.snippet"
     },
-    { "src": "verify.sh", "dest": "verify.sh" },
     { "src": "tools/tdd_gate_plugin.py", "dest": "tools/tdd_gate_plugin.py" },
     { "src": "scripts/bootstrap/scaffold/tools/__init__.py", "dest": "tools/__init__.py" },
     { "src": "scripts/bootstrap/scaffold/pytest.ini", "dest": "pytest.ini" },
