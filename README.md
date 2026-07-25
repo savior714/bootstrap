@@ -87,10 +87,9 @@ uv run --frozen copier copy \
 
 한 단계는 하나의 failure domain으로 진행합니다.
 
-## 검은 모님
+## 검증 명령
 
-```
-bash
+```bash
 uv run --frozen python \
   scripts/validate_copier_conditional_path.py
 
