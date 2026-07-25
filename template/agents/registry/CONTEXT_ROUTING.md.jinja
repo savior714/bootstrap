@@ -10,13 +10,8 @@
 | 제품 범위 선택 또는 장기 작업 재개 | `docs/product/ACTIVE_SCOPE.md` | 현재 허용 범위 확인 |
 | 문서만 변경 | 참조되는 문서만 | diff + path/link integrity |
 | 배포 전 전체 검증 | `agents/project/PROFILE.md` | exact candidate commit에서 release command |
-
 {% if has_runtime_visual -%}
-Runtime·visual acceptance 는 source task 와 분리한다.
-runtime·visual, browser automation, authenticated runtime 작업은 다음 문서를 읽는다.
-
-| agents/modules/runtime-visual/WORKFLOW.md | runtime·visual acceptance, browser automation, authenticated runtime workflow |
-| agents/project/runtime-visual/PROFILE.md | runtime visual project profile |
+| runtime·visual acceptance, browser automation, authenticated runtime | `agents/modules/runtime-visual/WORKFLOW.md`, `agents/project/runtime-visual/PROFILE.md` | source task 분리 + profile completeness + runtime identity + DOM/semantic evidence |
 {% endif -%}
 
 {% if has_database -%}

@@ -1116,6 +1116,293 @@ def scan_production_output_relative_paths(
         return None
 
 
+RUNTIME_VISUAL_CONTEXT_ROUTING_ROW = (
+    "| runtime·visual acceptance, browser automation, "
+    "authenticated runtime "
+    "| `agents/modules/runtime-visual/WORKFLOW.md`, "
+    "`agents/project/runtime-visual/PROFILE.md` "
+    "| source task 분리 + profile completeness + "
+    "runtime identity + DOM/semantic evidence |"
+)
+
+CONTEXT_ROUTING_TABLE_HEADER = "| 경로 또는 작업 의미 | 추가 문서 | 검증 방향 |"
+CONTEXT_ROUTING_TABLE_SEPARATOR = "|---|---|---|"
+
+
+def parse_markdown_table_row(line: str) -> list[str] | None:
+    """Parse a Markdown table row line into cells.
+
+    Contract:
+    - line must begin with |
+    - line must end with |
+    - outer pipes are removed
+    - cells are split by | and stripped
+
+    Returns:
+        list of stripped cell strings, or None if line is not a valid table row
+    """
+    if not line.startswith("|") or not line.endswith("|"):
+        return None
+
+    inner = line[1:-1]
+    cells = [cell.strip() for cell in inner.split("|")]
+    return cells
+
+
+def extract_primary_context_routing_table_lines(content: str) -> list[str]:
+    """Extract the primary context routing table rows from content.
+
+    Algorithm:
+    1. Find exact header line
+    2. Verify exact separator line follows
+    3. Collect contiguous |...| lines until blank line or non-pipe line
+
+    Returns:
+        List of table row lines (including header and separator)
+    """
+    lines = content.splitlines()
+    result: list[str] = []
+    in_table = False
+    header_found = False
+    separator_found = False
+
+    for line in lines:
+        if not in_table:
+            if line.strip() == CONTEXT_ROUTING_TABLE_HEADER:
+                result.append(line)
+                header_found = True
+                in_table = True
+            continue
+
+        if header_found and not separator_found:
+            if line.strip() == CONTEXT_ROUTING_TABLE_SEPARATOR:
+                result.append(line)
+                separator_found = True
+            else:
+                break
+            continue
+
+        if separator_found:
+            if line.startswith("|") and line.endswith("|"):
+                result.append(line)
+            else:
+                break
+
+    return result
+
+
+def evaluate_runtime_visual_context_routing_table_contract(
+    *,
+    routing_content: str,
+    runtime_visual_enabled: bool,
+) -> list[str]:
+    """Evaluate runtime visual context routing table contract.
+
+    Returns:
+        List of failure codes (empty if all checks pass)
+    """
+    failures: list[str] = []
+
+    table_rows = extract_primary_context_routing_table_lines(routing_content)
+
+    # For disabled case, just check that no runtime-visual references exist
+    # We don't require a full table structure when disabled
+    if not runtime_visual_enabled:
+        workflow_path_count = 0
+        profile_path_count = 0
+
+        for row_line in table_rows[2:] if len(table_rows) >= 2 else []:
+            if "agents/modules/runtime-visual/WORKFLOW.md" in row_line:
+                workflow_path_count += 1
+            if "agents/project/runtime-visual/PROFILE.md" in row_line:
+                profile_path_count += 1
+
+        if workflow_path_count > 0 or profile_path_count > 0:
+            failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_DISABLED_REFERENCE_PRESENT")
+
+        return failures
+
+    # For enabled case, require full table structure
+    if len(table_rows) < 2:
+        failures.append("CONTEXT_ROUTING_PRIMARY_TABLE_MISSING")
+        return failures
+
+    if table_rows[0].strip() != CONTEXT_ROUTING_TABLE_HEADER:
+        failures.append("CONTEXT_ROUTING_PRIMARY_TABLE_HEADER_MISMATCH")
+
+    if table_rows[1].strip() != CONTEXT_ROUTING_TABLE_SEPARATOR:
+        failures.append("CONTEXT_ROUTING_PRIMARY_TABLE_SEPARATOR_MISSING")
+
+    all_rows_valid_shape = True
+    for row_line in table_rows[2:]:
+        cells = parse_markdown_table_row(row_line)
+        if cells is None or len(cells) != 3:
+            all_rows_valid_shape = False
+            break
+
+    if not all_rows_valid_shape:
+        failures.append("CONTEXT_ROUTING_PRIMARY_TABLE_ROW_SHAPE_INVALID")
+
+    if runtime_visual_enabled:
+        canonical_row_present = False
+        canonical_row_count = 0
+        workflow_path_count = 0
+        profile_path_count = 0
+
+        for row_line in table_rows[2:]:
+            cells = parse_markdown_table_row(row_line)
+            if cells is None:
+                continue
+
+            if row_line.strip() == RUNTIME_VISUAL_CONTEXT_ROUTING_ROW.strip():
+                canonical_row_count += 1
+                canonical_row_present = True
+
+            if "agents/modules/runtime-visual/WORKFLOW.md" in row_line:
+                workflow_path_count += 1
+
+            if "agents/project/runtime-visual/PROFILE.md" in row_line:
+                profile_path_count += 1
+
+        if not canonical_row_present:
+            failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_MISSING")
+
+        if canonical_row_count > 1:
+            failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_DUPLICATE")
+
+        if workflow_path_count != 1:
+            failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_WORKFLOW_PATH_COUNT_INVALID")
+
+        if profile_path_count != 1:
+            failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_PROFILE_PATH_COUNT_INVALID")
+
+        malformed_2cell_present = False
+        for row_line in table_rows[2:]:
+            cells = parse_markdown_table_row(row_line)
+            if cells is not None and len(cells) == 2:
+                if "runtime-visual" in row_line.lower() or "runtime·visual" in row_line.lower():
+                    malformed_2cell_present = True
+                    break
+
+        if malformed_2cell_present:
+            failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_MALFORMED_ROW_PRESENT")
+
+    else:
+        workflow_path_count = 0
+        profile_path_count = 0
+
+        for row_line in table_rows[2:]:
+            if "agents/modules/runtime-visual/WORKFLOW.md" in row_line:
+                workflow_path_count += 1
+            if "agents/project/runtime-visual/PROFILE.md" in row_line:
+                profile_path_count += 1
+
+        if workflow_path_count > 0 or profile_path_count > 0:
+            failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_DISABLED_REFERENCE_PRESENT")
+
+    return failures
+
+
+def validate_runtime_visual_context_routing_table_validator_gate_contract(
+) -> tuple[bool, str | None]:
+    """Self-check: validate runtime visual context routing table contract with deterministic test cases.
+
+    Returns:
+        (True, None) if all test cases pass
+        (False, error_code) if any case fails
+    """
+    test_cases = [
+        (
+            "VALID_ENABLED",
+            (
+                CONTEXT_ROUTING_TABLE_HEADER + "\n"
+                + CONTEXT_ROUTING_TABLE_SEPARATOR + "\n"
+                + "| some row | some doc | some check |\n"
+                + RUNTIME_VISUAL_CONTEXT_ROUTING_ROW + "\n"
+            ),
+            True,
+            [],
+        ),
+        (
+            "VALID_DISABLED",
+            (
+                CONTEXT_ROUTING_TABLE_HEADER + "\n"
+                + CONTEXT_ROUTING_TABLE_SEPARATOR + "\n"
+                + "| some row | some doc | some check |\n"
+            ),
+            False,
+            [],
+        ),
+        (
+            "MALFORMED_TWO_CELL",
+            (
+                CONTEXT_ROUTING_TABLE_HEADER + "\n"
+                + CONTEXT_ROUTING_TABLE_SEPARATOR + "\n"
+                + "| agents/modules/runtime-visual/WORKFLOW.md | runtime workflow |\n"
+                + "| agents/project/runtime-visual/PROFILE.md | runtime profile |\n"
+            ),
+            True,
+            ["CONTEXT_ROUTING_PRIMARY_TABLE_ROW_SHAPE_INVALID", "RUNTIME_VISUAL_CONTEXT_ROUTING_MALFORMED_ROW_PRESENT", "RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_MISSING", "RUNTIME_VISUAL_CONTEXT_ROUTING_WORKFLOW_PATH_COUNT_INVALID", "RUNTIME_VISUAL_CONTEXT_ROUTING_PROFILE_PATH_COUNT_INVALID"],
+        ),
+        (
+            "ROW_OUTSIDE_PRIMARY_TABLE",
+            (
+                CONTEXT_ROUTING_TABLE_HEADER + "\n"
+                + CONTEXT_ROUTING_TABLE_SEPARATOR + "\n"
+                + "| some row | some doc | some check |\n"
+                + "\n"
+                + RUNTIME_VISUAL_CONTEXT_ROUTING_ROW + "\n"
+            ),
+            True,
+            ["CONTEXT_ROUTING_PRIMARY_TABLE_ROW_SHAPE_INVALID"],
+        ),
+        (
+            "MISSING_VALIDATION_CELL",
+            (
+                CONTEXT_ROUTING_TABLE_HEADER + "\n"
+                + CONTEXT_ROUTING_TABLE_SEPARATOR + "\n"
+                + "| runtime·visual acceptance | `agents/modules/runtime-visual/WORKFLOW.md` |\n"
+            ),
+            True,
+            ["CONTEXT_ROUTING_PRIMARY_TABLE_ROW_SHAPE_INVALID", "RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_MISSING"],
+        ),
+        (
+            "MISSING_PROFILE_REFERENCE",
+            (
+                CONTEXT_ROUTING_TABLE_HEADER + "\n"
+                + CONTEXT_ROUTING_TABLE_SEPARATOR + "\n"
+                + "| runtime·visual acceptance | `agents/modules/runtime-visual/WORKFLOW.md` | check |\n"
+            ),
+            True,
+            ["RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_MISSING", "RUNTIME_VISUAL_CONTEXT_ROUTING_PROFILE_PATH_COUNT_INVALID"],
+        ),
+        (
+            "DISABLED_REFERENCE_PRESENT",
+            (
+                CONTEXT_ROUTING_TABLE_HEADER + "\n"
+                + CONTEXT_ROUTING_TABLE_SEPARATOR + "\n"
+                + RUNTIME_VISUAL_CONTEXT_ROUTING_ROW + "\n"
+            ),
+            False,
+            ["RUNTIME_VISUAL_CONTEXT_ROUTING_DISABLED_REFERENCE_PRESENT"],
+        ),
+    ]
+
+    for case_name, content, enabled, expected_failures in test_cases:
+        actual_failures = evaluate_runtime_visual_context_routing_table_contract(
+            routing_content=content,
+            runtime_visual_enabled=enabled,
+        )
+
+        expected_set = set(expected_failures)
+        actual_set = set(actual_failures)
+
+        if expected_set != actual_set:
+            return False, f"{case_name}: expected {expected_set}, got {actual_set}"
+
+    return True, None
+
+
 def evaluate_production_output_contract(
     exit_code_true: int,
     exit_code_false: int,
@@ -1149,6 +1436,8 @@ def evaluate_production_output_contract(
     - true_context_routing_stale_text_absent
     - false_context_routing_exists
     - false_context_routing_runtime_visual_absent
+    - true_context_routing_table_shape_ok
+    - false_context_routing_table_shape_ok
     """
     diagnostics = []
     failures = []
@@ -1347,6 +1636,7 @@ def evaluate_production_output_contract(
     true_context_routing_workflow_reference_ok = False
     true_context_routing_profile_reference_ok = False
     true_context_routing_stale_text_absent = False
+    true_context_routing_table_shape_ok = False
 
     if not true_context_routing_exists:
         failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_MISSING")
@@ -1354,6 +1644,7 @@ def evaluate_production_output_contract(
         true_context_routing_workflow_reference_ok = False
         true_context_routing_profile_reference_ok = False
         true_context_routing_stale_text_absent = False
+        true_context_routing_table_shape_ok = False
     else:
         routing_content = read_required_production_output_text(
             path=true_context_routing,
@@ -1373,14 +1664,27 @@ def evaluate_production_output_contract(
                 failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_PROFILE_REFERENCE_MISSING")
                 diagnostics.append("runtime-visual PROFILE.md reference not found in CONTEXT_ROUTING.md")
 
-            true_context_routing_stale_text_absent = "별도 runtime workflow module이 포함되지 않" not in routing_content
+            true_context_routing_stale_text_absent = "별도 runtime workflow module 이 포함되지 않" not in routing_content
             if not true_context_routing_stale_text_absent:
                 failures.append("PRODUCTION_TRUE_CONTEXT_ROUTING_STALE_FOUNDATION_TEXT_PRESENT")
                 diagnostics.append("Stale foundation text found in CONTEXT_ROUTING.md")
+
+            table_shape_failures = evaluate_runtime_visual_context_routing_table_contract(
+                routing_content=routing_content,
+                runtime_visual_enabled=True,
+            )
+            if table_shape_failures:
+                true_context_routing_table_shape_ok = False
+                for tf in table_shape_failures:
+                    failures.append(f"PRODUCTION_TRUE_{tf}")
+                    diagnostics.append(f"Table shape check failed: {tf}")
+            else:
+                true_context_routing_table_shape_ok = True
         else:
             true_context_routing_workflow_reference_ok = False
             true_context_routing_profile_reference_ok = False
             true_context_routing_stale_text_absent = False
+            true_context_routing_table_shape_ok = False
 
     # Context routing checks for false destination
     false_context_routing = dest_false / "agents/registry/CONTEXT_ROUTING.md"
@@ -1388,11 +1692,13 @@ def evaluate_production_output_contract(
 
     # Initialize boolean to False, set to True only when check passes
     false_context_routing_runtime_visual_absent = False
+    false_context_routing_table_shape_ok = False
 
     if not false_context_routing_exists:
         failures.append("PRODUCTION_FALSE_CONTEXT_ROUTING_MISSING")
         diagnostics.append("CONTEXT_ROUTING.md does not exist in false dest")
         false_context_routing_runtime_visual_absent = False
+        false_context_routing_table_shape_ok = False
     else:
         false_routing_content = read_required_production_output_text(
             path=false_context_routing,
@@ -1406,8 +1712,21 @@ def evaluate_production_output_contract(
             if not false_context_routing_runtime_visual_absent:
                 failures.append("PRODUCTION_FALSE_CONTEXT_ROUTING_RUNTIME_VISUAL_REFERENCE_PRESENT")
                 diagnostics.append("runtime-visual reference found in false CONTEXT_ROUTING.md")
+
+            false_table_shape_failures = evaluate_runtime_visual_context_routing_table_contract(
+                routing_content=false_routing_content,
+                runtime_visual_enabled=False,
+            )
+            if false_table_shape_failures:
+                false_context_routing_table_shape_ok = False
+                for ff in false_table_shape_failures:
+                    failures.append(f"PRODUCTION_FALSE_{ff}")
+                    diagnostics.append(f"False table shape check failed: {ff}")
+            else:
+                false_context_routing_table_shape_ok = True
         else:
             false_context_routing_runtime_visual_absent = False
+            false_context_routing_table_shape_ok = False
 
     # Final passed: all booleans must be True
     passed = all(
@@ -1431,8 +1750,10 @@ def evaluate_production_output_contract(
             true_context_routing_workflow_reference_ok,
             true_context_routing_profile_reference_ok,
             true_context_routing_stale_text_absent,
+            true_context_routing_table_shape_ok,
             false_context_routing_exists,
             false_context_routing_runtime_visual_absent,
+            false_context_routing_table_shape_ok,
         ]
     )
 
@@ -1609,7 +1930,12 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
-                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
+                    "true_context_routing_content": (
+                        "| 경로 또는 작업 의미 | 추가 문서 | 검증 방향 |\n"
+                        "|---|---|---|\n"
+                        "| some row | some doc | some check |\n"
+                        "| runtime·visual acceptance, browser automation, authenticated runtime | `agents/modules/runtime-visual/WORKFLOW.md`, `agents/project/runtime-visual/PROFILE.md` | source task 분리 + profile completeness + runtime identity + DOM/semantic evidence |\n"
+                    ),
                     "false_stray_paths": False,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
@@ -1623,7 +1949,12 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "Some content\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
-                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
+                    "true_context_routing_content": (
+                        "| 경로 또는 작업 의미 | 추가 문서 | 검증 방향 |\n"
+                        "|---|---|---|\n"
+                        "| some row | some doc | some check |\n"
+                        "| runtime·visual acceptance, browser automation, authenticated runtime | `agents/modules/runtime-visual/WORKFLOW.md`, `agents/project/runtime-visual/PROFILE.md` | source task 분리 + profile completeness + runtime identity + DOM/semantic evidence |\n"
+                    ),
                     "false_stray_paths": False,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
@@ -1637,7 +1968,12 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "Some content\n",
-                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
+                    "true_context_routing_content": (
+                        "| 경로 또는 작업 의미 | 추가 문서 | 검증 방향 |\n"
+                        "|---|---|---|\n"
+                        "| some row | some doc | some check |\n"
+                        "| runtime·visual acceptance, browser automation, authenticated runtime | `agents/modules/runtime-visual/WORKFLOW.md`, `agents/project/runtime-visual/PROFILE.md` | source task 분리 + profile completeness + runtime identity + DOM/semantic evidence |\n"
+                    ),
                     "false_stray_paths": False,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
@@ -1651,7 +1987,12 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n{{ broken }}\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
-                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
+                    "true_context_routing_content": (
+                        "| 경로 또는 작업 의미 | 추가 문서 | 검증 방향 |\n"
+                        "|---|---|---|\n"
+                        "| some row | some doc | some check |\n"
+                        "| runtime·visual acceptance, browser automation, authenticated runtime | `agents/modules/runtime-visual/WORKFLOW.md`, `agents/project/runtime-visual/PROFILE.md` | source task 분리 + profile completeness + runtime identity + DOM/semantic evidence |\n"
+                    ),
                     "false_stray_paths": False,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
@@ -1665,7 +2006,12 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n{% broken %}\n",
-                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
+                    "true_context_routing_content": (
+                        "| 경로 또는 작업 의미 | 추가 문서 | 검증 방향 |\n"
+                        "|---|---|---|\n"
+                        "| some row | some doc | some check |\n"
+                        "| runtime·visual acceptance, browser automation, authenticated runtime | `agents/modules/runtime-visual/WORKFLOW.md`, `agents/project/runtime-visual/PROFILE.md` | source task 분리 + profile completeness + runtime identity + DOM/semantic evidence |\n"
+                    ),
                     "false_stray_paths": False,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
@@ -1679,7 +2025,12 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
-                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
+                    "true_context_routing_content": (
+                        "| 경로 또는 작업 의미 | 추가 문서 | 검증 방향 |\n"
+                        "|---|---|---|\n"
+                        "| some row | some doc | some check |\n"
+                        "| runtime·visual acceptance, browser automation, authenticated runtime | `agents/modules/runtime-visual/WORKFLOW.md`, `agents/project/runtime-visual/PROFILE.md` | source task 분리 + profile completeness + runtime identity + DOM/semantic evidence |\n"
+                    ),
                     "false_stray_paths": True,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
@@ -1693,7 +2044,12 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
-                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
+                    "true_context_routing_content": (
+                        "| 경로 또는 작업 의미 | 추가 문서 | 검증 방향 |\n"
+                        "|---|---|---|\n"
+                        "| some row | some doc | some check |\n"
+                        "| runtime·visual acceptance, browser automation, authenticated runtime | `agents/modules/runtime-visual/WORKFLOW.md`, `agents/project/runtime-visual/PROFILE.md` | source task 분리 + profile completeness + runtime identity + DOM/semantic evidence |\n"
+                    ),
                     "false_stray_paths": False,
                     "false_gitkeep": True,
                     "orphan_jinja": False,
@@ -1707,7 +2063,12 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
-                    "true_context_routing_content": "| agents/project/runtime-visual/PROFILE.md |\n",
+                    "true_context_routing_content": (
+                        "| 경로 또는 작업 의미 | 추가 문서 | 검증 방향 |\n"
+                        "|---|---|---|\n"
+                        "| some row | some doc | some check |\n"
+                        "| runtime·visual acceptance, browser automation, authenticated runtime | `agents/project/runtime-visual/PROFILE.md` | source task 분리 + profile completeness + runtime identity + DOM/semantic evidence |\n"
+                    ),
                     "false_stray_paths": False,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
@@ -1721,7 +2082,12 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
-                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n",
+                    "true_context_routing_content": (
+                        "| 경로 또는 작업 의미 | 추가 문서 | 검증 방향 |\n"
+                        "|---|---|---|\n"
+                        "| some row | some doc | some check |\n"
+                        "| runtime·visual acceptance, browser automation, authenticated runtime | `agents/modules/runtime-visual/WORKFLOW.md` | source task 분리 + profile completeness + runtime identity + DOM/semantic evidence |\n"
+                    ),
                     "false_stray_paths": False,
                     "false_gitkeep": False,
                     "orphan_jinja": False,
@@ -1736,9 +2102,11 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
                     "true_context_routing_content": (
-                        "agents/modules/runtime-visual/WORKFLOW.md\n"
-                        "agents/project/runtime-visual/PROFILE.md\n"
-                        "별도 runtime workflow module이 포함되지 않으므로\n"
+                        "| 경로 또는 작업 의미 | 추가 문서 | 검증 방향 |\n"
+                        "|---|---|---|\n"
+                        "| some row | some doc | some check |\n"
+                        "| runtime·visual acceptance, browser automation, authenticated runtime | `agents/modules/runtime-visual/WORKFLOW.md`, `agents/project/runtime-visual/PROFILE.md` | source task 분리 + profile completeness + runtime identity + DOM/semantic evidence |\n"
+                        "별도 runtime workflow module 이 포함되지 않으므로\n"
                     ),
                     "false_stray_paths": False,
                     "false_gitkeep": False,
@@ -1753,7 +2121,12 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 {
                     "true_workflow_content": "RUNTIME_VISUAL_CORE_VERSION=1\n",
                     "true_profile_content": "PROFILE_STATUS: INCOMPLETE\n",
-                    "true_context_routing_content": "| agents/modules/runtime-visual/WORKFLOW.md |\n| agents/project/runtime-visual/PROFILE.md |\n",
+                    "true_context_routing_content": (
+                        "| 경로 또는 작업 의미 | 추가 문서 | 검증 방향 |\n"
+                        "|---|---|---|\n"
+                        "| some row | some doc | some check |\n"
+                        "| runtime·visual acceptance, browser automation, authenticated runtime | `agents/modules/runtime-visual/WORKFLOW.md`, `agents/project/runtime-visual/PROFILE.md` | source task 분리 + profile completeness + runtime identity + DOM/semantic evidence |\n"
+                    ),
                     "false_context_routing_content": "runtime-visual\n",
                     "false_stray_paths": False,
                     "false_gitkeep": False,
