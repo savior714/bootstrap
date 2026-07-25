@@ -130,7 +130,15 @@ def run_temp_template_git_step(
     failure_code: str,
     label: str,
 ) -> None:
-    result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, check=False)
+    try:
+        result = run_cmd(cmd, cwd=repo_dir, check=False)
+    except Exception as error:
+        shutil.rmtree(repo_dir, ignore_errors=True)
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print(f"FIRST_FAILURE={failure_code}")
+        print(f"DETAIL={label} invocation failed: {error}")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
 
     if result.returncode == 0:
         return
@@ -1185,6 +1193,9 @@ def validate_project_command_ssot(destination: Path, profile: dict[str, Any]) ->
 
 
 def validate_temp_template_git_setup_fail_closed_contract() -> None:
+    import io
+    from contextlib import redirect_stderr, redirect_stdout
+
     failure_codes = [
         TEMP_TEMPLATE_GIT_INIT_FAILED,
         TEMP_TEMPLATE_GIT_CONFIG_NAME_FAILED,
@@ -1194,44 +1205,39 @@ def validate_temp_template_git_setup_fail_closed_contract() -> None:
         TEMP_TEMPLATE_GIT_TAG_FAILED,
     ]
 
-    def run_step_with_stub(
-        *,
-        fail_at: int,
-        step_index: int,
-        repo_dir: Path,
-    ) -> None:
-        result = subprocess.CompletedProcess(
-            args=["stub"],
-            returncode=17 if step_index == fail_at else 0,
-            stdout=f"simulated stdout",
-            stderr=f"simulated stderr",
+    def stub_run_cmd(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=17,
+            stdout="simulated stdout",
+            stderr="simulated stderr",
         )
 
-        if result.returncode == 0:
-            return
-
-        shutil.rmtree(repo_dir, ignore_errors=True)
-        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-        print(f"FIRST_FAILURE={failure_codes[step_index]}")
-        print(f"DETAIL=step {step_index} failed with exit code {result.returncode}")
-        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-        sys.exit(1)
-
+    original_run_cmd = globals()["run_cmd"]
+    
     test_cases = [
-        (0, TEMP_TEMPLATE_GIT_INIT_FAILED),
-        (1, TEMP_TEMPLATE_GIT_CONFIG_NAME_FAILED),
-        (2, TEMP_TEMPLATE_GIT_CONFIG_EMAIL_FAILED),
-        (3, TEMP_TEMPLATE_GIT_ADD_FAILED),
-        (4, TEMP_TEMPLATE_GIT_COMMIT_FAILED),
-        (5, TEMP_TEMPLATE_GIT_TAG_FAILED),
+        (0, TEMP_TEMPLATE_GIT_INIT_FAILED, "temp template git init"),
+        (1, TEMP_TEMPLATE_GIT_CONFIG_NAME_FAILED, "temp template git user.name config"),
+        (2, TEMP_TEMPLATE_GIT_CONFIG_EMAIL_FAILED, "temp template git user.email config"),
+        (3, TEMP_TEMPLATE_GIT_ADD_FAILED, "temp template git add"),
+        (4, TEMP_TEMPLATE_GIT_COMMIT_FAILED, "temp template git commit"),
+        (5, TEMP_TEMPLATE_GIT_TAG_FAILED, "temp template git tag"),
     ]
 
-    for fail_at, expected_code in test_cases:
+    for fail_at, expected_code, expected_label in test_cases:
         repo_dir = Path(tempfile.mkdtemp(prefix=f"bootstrap-v2-git-probe-{fail_at}-"))
+        
+        globals()["run_cmd"] = stub_run_cmd
+        
         try:
-            for i in range(fail_at + 1):
-                run_step_with_stub(fail_at=fail_at, step_index=i, repo_dir=repo_dir)
-
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                run_temp_template_git_step(
+                    cmd=["git", "stub"],
+                    repo_dir=repo_dir,
+                    failure_code=expected_code,
+                    label=expected_label,
+                )
+            
             print(f"GIT_PROBE_FAIL_AT_{fail_at}=UNEXPECTED_PASS")
             sys.exit(1)
         except SystemExit as e:
@@ -1243,8 +1249,63 @@ def validate_temp_template_git_setup_fail_closed_contract() -> None:
                 print(f"GIT_PROBE_FAIL_AT_{fail_at}=REPO_DIR_RESIDUE")
                 shutil.rmtree(repo_dir, ignore_errors=True)
                 sys.exit(1)
+        finally:
+            globals()["run_cmd"] = original_run_cmd
 
-    print("TEMP_TEMPLATE_GIT_SETUP_FAIL_CLOSED_CONTRACT=PASS")
+    test_success_repo = Path(tempfile.mkdtemp(prefix="bootstrap-v2-git-success-probe-"))
+
+    def success_stub_run_cmd(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+
+    globals()["run_cmd"] = success_stub_run_cmd
+    try:
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            run_temp_template_git_step(
+                cmd=["git", "stub"],
+                repo_dir=test_success_repo,
+                failure_code=TEMP_TEMPLATE_GIT_INIT_FAILED,
+                label="temp template git init",
+            )
+        
+        if not test_success_repo.exists():
+            print("GIT_SUCCESS_PROBE=REPO_DIR_MISSING")
+            sys.exit(1)
+    finally:
+        globals()["run_cmd"] = original_run_cmd
+        shutil.rmtree(test_success_repo, ignore_errors=True)
+
+    def invocation_exception_stub(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
+        raise OSError("simulated git spawn failure")
+
+    test_invocation_repo = Path(tempfile.mkdtemp(prefix="bootstrap-v2-git-invocation-probe-"))
+    globals()["run_cmd"] = invocation_exception_stub
+    try:
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            run_temp_template_git_step(
+                cmd=["git", "init"],
+                repo_dir=test_invocation_repo,
+                failure_code=TEMP_TEMPLATE_GIT_INIT_FAILED,
+                label="temp template git init",
+            )
+        
+        print("GIT_INVOCATION_PROBE=UNEXPECTED_PASS")
+        sys.exit(1)
+    except SystemExit as e:
+        if e.code != 1:
+            print("GIT_INVOCATION_PROBE=WRONG_EXIT_CODE")
+            sys.exit(1)
+
+        if test_invocation_repo.exists():
+            print("GIT_INVOCATION_PROBE=REPO_DIR_RESIDUE")
+            shutil.rmtree(test_invocation_repo, ignore_errors=True)
+            sys.exit(1)
+    finally:
+        globals()["run_cmd"] = original_run_cmd
 
 
 def validate_temp_template_source_isolation_contract() -> None:
