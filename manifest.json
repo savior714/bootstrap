@@ -1,7 +1,7 @@
 {
   "version": "1.3.0",
   "template_root": "templates",
-  "description": "EMR agent governance + verification kernel export manifest (bootstrap SSOT)",
+  "description": "DEPRECATED v1 compatibility-only export manifest for existing EMR bootstrap consumers; new projects use Copier v2",
   "preserve_templates": [
     "Justfile.snippet",
     "docs/design.md",

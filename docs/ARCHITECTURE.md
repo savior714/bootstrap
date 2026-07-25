@@ -100,9 +100,15 @@ template 저장소 변경과 consumer migration을 한 failure domain에 묶지 
 이미 사용한 tag는 이동하지 않는다.
 신규 생성과 update는 stable tag를 명시한다.
 
-## 7. Legacy migration
+## 7. Legacy v1 deprecation boundary
 
-기존 v1 경로는 v2가 검증되기 전까지 보존한다.
+### Status
+
+- v1 은 deprecated 다.
+- v1 은 compatibility-only 다.
+- Copier v2 가 신규 프로젝트의 canonical 경로다.
+
+### Retained paths
 
 ```text
 manifest.json
@@ -110,11 +116,31 @@ bootstrap.sh
 templates/
 ```
 
-migration 순서:
+### 허용되는 v1 유지보수
 
-1. v2 foundation
-2. render validator
-3. study pilot
-4. EMR pilot
-5. v1 deprecation notice
-6. 별도 작업에서 legacy 제거 여부 결정
+- 기존 EMR bootstrap 호환성을 깨는 명확한 회귀 수정
+- 보안 또는 데이터 무결성 문제 수정
+- v1 자체의 실행 불능을 복구하는 최소 수정
+
+### 금지되는 v1 개발
+
+- 신규 프로젝트에서 v1 사용
+- 신규 capability 추가
+- v2 기능의 routine backport
+- v1/v2 구조의 지속적인 동기화
+- 설명 정리를 이유로 한 실행 로직 refactor
+
+### Archive 의미
+
+현재 archive 는 물리적 이동이 아니라 논리적 archival 상태다.
+파일과 templates/는 기존 경로에 그대로 둔다.
+
+### 제거 gate
+
+다음 조건을 모두 만족하기 전에는 v1 을 삭제하거나 이동하지 않는다.
+
+- 기존 EMR consumer migration 완료
+- EMR 에서 v1 bootstrap 의존성이 제거되었다는 별도 검증
+- legacy 제거를 다루는 별도 failure domain 승인
+
+이 문서 변경이 v1 제거 승인을 의미하지 않는다.

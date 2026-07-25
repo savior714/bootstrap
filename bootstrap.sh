@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+#
+# DEPRECATED: v1 compatibility-only bootstrap installer.
+#
+# This path is retained only for existing EMR bootstrap consumers.
+# New projects must use Copier v2 through copier.yml and template/.
+# Do not add new capabilities or routinely backport v2 changes here.
+#
 # Install ../bootstrap/templates into a target project root (bootstrap SSOT).
 set -euo pipefail
 
