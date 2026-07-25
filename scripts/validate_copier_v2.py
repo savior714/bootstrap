@@ -124,6 +124,10 @@ TEMP_TEMPLATE_GIT_ADD_FAILED = "TEMP_TEMPLATE_GIT_ADD_FAILED"
 TEMP_TEMPLATE_GIT_COMMIT_FAILED = "TEMP_TEMPLATE_GIT_COMMIT_FAILED"
 TEMP_TEMPLATE_GIT_TAG_FAILED = "TEMP_TEMPLATE_GIT_TAG_FAILED"
 
+TEMP_TEMPLATE_STATUS_INSPECTION_FAILED = (
+    "TEMP_TEMPLATE_STATUS_INSPECTION_FAILED"
+)
+
 
 def run_temp_template_git_step(
     *,
@@ -1517,7 +1521,39 @@ def validate_temp_template_source_isolation_contract() -> None:
             print("DETAIL=temp template .git directory not created")
             sys.exit(1)
 
-        result = run_cmd(["git", "status", "--porcelain"], cwd=temp_template, check=False)
+        try:
+            result = run_cmd(
+                ["git", "status", "--porcelain"],
+                cwd=temp_template,
+                check=False,
+            )
+        except Exception as error:
+            print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=FAIL")
+            print(f"FIRST_FAILURE={TEMP_TEMPLATE_STATUS_INSPECTION_FAILED}")
+            print(
+                "DETAIL="
+                f"temp template git status invocation failed: {error}"
+            )
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
+
+        if result.returncode != 0:
+            print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=FAIL")
+            print(f"FIRST_FAILURE={TEMP_TEMPLATE_STATUS_INSPECTION_FAILED}")
+            print(
+                "DETAIL="
+                f"temp template git status failed with exit code "
+                f"{result.returncode}"
+            )
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+
+            if result.stdout:
+                print(f"STDOUT: {result.stdout}", file=sys.stderr)
+            if result.stderr:
+                print(f"STDERR: {result.stderr}", file=sys.stderr)
+
+            sys.exit(1)
+
         if result.stdout.strip():
             print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=FAIL")
             print("FIRST_FAILURE=TEMP_TEMPLATE_REPOSITORY_NOT_CLEAN")
