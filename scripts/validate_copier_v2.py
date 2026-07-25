@@ -479,6 +479,260 @@ def validate_template_core_applied(destination: Path) -> None:
     check_unresolved_markers(destination)
 
 
+def find_forbidden_command_keys(
+    value: object,
+    *,
+    path: tuple[str, ...] = (),
+) -> list[tuple[str, ...]]:
+    """Recursively scan harness for executable command keys."""
+    found: list[tuple[str, ...]] = []
+    command_keys = {"commands", "lint", "typecheck", "targeted_test", "release_check"}
+
+    if isinstance(value, dict):
+        for key, val in value.items():
+            current_path = path + (key,)
+            if key in command_keys:
+                found.append(current_path)
+            found.extend(find_forbidden_command_keys(val, path=current_path))
+    elif isinstance(value, list):
+        for idx, item in enumerate(value):
+            current_path = path + (f"[{idx}]",)
+            found.extend(find_forbidden_command_keys(item, path=current_path))
+
+    return found
+
+
+def evaluate_project_command_ssot_contract(
+    *,
+    harness: object,
+    profile_content: str,
+    agents_content: str,
+    profile: dict[str, Any],
+) -> list[str]:
+    """Pure evaluator for project command SSOT contract.
+
+    Returns empty list for PASS, or list of failure codes for FAIL.
+    """
+    failures: list[str] = []
+
+    harness_dict = harness if isinstance(harness, dict) else {}
+
+    forbidden_paths = find_forbidden_command_keys(harness_dict)
+    if forbidden_paths:
+        failures.append(COMMAND_SSOT_HARNESS_COMMAND_AUTHORITY_PRESENT)
+
+    project_section = harness_dict.get("project", {})
+    if "package_tool" not in project_section:
+        failures.append(COMMAND_SSOT_HARNESS_PACKAGE_TOOL_METADATA_MISSING)
+    elif project_section["package_tool"] != profile.get("package_tool"):
+        failures.append(COMMAND_SSOT_HARNESS_PACKAGE_TOOL_METADATA_MISMATCH)
+
+    exact_ssot_decl_1 = "이 section 이 프로젝트 실행 command 의 유일한 SSOT 다."
+    exact_ssot_decl_2 = ".agent-harness.yml 은 실행 command authority 가 아니다."
+    if exact_ssot_decl_1 not in profile_content or exact_ssot_decl_2 not in profile_content:
+        failures.append(COMMAND_SSOT_PROJECT_PROFILE_COMMAND_SSOT_DECLARATION_MISSING)
+
+    expected_rows = {
+        "lint": f"- Lint: `{profile.get('lint_command') or 'NOT_CONFIGURED'}`",
+        "typecheck": f"- Typecheck: `{profile.get('typecheck_command') or 'NOT_CONFIGURED'}`",
+        "targeted_test": f"- Targeted test: `{profile.get('targeted_test_command') or 'NOT_CONFIGURED'}`",
+        "release_check": f"- Release check: `{profile.get('release_check_command') or 'NOT_CONFIGURED'}`",
+    }
+
+    missing_rows: list[str] = []
+    for key, row in expected_rows.items():
+        if row not in profile_content:
+            missing_rows.append(key)
+    if missing_rows:
+        failures.append(COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING)
+
+    exact_agents_line = "프로젝트 실행 명령은 `agents/project/PROFILE.md` 에서 확인한다."
+    if exact_agents_line not in agents_content:
+        failures.append(COMMAND_SSOT_AGENTS_PROJECT_PROFILE_COMMAND_AUTHORITY_MISSING)
+
+    for line in agents_content.splitlines():
+        has_harness = ".agent-harness.yml" in line
+        has_profile = "agents/project/PROFILE.md" in line
+        has_command = "명령" in line or "command" in line
+        if has_harness and has_profile and has_command:
+            failures.append(COMMAND_SSOT_AGENTS_DUPLICATE_COMMAND_AUTHORITY_PRESENT)
+            break
+
+    return failures
+
+
+def validate_project_command_ssot_validator_gate_contract() -> None:
+    """Validate the project command SSOT validator gate contract."""
+
+    test_cases: list[tuple[str, dict, list[str]]] = []
+
+    valid_simple_harness = {
+        "project": {"package_tool": "other"},
+    }
+    valid_simple_profile = (
+        "이 section 이 프로젝트 실행 command 의 유일한 SSOT 다.\n"
+        ".agent-harness.yml 은 실행 command authority 가 아니다.\n"
+        "- Lint: `NOT_CONFIGURED`\n"
+        "- Typecheck: `NOT_CONFIGURED`\n"
+        "- Targeted test: `NOT_CONFIGURED`\n"
+        "- Release check: `NOT_CONFIGURED`\n"
+    )
+    valid_simple_agents = (
+        "프로젝트 실행 명령은 `agents/project/PROFILE.md` 에서 확인한다.\n"
+    )
+    test_cases.append((
+        "valid_simple",
+        {
+            "harness": valid_simple_harness,
+            "profile_content": valid_simple_profile,
+            "agents_content": valid_simple_agents,
+            "profile": SIMPLE_PROFILE,
+        },
+        [],
+    ))
+
+    valid_full_harness = {
+        "project": {"package_tool": "uv"},
+    }
+    valid_full_profile = (
+        "이 section 이 프로젝트 실행 command 의 유일한 SSOT 다.\n"
+        ".agent-harness.yml 은 실행 command authority 가 아니다.\n"
+        "- Lint: `uv run ruff check .`\n"
+        "- Typecheck: `uv run mypy .`\n"
+        "- Targeted test: `uv run pytest tests/unit/test_target.py`\n"
+        "- Release check: `uv run pytest`\n"
+    )
+    valid_full_agents = (
+        "프로젝트 실행 명령은 `agents/project/PROFILE.md` 에서 확인한다.\n"
+    )
+    test_cases.append((
+        "valid_full",
+        {
+            "harness": valid_full_harness,
+            "profile_content": valid_full_profile,
+            "agents_content": valid_full_agents,
+            "profile": FULL_PROFILE,
+        },
+        [],
+    ))
+
+    nested_harness = {
+        "project": {"package_tool": "other"},
+        "metadata": {
+            "commands": {
+                "lint": "forbidden",
+            },
+        },
+    }
+    test_cases.append((
+        "nested_harness_commands",
+        {
+            "harness": nested_harness,
+            "profile_content": valid_simple_profile,
+            "agents_content": valid_simple_agents,
+            "profile": SIMPLE_PROFILE,
+        },
+        [COMMAND_SSOT_HARNESS_COMMAND_AUTHORITY_PRESENT],
+    ))
+
+    simple_missing_typecheck = (
+        "이 section 이 프로젝트 실행 command 의 유일한 SSOT 다.\n"
+        ".agent-harness.yml 은 실행 command authority 가 아니다.\n"
+        "- Lint: `NOT_CONFIGURED`\n"
+        "- Targeted test: `NOT_CONFIGURED`\n"
+        "- Release check: `NOT_CONFIGURED`\n"
+    )
+    test_cases.append((
+        "simple_missing_typecheck_row",
+        {
+            "harness": valid_simple_harness,
+            "profile_content": simple_missing_typecheck,
+            "agents_content": valid_simple_agents,
+            "profile": SIMPLE_PROFILE,
+        },
+        [COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING],
+    ))
+
+    full_missing_release = (
+        "이 section 이 프로젝트 실행 command 의 유일한 SSOT 다.\n"
+        ".agent-harness.yml 은 실행 command authority 가 아니다.\n"
+        "- Lint: `uv run ruff check .`\n"
+        "- Typecheck: `uv run mypy .`\n"
+        "- Targeted test: `uv run pytest tests/unit/test_target.py`\n"
+    )
+    test_cases.append((
+        "full_missing_release_row",
+        {
+            "harness": valid_full_harness,
+            "profile_content": full_missing_release,
+            "agents_content": valid_full_agents,
+            "profile": FULL_PROFILE,
+        },
+        [COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING],
+    ))
+
+    weak_declaration_profile = (
+        "실행 command 를 확인한다.\n"
+        "- Lint: `NOT_CONFIGURED`\n"
+        "- Typecheck: `NOT_CONFIGURED`\n"
+        "- Targeted test: `NOT_CONFIGURED`\n"
+        "- Release check: `NOT_CONFIGURED`\n"
+    )
+    test_cases.append((
+        "weak_generic_profile_declaration",
+        {
+            "harness": valid_simple_harness,
+            "profile_content": weak_declaration_profile,
+            "agents_content": valid_simple_agents,
+            "profile": SIMPLE_PROFILE,
+        },
+        [COMMAND_SSOT_PROJECT_PROFILE_COMMAND_SSOT_DECLARATION_MISSING],
+    ))
+
+    generic_agents_ref = (
+        "프로젝트 고유 정보는 agents/project/PROFILE.md 가 소유한다.\n"
+    )
+    test_cases.append((
+        "generic_profile_reference_only",
+        {
+            "harness": valid_simple_harness,
+            "profile_content": valid_simple_profile,
+            "agents_content": generic_agents_ref,
+            "profile": SIMPLE_PROFILE,
+        },
+        [COMMAND_SSOT_AGENTS_PROJECT_PROFILE_COMMAND_AUTHORITY_MISSING],
+    ))
+
+    stale_dual_source = (
+        "프로젝트 실행 명령은 `agents/project/PROFILE.md` 에서 확인한다.\n"
+        "프로젝트 명령은 `.agent-harness.yml`과 `agents/project/PROFILE.md`에서 확인한다.\n"
+    )
+    test_cases.append((
+        "actual_stale_dual_source",
+        {
+            "harness": valid_simple_harness,
+            "profile_content": valid_simple_profile,
+            "agents_content": stale_dual_source,
+            "profile": SIMPLE_PROFILE,
+        },
+        [COMMAND_SSOT_AGENTS_DUPLICATE_COMMAND_AUTHORITY_PRESENT],
+    ))
+
+    all_passed = True
+    for case_name, inputs, expected_failures in test_cases:
+        result = evaluate_project_command_ssot_contract(**inputs)
+        if set(result) != set(expected_failures):
+            print(f"VALIDATOR_GATE_CASE_FAIL: {case_name}")
+            print(f"EXPECTED={expected_failures}")
+            print(f"ACTUAL={result}")
+            all_passed = False
+
+    if all_passed:
+        print("PROJECT_COMMAND_SSOT_VALIDATOR_GATE_CONTRACT=PASS")
+    else:
+        sys.exit(1)
+
+
 def validate_project_command_ssot(destination: Path, profile: dict[str, Any]) -> None:
     harness_path = destination / ".agent-harness.yml"
     if not harness_path.exists():
@@ -491,36 +745,6 @@ def validate_project_command_ssot(destination: Path, profile: dict[str, Any]) ->
     with open(harness_path) as f:
         harness = yaml.safe_load(f)
 
-    if "commands" in harness:
-        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-        print("FIRST_FAILURE=COMMAND_SSOT_HARNESS_COMMAND_AUTHORITY_PRESENT")
-        print("DETAIL=harness has top-level commands key")
-        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-        sys.exit(1)
-
-    for cmd_key in ["lint", "typecheck", "targeted_test", "release_check"]:
-        if cmd_key in harness:
-            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-            print("FIRST_FAILURE=COMMAND_SSOT_HARNESS_COMMAND_AUTHORITY_PRESENT")
-            print(f"DETAIL=harness has executable command key: {cmd_key}")
-            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-            sys.exit(1)
-
-    project_section = harness.get("project", {})
-    if "package_tool" not in project_section:
-        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-        print("FIRST_FAILURE=COMMAND_SSOT_HARNESS_PACKAGE_TOOL_METADATA_MISSING")
-        print("DETAIL=harness project.package_tool missing")
-        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-        sys.exit(1)
-
-    if project_section["package_tool"] != profile["package_tool"]:
-        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-        print("FIRST_FAILURE=COMMAND_SSOT_HARNESS_PACKAGE_TOOL_METADATA_MISMATCH")
-        print(f"DETAIL=harness package_tool mismatch: expected {profile['package_tool']}, got {project_section['package_tool']}")
-        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-        sys.exit(1)
-
     profile_path = destination / "agents/project/PROFILE.md"
     if not profile_path.exists():
         print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
@@ -530,46 +754,6 @@ def validate_project_command_ssot(destination: Path, profile: dict[str, Any]) ->
         sys.exit(1)
 
     profile_content = profile_path.read_text(encoding="utf-8")
-
-    if "유일한 SSOT" not in profile_content and "실행 command" not in profile_content:
-        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-        print("FIRST_FAILURE=COMMAND_SSOT_PROJECT_PROFILE_COMMAND_SSOT_DECLARATION_MISSING")
-        print("DETAIL=PROFILE.md missing SSOT declaration")
-        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-        sys.exit(1)
-
-    if profile == FULL_PROFILE:
-        if "uv run ruff check ." not in profile_content:
-            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-            print("FIRST_FAILURE=COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING")
-            print("DETAIL=full PROFILE missing lint command")
-            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-            sys.exit(1)
-        if "uv run mypy ." not in profile_content:
-            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-            print("FIRST_FAILURE=COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING")
-            print("DETAIL=full PROFILE missing typecheck command")
-            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-            sys.exit(1)
-        if "uv run pytest tests/unit/test_target.py" not in profile_content:
-            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-            print("FIRST_FAILURE=COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING")
-            print("DETAIL=full PROFILE missing targeted test command")
-            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-            sys.exit(1)
-        if "uv run pytest" not in profile_content:
-            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-            print("FIRST_FAILURE=COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING")
-            print("DETAIL=full PROFILE missing release check command")
-            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-            sys.exit(1)
-    else:
-        if "NOT_CONFIGURED" not in profile_content:
-            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-            print("FIRST_FAILURE=COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING")
-            print("DETAIL=simple PROFILE missing NOT_CONFIGURED")
-            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-            sys.exit(1)
 
     agents_path = destination / "AGENTS.md"
     if not agents_path.exists():
@@ -581,17 +765,31 @@ def validate_project_command_ssot(destination: Path, profile: dict[str, Any]) ->
 
     agents_content = agents_path.read_text(encoding="utf-8")
 
-    if "agents/project/PROFILE.md" not in agents_content:
-        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-        print("FIRST_FAILURE=COMMAND_SSOT_AGENTS_PROJECT_PROFILE_COMMAND_AUTHORITY_MISSING")
-        print("DETAIL=AGENTS.md missing PROFILE.md command authority reference")
-        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
-        sys.exit(1)
+    failures = evaluate_project_command_ssot_contract(
+        harness=harness,
+        profile_content=profile_content,
+        agents_content=agents_content,
+        profile=profile,
+    )
 
-    if "프로젝트 명령은 `.agent-harness.yml` 과 `agents/project/PROFILE.md`" in agents_content:
+    if failures:
+        failure_code = failures[0]
         print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
-        print("FIRST_FAILURE=COMMAND_SSOT_AGENTS_DUPLICATE_COMMAND_AUTHORITY_PRESENT")
-        print("DETAIL=AGENTS.md has stale dual-source command authority instruction")
+        print(f"FIRST_FAILURE={failure_code}")
+        if failure_code == COMMAND_SSOT_HARNESS_COMMAND_AUTHORITY_PRESENT:
+            print("DETAIL=harness contains executable command keys at nested paths")
+        elif failure_code == COMMAND_SSOT_HARNESS_PACKAGE_TOOL_METADATA_MISSING:
+            print("DETAIL=harness project.package_tool missing")
+        elif failure_code == COMMAND_SSOT_HARNESS_PACKAGE_TOOL_METADATA_MISMATCH:
+            print(f"DETAIL=harness package_tool mismatch")
+        elif failure_code == COMMAND_SSOT_PROJECT_PROFILE_COMMAND_SSOT_DECLARATION_MISSING:
+            print("DETAIL=PROFILE.md missing exact SSOT declarations")
+        elif failure_code == COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING:
+            print("DETAIL=PROFILE.md missing expected command rows")
+        elif failure_code == COMMAND_SSOT_AGENTS_PROJECT_PROFILE_COMMAND_AUTHORITY_MISSING:
+            print("DETAIL=AGENTS.md missing exact command authority line")
+        elif failure_code == COMMAND_SSOT_AGENTS_DUPLICATE_COMMAND_AUTHORITY_PRESENT:
+            print("DETAIL=AGENTS.md has stale dual-source command authority")
         print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
         sys.exit(1)
 
@@ -674,6 +872,8 @@ def main() -> None:
 
     validate_temp_template_source_isolation_contract()
     print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=PASS")
+
+    validate_project_command_ssot_validator_gate_contract()
 
     with tempfile.TemporaryDirectory(prefix="bootstrap-v2-dest-") as tmpdir:
         tmpdir = Path(tmpdir)
