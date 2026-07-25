@@ -37,15 +37,16 @@
 
 ## 4. 구현과 검증
 
-- 실제 경로와 command를 확인한 뒤 수정한다.
+- 실제 경로와 command 를 확인한 뒤 수정한다.
 - 기존 구조를 유지하는 최소 변경을 우선한다.
 - 행동 변경에는 가장 작은 회귀 검증을 추가하거나 갱신한다.
-- 작은 변경에서 full release suite를 기본 gate로 실행하지 않는다.
-- source acceptance와 runtime acceptance를 한 작업에 섞지 않는다.
+- 작은 변경에서 full release suite 를 기본 gate 로 실행하지 않는다.
+- source acceptance 와 runtime acceptance 를 한 작업에 섞지 않는다.
 - mock, skip, snapshot 갱신, 오류 exit 무시로 필수 검증을 우회하지 않는다.
-- required validator를 사용할 수 없으면 BLOCKED로 보고한다.
+- required validator 를 사용할 수 없으면 BLOCKED 로 보고한다.
 
-프로젝트 명령은 `.agent-harness.yml`과 `agents/project/PROFILE.md`에서 확인한다.
+프로젝트 실행 명령은 `agents/project/PROFILE.md` 에서 확인한다.
+실제 저장소 config 와 다르면 config 를 확인한 뒤 project profile 을 갱신한다.
 
 ## 5. Git
 

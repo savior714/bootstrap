@@ -20,6 +20,9 @@ Copier update가 관리한다.
 - `agents/workflows/git.md`
 - `agents/prompts/TASK_DELTA_TEMPLATE.md`
 
+`.agent-harness.yml` 은 template-managed machine-readable structure, Git, capability, context metadata 를 소유한다.
+실행 command 는 소유하지 않는다.
+
 ### Project-owned overlay
 
 초기 생성 후 각 프로젝트가 관리한다.
@@ -29,6 +32,9 @@ Copier update가 관리한다.
 
 `copier.yml`의 `_skip_if_exists`가 overlay 파일을 보존한다.
 공통 template는 프로젝트 고유 아키텍처·명령·도메인 정책을 직접 덮어쓰지 않는다.
+
+실행 command 는 `agents/project/PROFILE.md` 만 소유한다.
+`.agent-harness.yml` 에 실행 command 를 중복 저장하지 않는다.
 
 ## 3. Core 승격 기준
 

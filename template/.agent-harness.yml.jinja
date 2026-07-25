@@ -4,19 +4,13 @@ template_generation: v2-foundation
 project:
   name: {{ project_name | tojson }}
   slug: {{ project_slug | tojson }}
+  package_tool: {{ package_tool | tojson }}
 
 git:
   canonical_branch: {{ canonical_branch | tojson }}
   main_only: {{ main_only | lower }}
   write_concurrency: 1
   remote_advance_policy: overlap-based
-
-commands:
-  package_tool: {{ package_tool | tojson }}
-  lint: {{ lint_command | tojson }}
-  typecheck: {{ typecheck_command | tojson }}
-  targeted_test: {{ targeted_test_command | tojson }}
-  release_check: {{ release_check_command | tojson }}
 
 capabilities:
   runtime_visual: {{ has_runtime_visual | lower }}

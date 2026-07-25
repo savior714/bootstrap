@@ -77,8 +77,16 @@ OVERLAY_SENTINELS = {
 
 TEMPLATE_CORE_SENTINEL = "BOOTSTRAP_VALIDATOR_TEMPLATE_CORE_V2_SENTINEL"
 RUNTIME_VISUAL_PROFILE_TEMPLATE_SENTINEL = (
-    "BOOTSTRAP_VALIDATOR_RUNTIME_VISUAL_PROFILE_TEMPLATE_UPDATE_SENTINEL"
+    "BOOTSTRAP_VALIDATOR_RUNTIME_VISUAL_PROFILE_UPDATE_SENTINEL"
 )
+
+COMMAND_SSOT_HARNESS_COMMAND_AUTHORITY_PRESENT = "COMMAND_SSOT_HARNESS_COMMAND_AUTHORITY_PRESENT"
+COMMAND_SSOT_HARNESS_PACKAGE_TOOL_METADATA_MISSING = "COMMAND_SSOT_HARNESS_PACKAGE_TOOL_METADATA_MISSING"
+COMMAND_SSOT_HARNESS_PACKAGE_TOOL_METADATA_MISMATCH = "COMMAND_SSOT_HARNESS_PACKAGE_TOOL_METADATA_MISMATCH"
+COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING = "COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING"
+COMMAND_SSOT_PROJECT_PROFILE_COMMAND_SSOT_DECLARATION_MISSING = "COMMAND_SSOT_PROJECT_PROFILE_COMMAND_SSOT_DECLARATION_MISSING"
+COMMAND_SSOT_AGENTS_PROJECT_PROFILE_COMMAND_AUTHORITY_MISSING = "COMMAND_SSOT_AGENTS_PROJECT_PROFILE_COMMAND_AUTHORITY_MISSING"
+COMMAND_SSOT_AGENTS_DUPLICATE_COMMAND_AUTHORITY_PRESENT = "COMMAND_SSOT_AGENTS_DUPLICATE_COMMAND_AUTHORITY_PRESENT"
 
 TEMP_TEMPLATE_SOURCE_ROOTS = (
     "copier.yml",
@@ -477,6 +485,123 @@ def validate_template_core_applied(destination: Path) -> None:
     check_unresolved_markers(destination)
 
 
+def validate_project_command_ssot(destination: Path, profile: dict[str, Any]) -> None:
+    harness_path = destination / ".agent-harness.yml"
+    if not harness_path.exists():
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=COMMAND_SSOT_HARNESS_MISSING")
+        print("DETAIL=.agent-harness.yml not found")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    with open(harness_path) as f:
+        harness = yaml.safe_load(f)
+
+    if "commands" in harness:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=COMMAND_SSOT_HARNESS_COMMAND_AUTHORITY_PRESENT")
+        print("DETAIL=harness has top-level commands key")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    for cmd_key in ["lint", "typecheck", "targeted_test", "release_check"]:
+        if cmd_key in harness:
+            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+            print("FIRST_FAILURE=COMMAND_SSOT_HARNESS_COMMAND_AUTHORITY_PRESENT")
+            print(f"DETAIL=harness has executable command key: {cmd_key}")
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
+
+    project_section = harness.get("project", {})
+    if "package_tool" not in project_section:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=COMMAND_SSOT_HARNESS_PACKAGE_TOOL_METADATA_MISSING")
+        print("DETAIL=harness project.package_tool missing")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    if project_section["package_tool"] != profile["package_tool"]:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=COMMAND_SSOT_HARNESS_PACKAGE_TOOL_METADATA_MISMATCH")
+        print(f"DETAIL=harness package_tool mismatch: expected {profile['package_tool']}, got {project_section['package_tool']}")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    profile_path = destination / "agents/project/PROFILE.md"
+    if not profile_path.exists():
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=COMMAND_SSOT_PROJECT_PROFILE_MISSING")
+        print("DETAIL=agents/project/PROFILE.md not found")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    profile_content = profile_path.read_text(encoding="utf-8")
+
+    if "유일한 SSOT" not in profile_content and "실행 command" not in profile_content:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=COMMAND_SSOT_PROJECT_PROFILE_COMMAND_SSOT_DECLARATION_MISSING")
+        print("DETAIL=PROFILE.md missing SSOT declaration")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    if profile == FULL_PROFILE:
+        if "uv run ruff check ." not in profile_content:
+            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+            print("FIRST_FAILURE=COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING")
+            print("DETAIL=full PROFILE missing lint command")
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
+        if "uv run mypy ." not in profile_content:
+            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+            print("FIRST_FAILURE=COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING")
+            print("DETAIL=full PROFILE missing typecheck command")
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
+        if "uv run pytest tests/unit/test_target.py" not in profile_content:
+            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+            print("FIRST_FAILURE=COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING")
+            print("DETAIL=full PROFILE missing targeted test command")
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
+        if "uv run pytest" not in profile_content:
+            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+            print("FIRST_FAILURE=COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING")
+            print("DETAIL=full PROFILE missing release check command")
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
+    else:
+        if "NOT_CONFIGURED" not in profile_content:
+            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+            print("FIRST_FAILURE=COMMAND_SSOT_PROJECT_PROFILE_COMMAND_MISSING")
+            print("DETAIL=simple PROFILE missing NOT_CONFIGURED")
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
+
+    agents_path = destination / "AGENTS.md"
+    if not agents_path.exists():
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=COMMAND_SSOT_AGENTS_MISSING")
+        print("DETAIL=AGENTS.md not found")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    agents_content = agents_path.read_text(encoding="utf-8")
+
+    if "agents/project/PROFILE.md" not in agents_content:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=COMMAND_SSOT_AGENTS_PROJECT_PROFILE_COMMAND_AUTHORITY_MISSING")
+        print("DETAIL=AGENTS.md missing PROFILE.md command authority reference")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    if "프로젝트 명령은 `.agent-harness.yml` 과 `agents/project/PROFILE.md`" in agents_content:
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=COMMAND_SSOT_AGENTS_DUPLICATE_COMMAND_AUTHORITY_PRESENT")
+        print("DETAIL=AGENTS.md has stale dual-source command authority instruction")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+
 def validate_temp_template_source_isolation_contract() -> None:
     fixture_dir = Path(tempfile.mkdtemp(prefix="bootstrap-v2-isolation-fixture-"))
     temp_template = None
@@ -566,10 +691,12 @@ def main() -> None:
         try:
             run_copier_copy(template_repo, simple_dest, SIMPLE_PROFILE)
             validate_copier_answers(simple_dest, SIMPLE_PROFILE)
+            validate_project_command_ssot(simple_dest, SIMPLE_PROFILE)
             print("SIMPLE_PROFILE_COPY=PASS")
 
             run_copier_copy(template_repo, full_dest, FULL_PROFILE)
             validate_copier_answers(full_dest, FULL_PROFILE)
+            validate_project_command_ssot(full_dest, FULL_PROFILE)
             print("FULL_PROFILE_COPY=PASS")
 
             validate_yaml_files(simple_dest)
@@ -593,6 +720,8 @@ def main() -> None:
 
             validate_template_core_applied(full_dest)
             print("TEMPLATE_CORE_UPDATE_APPLIED=PASS")
+
+            print("PROJECT_COMMAND_SINGLE_SOURCE_OF_TRUTH_CONTRACT=PASS")
 
             print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=PASS")
 
