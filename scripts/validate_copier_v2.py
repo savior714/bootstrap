@@ -171,12 +171,6 @@ def setup_temp_template(template_dir: Path) -> Path:
 
 
 def run_copier_copy(template_src: Path, destination: Path, profile: dict[str, Any]) -> None:
-    import yaml as yml
-
-    data_file = Path(tempfile.mktemp(suffix=".yml"))
-    with open(data_file, "w") as f:
-        yml.dump(profile, f)
-
     cmd = [
         "copier",
         "copy",
