@@ -118,10 +118,6 @@
       ]
     },
     {
-      "src": "docs/templates/TEMPLATE_blueprint.md",
-      "dest": "docs/templates/TEMPLATE_blueprint.md"
-    },
-    {
       "src": "scripts/bootstrap/scaffold/agents/core",
       "dest": "agents/core",
       "type": "dir"
