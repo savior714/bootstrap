@@ -89,12 +89,18 @@ uv run --frozen copier copy \
 
 ## 검증 명령
 
+일반 v2 변경의 기본 검증:
+
+```bash
+uv run --frozen python \
+  scripts/validate_copier_v2.py
+```
+
+`has_runtime_visual` 조건부 경로 또는 해당 context routing contract를 변경한 경우에만 추가 검증:
+
 ```bash
 uv run --frozen python \
   scripts/validate_copier_conditional_path.py
-
-uv run --frozen python \
-  scripts/validate_copier_v2.py
 ```
 
 ## ChatGPT 프로젝트
