@@ -88,6 +88,13 @@ COMMAND_SSOT_PROJECT_PROFILE_COMMAND_SSOT_DECLARATION_MISSING = "COMMAND_SSOT_PR
 COMMAND_SSOT_AGENTS_PROJECT_PROFILE_COMMAND_AUTHORITY_MISSING = "COMMAND_SSOT_AGENTS_PROJECT_PROFILE_COMMAND_AUTHORITY_MISSING"
 COMMAND_SSOT_AGENTS_DUPLICATE_COMMAND_AUTHORITY_PRESENT = "COMMAND_SSOT_AGENTS_DUPLICATE_COMMAND_AUTHORITY_PRESENT"
 
+RUNTIME_VISUAL_PROFILE_OWNERSHIP_DECLARATION_MISSING = "RUNTIME_VISUAL_PROFILE_OWNERSHIP_DECLARATION_MISSING"
+RUNTIME_VISUAL_PROFILE_ARCHITECTURE_OWNERSHIP_MISSING = "RUNTIME_VISUAL_PROFILE_ARCHITECTURE_OWNERSHIP_MISSING"
+RUNTIME_VISUAL_PROFILE_ARCHITECTURE_MISCLASSIFIED = "RUNTIME_VISUAL_PROFILE_ARCHITECTURE_MISCLASSIFIED"
+RUNTIME_VISUAL_PROFILE_SKIP_IF_EXISTS_MISSING = "RUNTIME_VISUAL_PROFILE_SKIP_IF_EXISTS_MISSING"
+RUNTIME_VISUAL_PROFILE_SKIP_IF_EXISTS_DUPLICATE = "RUNTIME_VISUAL_PROFILE_SKIP_IF_EXISTS_DUPLICATE"
+RUNTIME_VISUAL_PROFILE_SKIP_IF_EXISTS_INVALID = "RUNTIME_VISUAL_PROFILE_SKIP_IF_EXISTS_INVALID"
+
 TEMP_TEMPLATE_SOURCE_ROOTS = (
     "copier.yml",
     "template",
@@ -575,6 +582,276 @@ def evaluate_project_command_ssot_contract(
     return failures
 
 
+def extract_markdown_section(
+    content: str,
+    *,
+    heading: str,
+    next_heading: str,
+) -> str:
+    """Extract content between two markdown headings."""
+    lines = content.splitlines()
+    in_section = False
+    section_lines: list[str] = []
+
+    for line in lines:
+        if line.startswith(f"### {heading}"):
+            in_section = True
+            continue
+        if in_section and line.startswith("### "):
+            break
+        if in_section:
+            section_lines.append(line)
+
+    return "\n".join(section_lines)
+
+
+def evaluate_runtime_visual_profile_ownership_ssot_contract(
+    *,
+    skip_if_exists: object,
+    architecture_content: str,
+    runtime_profile_content: str,
+) -> list[str]:
+    """Pure evaluator for runtime visual profile ownership SSOT contract.
+
+    Returns empty list for PASS, or list of failure codes for FAIL.
+    """
+    failures: list[str] = []
+
+    if not isinstance(skip_if_exists, list):
+        failures.append(RUNTIME_VISUAL_PROFILE_SKIP_IF_EXISTS_INVALID)
+        return failures
+
+    skip_count = skip_if_exists.count(RUNTIME_VISUAL_PROFILE_PATH)
+    if skip_count == 0:
+        failures.append(RUNTIME_VISUAL_PROFILE_SKIP_IF_EXISTS_MISSING)
+    elif skip_count > 1:
+        failures.append(RUNTIME_VISUAL_PROFILE_SKIP_IF_EXISTS_DUPLICATE)
+
+    core_section = extract_markdown_section(
+        architecture_content,
+        heading="Template-managed core",
+        next_heading="Project-owned overlay",
+    )
+    overlay_section = extract_markdown_section(
+        architecture_content,
+        heading="Project-owned overlay",
+        next_heading="Core 승격 기준",
+    )
+
+    if RUNTIME_VISUAL_PROFILE_PATH in core_section:
+        failures.append(RUNTIME_VISUAL_PROFILE_ARCHITECTURE_MISCLASSIFIED)
+
+    if RUNTIME_VISUAL_PROFILE_PATH not in overlay_section:
+        failures.append(RUNTIME_VISUAL_PROFILE_ARCHITECTURE_OWNERSHIP_MISSING)
+
+    exact_decl_1 = "이 파일은 **project-owned overlay**다."
+    exact_decl_2 = "초기 생성 후 프로젝트가 직접 관리하며 Copier update 가 기존 내용을 덮어쓰지 않는다."
+    if exact_decl_1 not in runtime_profile_content or exact_decl_2 not in runtime_profile_content:
+        failures.append(RUNTIME_VISUAL_PROFILE_OWNERSHIP_DECLARATION_MISSING)
+
+    return failures
+
+
+def validate_runtime_visual_profile_ownership_ssot_validator_gate_contract() -> None:
+    """Validate the runtime visual profile ownership SSOT validator gate contract."""
+
+    test_cases: list[tuple[str, dict, list[str]]] = []
+
+    valid_skip_list = [
+        "agents/project/PROFILE.md",
+        "agents/project/runtime-visual/PROFILE.md",
+        "docs/product/ACTIVE_SCOPE.md",
+    ]
+    valid_architecture = (
+        "### Template-managed core\n"
+        "\n"
+        "Some content\n"
+        "\n"
+        "### Project-owned overlay\n"
+        "\n"
+        "- `agents/project/PROFILE.md`\n"
+        "- `agents/project/runtime-visual/PROFILE.md` — `has_runtime_visual=true` 프로젝트\n"
+        "- `docs/product/ACTIVE_SCOPE.md`\n"
+        "\n"
+        "### Core 승격 기준\n"
+    )
+    valid_runtime_profile = (
+        "이 파일은 **project-owned overlay**다.\n"
+        "초기 생성 후 프로젝트가 직접 관리하며 Copier update 가 기존 내용을 덮어쓰지 않는다.\n"
+    )
+    test_cases.append((
+        "valid_case",
+        {
+            "skip_if_exists": valid_skip_list,
+            "architecture_content": valid_architecture,
+            "runtime_profile_content": valid_runtime_profile,
+        },
+        [],
+    ))
+
+    skip_missing = [
+        "agents/project/PROFILE.md",
+        "docs/product/ACTIVE_SCOPE.md",
+    ]
+    test_cases.append((
+        "skip_path_missing",
+        {
+            "skip_if_exists": skip_missing,
+            "architecture_content": valid_architecture,
+            "runtime_profile_content": valid_runtime_profile,
+        },
+        [RUNTIME_VISUAL_PROFILE_SKIP_IF_EXISTS_MISSING],
+    ))
+
+    skip_duplicate = [
+        "agents/project/PROFILE.md",
+        "agents/project/runtime-visual/PROFILE.md",
+        "agents/project/runtime-visual/PROFILE.md",
+        "docs/product/ACTIVE_SCOPE.md",
+    ]
+    test_cases.append((
+        "skip_path_duplicate",
+        {
+            "skip_if_exists": skip_duplicate,
+            "architecture_content": valid_architecture,
+            "runtime_profile_content": valid_runtime_profile,
+        },
+        [RUNTIME_VISUAL_PROFILE_SKIP_IF_EXISTS_DUPLICATE],
+    ))
+
+    arch_missing_bullet = (
+        "### Template-managed core\n"
+        "\n"
+        "Some content\n"
+        "\n"
+        "### Project-owned overlay\n"
+        "\n"
+        "- `agents/project/PROFILE.md`\n"
+        "- `docs/product/ACTIVE_SCOPE.md`\n"
+        "\n"
+        "### Core 승격 기준\n"
+    )
+    test_cases.append((
+        "architecture_ownership_missing",
+        {
+            "skip_if_exists": valid_skip_list,
+            "architecture_content": arch_missing_bullet,
+            "runtime_profile_content": valid_runtime_profile,
+        },
+        [RUNTIME_VISUAL_PROFILE_ARCHITECTURE_OWNERSHIP_MISSING],
+    ))
+
+    arch_misclassified = (
+        "### Template-managed core\n"
+        "\n"
+        "- `agents/project/runtime-visual/PROFILE.md`\n"
+        "\n"
+        "### Project-owned overlay\n"
+        "\n"
+        "- `agents/project/PROFILE.md`\n"
+        "- `agents/project/runtime-visual/PROFILE.md`\n"
+        "\n"
+        "### Core 승격 기준\n"
+    )
+    test_cases.append((
+        "architecture_misclassified",
+        {
+            "skip_if_exists": valid_skip_list,
+            "architecture_content": arch_misclassified,
+            "runtime_profile_content": valid_runtime_profile,
+        },
+        [RUNTIME_VISUAL_PROFILE_ARCHITECTURE_MISCLASSIFIED],
+    ))
+
+    weak_declaration = (
+        "프로젝트 고유 파일이다.\n"
+    )
+    test_cases.append((
+        "declaration_missing",
+        {
+            "skip_if_exists": valid_skip_list,
+            "architecture_content": valid_architecture,
+            "runtime_profile_content": weak_declaration,
+        },
+        [RUNTIME_VISUAL_PROFILE_OWNERSHIP_DECLARATION_MISSING],
+    ))
+
+    all_passed = True
+    for case_name, inputs, expected_failures in test_cases:
+        result = evaluate_runtime_visual_profile_ownership_ssot_contract(**inputs)
+        if set(result) != set(expected_failures):
+            print(f"VALIDATOR_GATE_CASE_FAIL: {case_name}")
+            print(f"EXPECTED={expected_failures}")
+            print(f"ACTUAL={result}")
+            all_passed = False
+
+    if all_passed:
+        print("RUNTIME_VISUAL_PROFILE_OWNERSHIP_SSOT_VALIDATOR_GATE_CONTRACT=PASS")
+    else:
+        sys.exit(1)
+
+
+def validate_runtime_visual_profile_ownership_ssot(destination: Path) -> None:
+    """Production wrapper for runtime visual profile ownership SSOT validation."""
+
+    copier_yml_path = Path("copier.yml")
+    if not copier_yml_path.exists():
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=COPIER_YML_NOT_FOUND")
+        print("DETAIL=copier.yml not found in workspace root")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    with open(copier_yml_path) as f:
+        copier_config = yaml.safe_load(f)
+
+    skip_if_exists = copier_config.get("_skip_if_exists", [])
+    architecture_path = Path("docs/ARCHITECTURE.md")
+    if not architecture_path.exists():
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=ARCHITECTURE_NOT_FOUND")
+        print("DETAIL=docs/ARCHITECTURE.md not found")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    architecture_content = architecture_path.read_text(encoding="utf-8")
+
+    runtime_profile_path = destination / RUNTIME_VISUAL_PROFILE_PATH
+    if not runtime_profile_path.exists():
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print("FIRST_FAILURE=RUNTIME_VISUAL_PROFILE_NOT_FOUND")
+        print(f"DETAIL={RUNTIME_VISUAL_PROFILE_PATH} not found in destination")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    runtime_profile_content = runtime_profile_path.read_text(encoding="utf-8")
+
+    failures = evaluate_runtime_visual_profile_ownership_ssot_contract(
+        skip_if_exists=skip_if_exists,
+        architecture_content=architecture_content,
+        runtime_profile_content=runtime_profile_content,
+    )
+
+    if failures:
+        failure_code = failures[0]
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print(f"FIRST_FAILURE={failure_code}")
+        if failure_code == RUNTIME_VISUAL_PROFILE_SKIP_IF_EXISTS_INVALID:
+            print("DETAIL=_skip_if_exists is not a list")
+        elif failure_code == RUNTIME_VISUAL_PROFILE_SKIP_IF_EXISTS_MISSING:
+            print("DETAIL=runtime visual profile path missing from _skip_if_exists")
+        elif failure_code == RUNTIME_VISUAL_PROFILE_SKIP_IF_EXISTS_DUPLICATE:
+            print("DETAIL=runtime visual profile path duplicated in _skip_if_exists")
+        elif failure_code == RUNTIME_VISUAL_PROFILE_ARCHITECTURE_OWNERSHIP_MISSING:
+            print("DETAIL=runtime visual profile path missing from Project-owned overlay section")
+        elif failure_code == RUNTIME_VISUAL_PROFILE_ARCHITECTURE_MISCLASSIFIED:
+            print("DETAIL=runtime visual profile path incorrectly listed under Template-managed core")
+        elif failure_code == RUNTIME_VISUAL_PROFILE_OWNERSHIP_DECLARATION_MISSING:
+            print("DETAIL=runtime visual profile missing exact ownership declaration")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+
 def validate_project_command_ssot_validator_gate_contract() -> None:
     """Validate the project command SSOT validator gate contract."""
 
@@ -889,6 +1166,8 @@ def main() -> None:
 
     validate_project_command_ssot_validator_gate_contract()
 
+    validate_runtime_visual_profile_ownership_ssot_validator_gate_contract()
+
     with tempfile.TemporaryDirectory(prefix="bootstrap-v2-dest-") as tmpdir:
         tmpdir = Path(tmpdir)
         simple_dest = tmpdir / "simple"
@@ -930,6 +1209,9 @@ def main() -> None:
             print("TEMPLATE_CORE_UPDATE_APPLIED=PASS")
 
             print("PROJECT_COMMAND_SINGLE_SOURCE_OF_TRUTH_CONTRACT=PASS")
+
+            validate_runtime_visual_profile_ownership_ssot(full_dest)
+            print("RUNTIME_VISUAL_PROFILE_OWNERSHIP_SSOT_CONTRACT=PASS")
 
             print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=PASS")
 

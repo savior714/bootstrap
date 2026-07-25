@@ -28,6 +28,7 @@ Copier update가 관리한다.
 초기 생성 후 각 프로젝트가 관리한다.
 
 - `agents/project/PROFILE.md`
+- `agents/project/runtime-visual/PROFILE.md` — `has_runtime_visual=true` 프로젝트
 - `docs/product/ACTIVE_SCOPE.md`
 
 `copier.yml`의 `_skip_if_exists`가 overlay 파일을 보존한다.
