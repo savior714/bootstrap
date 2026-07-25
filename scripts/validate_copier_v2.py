@@ -63,6 +63,11 @@ RUNTIME_VISUAL_PROFILE_PATH = (
     "agents/project/runtime-visual/PROFILE.md"
 )
 
+RUNTIME_VISUAL_PROFILE_ARCHITECTURE_BULLET = (
+    "- `agents/project/runtime-visual/PROFILE.md` "
+    "— `has_runtime_visual=true` 프로젝트"
+)
+
 OVERLAY_FILES = [
     "agents/project/PROFILE.md",
     "agents/project/runtime-visual/PROFILE.md",
@@ -642,7 +647,12 @@ def evaluate_runtime_visual_profile_ownership_ssot_contract(
     if RUNTIME_VISUAL_PROFILE_PATH in core_section:
         failures.append(RUNTIME_VISUAL_PROFILE_ARCHITECTURE_MISCLASSIFIED)
 
-    if RUNTIME_VISUAL_PROFILE_PATH not in overlay_section:
+    overlay_lines = {
+        line.rstrip()
+        for line in overlay_section.splitlines()
+    }
+
+    if RUNTIME_VISUAL_PROFILE_ARCHITECTURE_BULLET not in overlay_lines:
         failures.append(RUNTIME_VISUAL_PROFILE_ARCHITECTURE_OWNERSHIP_MISSING)
 
     exact_decl_1 = "이 파일은 **project-owned overlay**다."
@@ -750,7 +760,7 @@ def validate_runtime_visual_profile_ownership_ssot_validator_gate_contract() -> 
         "### Project-owned overlay\n"
         "\n"
         "- `agents/project/PROFILE.md`\n"
-        "- `agents/project/runtime-visual/PROFILE.md`\n"
+        "- `agents/project/runtime-visual/PROFILE.md` — `has_runtime_visual=true` 프로젝트\n"
         "\n"
         "### Core 승격 기준\n"
     )
@@ -777,6 +787,27 @@ def validate_runtime_visual_profile_ownership_ssot_validator_gate_contract() -> 
         [RUNTIME_VISUAL_PROFILE_OWNERSHIP_DECLARATION_MISSING],
     ))
 
+    architecture_prose_reference_only = (
+        "### Template-managed core\n"
+        "\n"
+        "Some content\n"
+        "\n"
+        "### Project-owned overlay\n"
+        "\n"
+        "이 section では agents/project/runtime-visual/PROFILE.md 를 설명한다.\n"
+        "\n"
+        "### Core 승격 기준\n"
+    )
+    test_cases.append((
+        "architecture_prose_reference_only",
+        {
+            "skip_if_exists": valid_skip_list,
+            "architecture_content": architecture_prose_reference_only,
+            "runtime_profile_content": valid_runtime_profile,
+        },
+        [RUNTIME_VISUAL_PROFILE_ARCHITECTURE_OWNERSHIP_MISSING],
+    ))
+
     all_passed = True
     for case_name, inputs, expected_failures in test_cases:
         result = evaluate_runtime_visual_profile_ownership_ssot_contract(**inputs)
@@ -788,6 +819,7 @@ def validate_runtime_visual_profile_ownership_ssot_validator_gate_contract() -> 
 
     if all_passed:
         print("RUNTIME_VISUAL_PROFILE_OWNERSHIP_SSOT_VALIDATOR_GATE_CONTRACT=PASS")
+        print("RUNTIME_VISUAL_PROFILE_ARCHITECTURE_BULLET_GUARD_CONTRACT=PASS")
     else:
         sys.exit(1)
 
