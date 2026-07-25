@@ -94,6 +94,9 @@ TEMP_TEMPLATE_SOURCE_ROOTS = (
 )
 
 TEMP_TEMPLATE_REQUIRED_SOURCE_MISSING = "TEMP_TEMPLATE_REQUIRED_SOURCE_MISSING"
+TEMP_TEMPLATE_REQUIRED_SOURCE_COPY_FAILED = (
+    "TEMP_TEMPLATE_REQUIRED_SOURCE_COPY_FAILED"
+)
 TEMP_TEMPLATE_CANDIDATE_SOURCE_MISSING = "TEMP_TEMPLATE_CANDIDATE_SOURCE_MISSING"
 TEMP_TEMPLATE_UNRELATED_SOURCE_COPIED = "TEMP_TEMPLATE_UNRELATED_SOURCE_COPIED"
 TEMP_TEMPLATE_SOURCE_GIT_METADATA_COPIED = "TEMP_TEMPLATE_SOURCE_GIT_METADATA_COPIED"
@@ -158,10 +161,21 @@ def setup_temp_template(template_dir: Path) -> Path:
                 shutil.rmtree(destination)
             else:
                 destination.unlink()
-        if source.is_dir():
-            shutil.copytree(source, destination)
-        else:
-            shutil.copy2(source, destination)
+        try:
+            if source.is_dir():
+                shutil.copytree(source, destination)
+            else:
+                shutil.copy2(source, destination)
+        except Exception as error:
+            shutil.rmtree(repo_dir, ignore_errors=True)
+            print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+            print(f"FIRST_FAILURE={TEMP_TEMPLATE_REQUIRED_SOURCE_COPY_FAILED}")
+            print(
+                "DETAIL="
+                f"required source {relative_path} copy failed: {error}"
+            )
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
 
     run_cmd(["git", "add", "."], cwd=repo_dir)
     run_cmd(["git", "commit", "-m", "Initial commit from working tree"], cwd=repo_dir)
