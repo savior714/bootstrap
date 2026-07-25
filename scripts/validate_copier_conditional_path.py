@@ -1276,7 +1276,7 @@ def evaluate_production_output_contract(
         name_contains="runtime-visual",
     )
 
-    false_runtime_visual_paths_absent = runtime_visual_paths is None or len(runtime_visual_paths) == 0
+    false_runtime_visual_paths_absent = runtime_visual_paths is not None and len(runtime_visual_paths) == 0
     if runtime_visual_paths is not None and not false_runtime_visual_paths_absent:
         failures.append("PRODUCTION_FALSE_RUNTIME_VISUAL_PATH_EXISTS")
         diagnostics.append(f"Stray runtime-visual paths: {runtime_visual_paths}")
@@ -1291,7 +1291,7 @@ def evaluate_production_output_contract(
         diagnostics=diagnostics,
     )
 
-    false_gitkeep_paths_absent = gitkeep_paths is None or len(gitkeep_paths) == 0
+    false_gitkeep_paths_absent = gitkeep_paths is not None and len(gitkeep_paths) == 0
     if gitkeep_paths is not None and not false_gitkeep_paths_absent:
         failures.append("PRODUCTION_FALSE_GITKEEP_EXISTS")
         diagnostics.append(f".gitkeep paths: {gitkeep_paths}")
