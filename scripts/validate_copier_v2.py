@@ -158,6 +158,7 @@ def setup_temp_template(template_dir: Path) -> Path:
         source = template_dir / relative_path
         destination = repo_dir / relative_path
         if not source.exists():
+            shutil.rmtree(repo_dir, ignore_errors=True)
             print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
             print("FIRST_FAILURE=TEMP_TEMPLATE_REQUIRED_SOURCE_MISSING")
             print(f"DETAIL=required source {relative_path} not found")
