@@ -1191,6 +1191,24 @@ def extract_primary_context_routing_table_lines(content: str) -> list[str]:
     return result
 
 
+def collect_markdown_pipe_rows(
+    content: str,
+) -> list[str]:
+    """Collect all pipe rows from markdown content.
+
+    Args:
+        content: Markdown content to scan
+
+    Returns:
+        List of lines that start with | and end with |
+    """
+    return [
+        line
+        for line in content.splitlines()
+        if line.startswith("|") and line.endswith("|")
+    ]
+
+
 def evaluate_runtime_visual_context_routing_table_contract(
     *,
     routing_content: str,
@@ -1198,26 +1216,38 @@ def evaluate_runtime_visual_context_routing_table_contract(
 ) -> list[str]:
     """Evaluate runtime visual context routing table contract.
 
+    For enabled case:
+    - Requires primary table with header, separator, and valid 3-cell rows
+    - Canonical runtime row must be inside primary table
+    - Workflow and profile paths must each appear exactly once in document
+
+    For disabled case:
+    - Requires primary table with header and separator
+    - No runtime-visual references anywhere in document (table or prose)
+
     Returns:
         List of failure codes (empty if all checks pass)
     """
     failures: list[str] = []
 
     table_rows = extract_primary_context_routing_table_lines(routing_content)
+    all_pipe_rows = collect_markdown_pipe_rows(routing_content)
 
-    # For disabled case, just check that no runtime-visual references exist
-    # We don't require a full table structure when disabled
+    # For disabled case, check document-wide for runtime-visual references
     if not runtime_visual_enabled:
-        workflow_path_count = 0
-        profile_path_count = 0
+        # Check primary table structure
+        if len(table_rows) < 2:
+            failures.append("CONTEXT_ROUTING_PRIMARY_TABLE_MISSING")
+            return failures
 
-        for row_line in table_rows[2:] if len(table_rows) >= 2 else []:
-            if "agents/modules/runtime-visual/WORKFLOW.md" in row_line:
-                workflow_path_count += 1
-            if "agents/project/runtime-visual/PROFILE.md" in row_line:
-                profile_path_count += 1
+        if table_rows[0].strip() != CONTEXT_ROUTING_TABLE_HEADER:
+            failures.append("CONTEXT_ROUTING_PRIMARY_TABLE_HEADER_MISMATCH")
 
-        if workflow_path_count > 0 or profile_path_count > 0:
+        if table_rows[1].strip() != CONTEXT_ROUTING_TABLE_SEPARATOR:
+            failures.append("CONTEXT_ROUTING_PRIMARY_TABLE_SEPARATOR_MISSING")
+
+        # Check document-wide for runtime-visual substring
+        if "runtime-visual" in routing_content or "runtime·visual" in routing_content:
             failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_DISABLED_REFERENCE_PRESENT")
 
         return failures
@@ -1243,29 +1273,27 @@ def evaluate_runtime_visual_context_routing_table_contract(
     if not all_rows_valid_shape:
         failures.append("CONTEXT_ROUTING_PRIMARY_TABLE_ROW_SHAPE_INVALID")
 
-    if runtime_visual_enabled:
-        canonical_row_present = False
-        canonical_row_count = 0
-        workflow_path_count = 0
-        profile_path_count = 0
+    # Check if canonical row is inside primary table
+    canonical_row_inside_primary = False
+    canonical_row_count = 0
+    for row_line in table_rows[2:]:
+        if row_line.strip() == RUNTIME_VISUAL_CONTEXT_ROUTING_ROW.strip():
+            canonical_row_count += 1
+            canonical_row_inside_primary = True
 
-        for row_line in table_rows[2:]:
-            cells = parse_markdown_table_row(row_line)
-            if cells is None:
-                continue
+    # Check if canonical row exists anywhere in document (including outside primary table)
+    canonical_row_anywhere = False
+    for row_line in all_pipe_rows:
+        if row_line.strip() == RUNTIME_VISUAL_CONTEXT_ROUTING_ROW.strip():
+            canonical_row_anywhere = True
+            break
 
-            if row_line.strip() == RUNTIME_VISUAL_CONTEXT_ROUTING_ROW.strip():
-                canonical_row_count += 1
-                canonical_row_present = True
-
-            if "agents/modules/runtime-visual/WORKFLOW.md" in row_line:
-                workflow_path_count += 1
-
-            if "agents/project/runtime-visual/PROFILE.md" in row_line:
-                profile_path_count += 1
-
-        if not canonical_row_present:
-            failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_MISSING")
+    # Determine canonical row status
+    if canonical_row_inside_primary:
+        # Canonical row is inside primary table - normal validation
+        # Count paths in entire document, not just pipe rows
+        workflow_path_count = routing_content.count("agents/modules/runtime-visual/WORKFLOW.md")
+        profile_path_count = routing_content.count("agents/project/runtime-visual/PROFILE.md")
 
         if canonical_row_count > 1:
             failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_DUPLICATE")
@@ -1276,29 +1304,40 @@ def evaluate_runtime_visual_context_routing_table_contract(
         if profile_path_count != 1:
             failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_PROFILE_PATH_COUNT_INVALID")
 
-        malformed_2cell_present = False
-        for row_line in table_rows[2:]:
-            cells = parse_markdown_table_row(row_line)
-            if cells is not None and len(cells) == 2:
-                if "runtime-visual" in row_line.lower() or "runtime·visual" in row_line.lower():
-                    malformed_2cell_present = True
-                    break
-
-        if malformed_2cell_present:
-            failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_MALFORMED_ROW_PRESENT")
-
+    elif canonical_row_anywhere and not canonical_row_inside_primary:
+        # Canonical row exists but is outside primary table
+        failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_OUTSIDE_PRIMARY_TABLE")
     else:
+        # Canonical row is missing entirely
+        failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_MISSING")
+
+        # Also check path counts for diagnostic purposes
         workflow_path_count = 0
         profile_path_count = 0
 
-        for row_line in table_rows[2:]:
+        for row_line in all_pipe_rows:
             if "agents/modules/runtime-visual/WORKFLOW.md" in row_line:
                 workflow_path_count += 1
             if "agents/project/runtime-visual/PROFILE.md" in row_line:
                 profile_path_count += 1
 
-        if workflow_path_count > 0 or profile_path_count > 0:
-            failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_DISABLED_REFERENCE_PRESENT")
+        if workflow_path_count != 1:
+            failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_WORKFLOW_PATH_COUNT_INVALID")
+
+        if profile_path_count != 1:
+            failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_PROFILE_PATH_COUNT_INVALID")
+
+    # Check for malformed 2-cell rows containing runtime-visual
+    malformed_2cell_present = False
+    for row_line in table_rows[2:]:
+        cells = parse_markdown_table_row(row_line)
+        if cells is not None and len(cells) == 2:
+            if "runtime-visual" in row_line.lower() or "runtime·visual" in row_line.lower():
+                malformed_2cell_present = True
+                break
+
+    if malformed_2cell_present:
+        failures.append("RUNTIME_VISUAL_CONTEXT_ROUTING_MALFORMED_ROW_PRESENT")
 
     return failures
 
@@ -1312,6 +1351,7 @@ def validate_runtime_visual_context_routing_table_validator_gate_contract(
         (False, error_code) if any case fails
     """
     test_cases = [
+        # Case 1: VALID_ENABLED - canonical row inside primary table, correct counts
         (
             "VALID_ENABLED",
             (
@@ -1323,6 +1363,7 @@ def validate_runtime_visual_context_routing_table_validator_gate_contract(
             True,
             [],
         ),
+        # Case 2: VALID_DISABLED - no runtime-visual references anywhere
         (
             "VALID_DISABLED",
             (
@@ -1333,6 +1374,8 @@ def validate_runtime_visual_context_routing_table_validator_gate_contract(
             False,
             [],
         ),
+        # Case 3: MALFORMED_TWO_CELL - 2-cell rows with runtime-visual paths
+        # Each path appears once, so count is valid, but row shape is invalid
         (
             "MALFORMED_TWO_CELL",
             (
@@ -1342,8 +1385,9 @@ def validate_runtime_visual_context_routing_table_validator_gate_contract(
                 + "| agents/project/runtime-visual/PROFILE.md | runtime profile |\n"
             ),
             True,
-            ["CONTEXT_ROUTING_PRIMARY_TABLE_ROW_SHAPE_INVALID", "RUNTIME_VISUAL_CONTEXT_ROUTING_MALFORMED_ROW_PRESENT", "RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_MISSING", "RUNTIME_VISUAL_CONTEXT_ROUTING_WORKFLOW_PATH_COUNT_INVALID", "RUNTIME_VISUAL_CONTEXT_ROUTING_PROFILE_PATH_COUNT_INVALID"],
+            ["CONTEXT_ROUTING_PRIMARY_TABLE_ROW_SHAPE_INVALID", "RUNTIME_VISUAL_CONTEXT_ROUTING_MALFORMED_ROW_PRESENT", "RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_MISSING"],
         ),
+        # Case 4: ROW_OUTSIDE_PRIMARY_TABLE - canonical row exists but outside primary table
         (
             "ROW_OUTSIDE_PRIMARY_TABLE",
             (
@@ -1354,8 +1398,11 @@ def validate_runtime_visual_context_routing_table_validator_gate_contract(
                 + RUNTIME_VISUAL_CONTEXT_ROUTING_ROW + "\n"
             ),
             True,
-            ["CONTEXT_ROUTING_PRIMARY_TABLE_ROW_SHAPE_INVALID"],
+            ["RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_OUTSIDE_PRIMARY_TABLE"],
         ),
+        # Case 5: MISSING_VALIDATION_CELL - 2-cell row missing profile path
+        # This is a 2-cell malformed row containing runtime·visual, so it triggers MALFORMED_ROW_PRESENT
+        # workflow count = 1, profile count = 0
         (
             "MISSING_VALIDATION_CELL",
             (
@@ -1364,8 +1411,9 @@ def validate_runtime_visual_context_routing_table_validator_gate_contract(
                 + "| runtime·visual acceptance | `agents/modules/runtime-visual/WORKFLOW.md` |\n"
             ),
             True,
-            ["CONTEXT_ROUTING_PRIMARY_TABLE_ROW_SHAPE_INVALID", "RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_MISSING"],
+            ["CONTEXT_ROUTING_PRIMARY_TABLE_ROW_SHAPE_INVALID", "RUNTIME_VISUAL_CONTEXT_ROUTING_MALFORMED_ROW_PRESENT", "RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_MISSING", "RUNTIME_VISUAL_CONTEXT_ROUTING_PROFILE_PATH_COUNT_INVALID"],
         ),
+        # Case 6: MISSING_PROFILE_REFERENCE - canonical row missing, only workflow path exists
         (
             "MISSING_PROFILE_REFERENCE",
             (
@@ -1376,6 +1424,7 @@ def validate_runtime_visual_context_routing_table_validator_gate_contract(
             True,
             ["RUNTIME_VISUAL_CONTEXT_ROUTING_ROW_MISSING", "RUNTIME_VISUAL_CONTEXT_ROUTING_PROFILE_PATH_COUNT_INVALID"],
         ),
+        # Case 7: DISABLED_REFERENCE_PRESENT - runtime-visual reference in disabled output
         (
             "DISABLED_REFERENCE_PRESENT",
             (
@@ -1385,6 +1434,33 @@ def validate_runtime_visual_context_routing_table_validator_gate_contract(
             ),
             False,
             ["RUNTIME_VISUAL_CONTEXT_ROUTING_DISABLED_REFERENCE_PRESENT"],
+        ),
+        # Case 8: DISABLED_REFERENCE_OUTSIDE_TABLE - runtime-visual in prose outside table
+        (
+            "DISABLED_REFERENCE_OUTSIDE_TABLE",
+            (
+                CONTEXT_ROUTING_TABLE_HEADER + "\n"
+                + CONTEXT_ROUTING_TABLE_SEPARATOR + "\n"
+                + "| 일반 작업 | 일반 문서 | 일반 검증 |\n"
+                + "\n"
+                + "참고: agents/project/runtime-visual/PROFILE.md\n"
+            ),
+            False,
+            ["RUNTIME_VISUAL_CONTEXT_ROUTING_DISABLED_REFERENCE_PRESENT"],
+        ),
+        # Case 9: ENABLED_DUPLICATE_OUTSIDE_REFERENCE - canonical row inside table, but workflow path duplicated outside
+        (
+            "ENABLED_DUPLICATE_OUTSIDE_REFERENCE",
+            (
+                CONTEXT_ROUTING_TABLE_HEADER + "\n"
+                + CONTEXT_ROUTING_TABLE_SEPARATOR + "\n"
+                + "| some row | some doc | some check |\n"
+                + RUNTIME_VISUAL_CONTEXT_ROUTING_ROW + "\n"
+                + "\n"
+                + "추가 참고: agents/modules/runtime-visual/WORKFLOW.md\n"
+            ),
+            True,
+            ["RUNTIME_VISUAL_CONTEXT_ROUTING_WORKFLOW_PATH_COUNT_INVALID"],
         ),
     ]
 
@@ -2181,11 +2257,15 @@ def validate_production_validator_gate_contract() -> tuple[bool, str]:
                 context_routing = context_routing_dir / "CONTEXT_ROUTING.md"
                 context_routing.write_text(config["false_context_routing_content"])
             else:
-                # Always create an empty context routing for false case if not specified
+                # Always create a proper empty table structure for false case if not specified
+                # The evaluator requires header + separator for disabled case
                 context_routing_dir = dest_false / "agents/registry"
                 context_routing_dir.mkdir(parents=True, exist_ok=True)
                 context_routing = context_routing_dir / "CONTEXT_ROUTING.md"
-                context_routing.write_text("")
+                context_routing.write_text(
+                    "| 경로 또는 작업 의미 | 추가 문서 | 검증 방향 |\n"
+                    "|---|---|---|\n"
+                )
 
             # Evaluate
             passed, diagnostics, failures = evaluate_production_output_contract(
@@ -2482,6 +2562,25 @@ def main() -> int:
 
         print(f"\n{gate_marker}")
 
+        # Phase 2.5: Task-specific routing table gate
+        print("\n=== Running runtime visual context routing table gate ===")
+        table_gate_passed, table_gate_error = (
+            validate_runtime_visual_context_routing_table_validator_gate_contract()
+        )
+
+        if not table_gate_passed:
+            print(
+                "RUNTIME_VISUAL_CONTEXT_ROUTING_"
+                "TABLE_SHAPE_VALIDATOR_GATE_CONTRACT=FAIL"
+            )
+            print(f"FIRST_FAILURE={table_gate_error}")
+            return 1
+
+        print(
+            "RUNTIME_VISUAL_CONTEXT_ROUTING_"
+            "TABLE_SHAPE_VALIDATOR_GATE_CONTRACT=PASS"
+        )
+
         # Phase 3: Production template validation
         print("\n=== Running production template validation ===")
 
@@ -2544,6 +2643,10 @@ def main() -> int:
 
         if prod_passed:
             print("\nBOOTSTRAP_RUNTIME_VISUAL_PRODUCTION_CONDITIONAL_PATH_CONTRACT=PASS")
+            print(
+                "RUNTIME_VISUAL_CONTEXT_ROUTING_"
+                "TABLE_SHAPE_CONTRACT=PASS"
+            )
         else:
             print("\nBOOTSTRAP_RUNTIME_VISUAL_PRODUCTION_CONDITIONAL_PATH_CONTRACT=FAIL")
 
@@ -2560,7 +2663,7 @@ def main() -> int:
 
         # Final overall result
         print("\n=== Overall Validation Summary ===")
-        if synthetic_all_pass and gate_passed and prod_passed:
+        if synthetic_all_pass and table_gate_passed and gate_passed and prod_passed:
             print("\nAll contracts passed.")
             return 0
         else:
