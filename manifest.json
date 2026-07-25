@@ -138,7 +138,6 @@
       "src": "scripts/bootstrap/scaffold/agents/registry/WORKFLOW_AND_SKILL_INDEX.md",
       "dest": "agents/registry/WORKFLOW_AND_SKILL_INDEX.md"
     },
-    { "src": "agents/workflows/archive.md", "dest": "agents/workflows/archive.md" },
     { "src": "agents/workflows/discover.md", "dest": "agents/workflows/discover.md" },
     { "src": "agents/workflows/discuss.md", "dest": "agents/workflows/discuss.md" },
     { "src": "agents/workflows/git.md", "dest": "agents/workflows/git.md" },
