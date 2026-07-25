@@ -115,6 +115,42 @@ TEMP_TEMPLATE_SOURCE_GIT_METADATA_COPIED = "TEMP_TEMPLATE_SOURCE_GIT_METADATA_CO
 TEMP_TEMPLATE_REPOSITORY_NOT_CLEAN = "TEMP_TEMPLATE_REPOSITORY_NOT_CLEAN"
 TEMP_TEMPLATE_INITIAL_TAG_MISSING = "TEMP_TEMPLATE_INITIAL_TAG_MISSING"
 
+TEMP_TEMPLATE_GIT_INIT_FAILED = "TEMP_TEMPLATE_GIT_INIT_FAILED"
+TEMP_TEMPLATE_GIT_CONFIG_NAME_FAILED = "TEMP_TEMPLATE_GIT_CONFIG_NAME_FAILED"
+TEMP_TEMPLATE_GIT_CONFIG_EMAIL_FAILED = "TEMP_TEMPLATE_GIT_CONFIG_EMAIL_FAILED"
+TEMP_TEMPLATE_GIT_ADD_FAILED = "TEMP_TEMPLATE_GIT_ADD_FAILED"
+TEMP_TEMPLATE_GIT_COMMIT_FAILED = "TEMP_TEMPLATE_GIT_COMMIT_FAILED"
+TEMP_TEMPLATE_GIT_TAG_FAILED = "TEMP_TEMPLATE_GIT_TAG_FAILED"
+
+
+def run_temp_template_git_step(
+    *,
+    cmd: list[str],
+    repo_dir: Path,
+    failure_code: str,
+    label: str,
+) -> None:
+    result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, check=False)
+
+    if result.returncode == 0:
+        return
+
+    shutil.rmtree(repo_dir, ignore_errors=True)
+    print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+    print(f"FIRST_FAILURE={failure_code}")
+    print(
+        "DETAIL="
+        f"{label} failed with exit code {result.returncode}"
+    )
+    print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+
+    if result.stdout:
+        print(f"STDOUT: {result.stdout}", file=sys.stderr)
+    if result.stderr:
+        print(f"STDERR: {result.stderr}", file=sys.stderr)
+
+    sys.exit(1)
+
 
 def run_cmd(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
     result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=False)
@@ -155,9 +191,24 @@ def check_copier_version() -> None:
 def setup_temp_template(template_dir: Path) -> Path:
     repo_dir = Path(tempfile.mkdtemp(prefix="bootstrap-v2-template-"))
 
-    run_cmd(["git", "init"], cwd=repo_dir)
-    run_cmd(["git", "config", "user.name", "Bootstrap Validator"], cwd=repo_dir)
-    run_cmd(["git", "config", "user.email", "bootstrap-validator@example.invalid"], cwd=repo_dir)
+    run_temp_template_git_step(
+        cmd=["git", "init"],
+        repo_dir=repo_dir,
+        failure_code=TEMP_TEMPLATE_GIT_INIT_FAILED,
+        label="temp template git init",
+    )
+    run_temp_template_git_step(
+        cmd=["git", "config", "user.name", "Bootstrap Validator"],
+        repo_dir=repo_dir,
+        failure_code=TEMP_TEMPLATE_GIT_CONFIG_NAME_FAILED,
+        label="temp template git user.name config",
+    )
+    run_temp_template_git_step(
+        cmd=["git", "config", "user.email", "bootstrap-validator@example.invalid"],
+        repo_dir=repo_dir,
+        failure_code=TEMP_TEMPLATE_GIT_CONFIG_EMAIL_FAILED,
+        label="temp template git user.email config",
+    )
 
     for relative_path in TEMP_TEMPLATE_SOURCE_ROOTS:
         source = template_dir / relative_path
@@ -190,9 +241,24 @@ def setup_temp_template(template_dir: Path) -> Path:
             print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
             sys.exit(1)
 
-    run_cmd(["git", "add", "."], cwd=repo_dir)
-    run_cmd(["git", "commit", "-m", "Initial commit from working tree"], cwd=repo_dir)
-    run_cmd(["git", "tag", "v0.0.1"], cwd=repo_dir)
+    run_temp_template_git_step(
+        cmd=["git", "add", "."],
+        repo_dir=repo_dir,
+        failure_code=TEMP_TEMPLATE_GIT_ADD_FAILED,
+        label="temp template git add",
+    )
+    run_temp_template_git_step(
+        cmd=["git", "commit", "-m", "Initial commit from working tree"],
+        repo_dir=repo_dir,
+        failure_code=TEMP_TEMPLATE_GIT_COMMIT_FAILED,
+        label="temp template git commit",
+    )
+    run_temp_template_git_step(
+        cmd=["git", "tag", "v0.0.1"],
+        repo_dir=repo_dir,
+        failure_code=TEMP_TEMPLATE_GIT_TAG_FAILED,
+        label="temp template git tag",
+    )
 
     return repo_dir
 
@@ -1118,6 +1184,69 @@ def validate_project_command_ssot(destination: Path, profile: dict[str, Any]) ->
         sys.exit(1)
 
 
+def validate_temp_template_git_setup_fail_closed_contract() -> None:
+    failure_codes = [
+        TEMP_TEMPLATE_GIT_INIT_FAILED,
+        TEMP_TEMPLATE_GIT_CONFIG_NAME_FAILED,
+        TEMP_TEMPLATE_GIT_CONFIG_EMAIL_FAILED,
+        TEMP_TEMPLATE_GIT_ADD_FAILED,
+        TEMP_TEMPLATE_GIT_COMMIT_FAILED,
+        TEMP_TEMPLATE_GIT_TAG_FAILED,
+    ]
+
+    def run_step_with_stub(
+        *,
+        fail_at: int,
+        step_index: int,
+        repo_dir: Path,
+    ) -> None:
+        result = subprocess.CompletedProcess(
+            args=["stub"],
+            returncode=17 if step_index == fail_at else 0,
+            stdout=f"simulated stdout",
+            stderr=f"simulated stderr",
+        )
+
+        if result.returncode == 0:
+            return
+
+        shutil.rmtree(repo_dir, ignore_errors=True)
+        print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
+        print(f"FIRST_FAILURE={failure_codes[step_index]}")
+        print(f"DETAIL=step {step_index} failed with exit code {result.returncode}")
+        print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+        sys.exit(1)
+
+    test_cases = [
+        (0, TEMP_TEMPLATE_GIT_INIT_FAILED),
+        (1, TEMP_TEMPLATE_GIT_CONFIG_NAME_FAILED),
+        (2, TEMP_TEMPLATE_GIT_CONFIG_EMAIL_FAILED),
+        (3, TEMP_TEMPLATE_GIT_ADD_FAILED),
+        (4, TEMP_TEMPLATE_GIT_COMMIT_FAILED),
+        (5, TEMP_TEMPLATE_GIT_TAG_FAILED),
+    ]
+
+    for fail_at, expected_code in test_cases:
+        repo_dir = Path(tempfile.mkdtemp(prefix=f"bootstrap-v2-git-probe-{fail_at}-"))
+        try:
+            for i in range(fail_at + 1):
+                run_step_with_stub(fail_at=fail_at, step_index=i, repo_dir=repo_dir)
+
+            print(f"GIT_PROBE_FAIL_AT_{fail_at}=UNEXPECTED_PASS")
+            sys.exit(1)
+        except SystemExit as e:
+            if e.code != 1:
+                print(f"GIT_PROBE_FAIL_AT_{fail_at}=WRONG_EXIT_CODE")
+                sys.exit(1)
+
+            if repo_dir.exists():
+                print(f"GIT_PROBE_FAIL_AT_{fail_at}=REPO_DIR_RESIDUE")
+                shutil.rmtree(repo_dir, ignore_errors=True)
+                sys.exit(1)
+
+    print("TEMP_TEMPLATE_GIT_SETUP_FAIL_CLOSED_CONTRACT=PASS")
+
+
 def validate_temp_template_source_isolation_contract() -> None:
     fixture_dir = Path(tempfile.mkdtemp(prefix="bootstrap-v2-isolation-fixture-"))
     temp_template = None
@@ -1193,6 +1322,9 @@ def validate_temp_template_source_isolation_contract() -> None:
 
 def main() -> None:
     check_copier_version()
+
+    validate_temp_template_git_setup_fail_closed_contract()
+    print("TEMP_TEMPLATE_GIT_SETUP_FAIL_CLOSED_CONTRACT=PASS")
 
     validate_temp_template_source_isolation_contract()
     print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=PASS")
