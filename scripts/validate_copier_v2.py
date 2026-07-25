@@ -128,6 +128,10 @@ TEMP_TEMPLATE_STATUS_INSPECTION_FAILED = (
     "TEMP_TEMPLATE_STATUS_INSPECTION_FAILED"
 )
 
+TEMP_TEMPLATE_TAG_INSPECTION_FAILED = (
+    "TEMP_TEMPLATE_TAG_INSPECTION_FAILED"
+)
+
 
 def run_temp_template_git_step(
     *,
@@ -1560,7 +1564,35 @@ def validate_temp_template_source_isolation_contract() -> None:
             print("DETAIL=temp template has uncommitted changes")
             sys.exit(1)
 
-        result = run_cmd(["git", "tag", "-l"], cwd=temp_template, check=False)
+        try:
+            result = run_cmd(["git", "tag", "-l"], cwd=temp_template, check=False)
+        except Exception as error:
+            print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=FAIL")
+            print(f"FIRST_FAILURE={TEMP_TEMPLATE_TAG_INSPECTION_FAILED}")
+            print(
+                "DETAIL="
+                f"temp template git tag inspection invocation failed: {error}"
+            )
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+            sys.exit(1)
+
+        if result.returncode != 0:
+            print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=FAIL")
+            print(f"FIRST_FAILURE={TEMP_TEMPLATE_TAG_INSPECTION_FAILED}")
+            print(
+                "DETAIL="
+                f"temp template git tag inspection failed with exit code "
+                f"{result.returncode}"
+            )
+            print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")
+
+            if result.stdout:
+                print(f"STDOUT: {result.stdout}", file=sys.stderr)
+            if result.stderr:
+                print(f"STDERR: {result.stderr}", file=sys.stderr)
+
+            sys.exit(1)
+
         if "v0.0.1" not in result.stdout:
             print("COPIER_TEMP_TEMPLATE_SOURCE_ISOLATION_CONTRACT=FAIL")
             print("FIRST_FAILURE=TEMP_TEMPLATE_INITIAL_TAG_MISSING")
