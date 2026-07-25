@@ -16,7 +16,7 @@ from pathlib import Path
 
 TARGET_COPIER_VERSION = "9.17.0"
 
-COPIER_COMMAND = ("uv", "run", "copier")
+COPIER_COMMAND = ("uv", "run", "--frozen", "copier")
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
@@ -28,14 +28,14 @@ def evaluate_local_copier_toolchain_contract(
     """Evaluate local copier toolchain contract.
 
     Contract:
-    - command must be exactly ("uv", "run", "copier")
+    - command must be exactly ("uv", "run", "--frozen", "copier")
     - version_line must contain "9.17.0"
 
     Returns:
         (True, None) if contract passes
         (False, error_code) if contract fails
     """
-    if command != ("uv", "run", "copier"):
+    if command != ("uv", "run", "--frozen", "copier"):
         return False, "COPIER_COMMAND_NOT_LOCAL"
 
     if "9.17.0" not in version_line:
@@ -62,7 +62,7 @@ def evaluate_actual_local_toolchain_result(
     if exit_code != 0:
         return False, "LOCAL_COPIER_VERSION_COMMAND_FAILED"
 
-    if not command[:3] == ("uv", "run", "copier"):
+    if not command[:4] == ("uv", "run", "--frozen", "copier"):
         return False, "COPIER_COMMAND_NOT_LOCAL"
 
     if "9.17.0" not in version_line:
@@ -85,7 +85,7 @@ def validate_local_copier_toolchain_contract() -> tuple[bool, str | None]:
         # Case 1: Valid local command and version
         (
             "VALID_LOCAL_COMMAND_AND_VERSION",
-            ("uv", "run", "copier"),
+            ("uv", "run", "--frozen", "copier"),
             "copier 9.17.0",
             True,
             None,
@@ -109,7 +109,7 @@ def validate_local_copier_toolchain_contract() -> tuple[bool, str | None]:
         # Case 4: wrong version should fail
         (
             "WRONG_VERSION",
-            ("uv", "run", "copier"),
+            ("uv", "run", "--frozen", "copier"),
             "copier 9.16.0",
             False,
             "COPIER_VERSION_MISMATCH",
@@ -117,7 +117,7 @@ def validate_local_copier_toolchain_contract() -> tuple[bool, str | None]:
         # Case 5: empty version should fail
         (
             "EMPTY_VERSION",
-            ("uv", "run", "copier"),
+            ("uv", "run", "--frozen", "copier"),
             "",
             False,
             "COPIER_VERSION_MISMATCH",
@@ -930,6 +930,8 @@ def evaluate_checkout_portability_contract(
     repository_root: Path,
     copier_yml_is_file: bool,
     template_is_dir: bool,
+    pyproject_is_file: bool,
+    uv_lock_is_file: bool,
     invocation_command: tuple[str, ...],
     invocation_cwd: Path,
 ) -> tuple[bool, str | None]:
@@ -938,8 +940,10 @@ def evaluate_checkout_portability_contract(
     Pure evaluator that checks:
     1. repository_root contains copier.yml
     2. repository_root contains template/
-    3. invocation command starts with ("uv", "run", "copier")
-    4. invocation cwd equals repository_root
+    3. repository_root contains pyproject.toml
+    4. repository_root contains uv.lock
+    5. invocation command starts with ("uv", "run", "--frozen", "copier")
+    6. invocation cwd equals repository_root
 
     Returns:
         (True, None) if contract passes
@@ -951,7 +955,13 @@ def evaluate_checkout_portability_contract(
     if not template_is_dir:
         return False, "VALIDATOR_REPOSITORY_ROOT_INVALID"
 
-    if not invocation_command[:3] == ("uv", "run", "copier"):
+    if not pyproject_is_file:
+        return False, "PORTABLE_COPIER_PROJECT_METADATA_MISSING"
+
+    if not uv_lock_is_file:
+        return False, "PORTABLE_COPIER_LOCKFILE_MISSING"
+
+    if not invocation_command[:4] == ("uv", "run", "--frozen", "copier"):
         return False, "PORTABLE_COPIER_COMMAND_PREFIX_INVALID"
 
     if invocation_cwd != repository_root:
@@ -975,7 +985,9 @@ def validate_checkout_portability_marker_isolation_contract() -> tuple[bool, str
             "VALID_BASELINE",
             True,
             True,
-            ("uv", "run", "copier", "--version"),
+            True,
+            True,
+            ("uv", "run", "--frozen", "copier", "--version"),
             REPOSITORY_ROOT,
             True,
             None,
@@ -985,7 +997,9 @@ def validate_checkout_portability_marker_isolation_contract() -> tuple[bool, str
             "MISSING_COPIER_YML",
             False,
             True,
-            ("uv", "run", "copier", "--version"),
+            True,
+            True,
+            ("uv", "run", "--frozen", "copier", "--version"),
             REPOSITORY_ROOT,
             False,
             "VALIDATOR_REPOSITORY_ROOT_INVALID",
@@ -995,14 +1009,42 @@ def validate_checkout_portability_marker_isolation_contract() -> tuple[bool, str
             "MISSING_TEMPLATE",
             True,
             False,
-            ("uv", "run", "copier", "--version"),
+            True,
+            True,
+            ("uv", "run", "--frozen", "copier", "--version"),
             REPOSITORY_ROOT,
             False,
             "VALIDATOR_REPOSITORY_ROOT_INVALID",
         ),
-        # Case 4: uvx command
+        # Case 4: Missing pyproject.toml
+        (
+            "MISSING_PYPROJECT",
+            True,
+            True,
+            False,
+            True,
+            ("uv", "run", "--frozen", "copier", "--version"),
+            REPOSITORY_ROOT,
+            False,
+            "PORTABLE_COPIER_PROJECT_METADATA_MISSING",
+        ),
+        # Case 5: Missing uv.lock
+        (
+            "MISSING_UV_LOCK",
+            True,
+            True,
+            True,
+            False,
+            ("uv", "run", "--frozen", "copier", "--version"),
+            REPOSITORY_ROOT,
+            False,
+            "PORTABLE_COPIER_LOCKFILE_MISSING",
+        ),
+        # Case 6: uvx command
         (
             "UVX_COMMAND",
+            True,
+            True,
             True,
             True,
             ("uvx", "copier", "--version"),
@@ -1010,9 +1052,11 @@ def validate_checkout_portability_marker_isolation_contract() -> tuple[bool, str
             False,
             "PORTABLE_COPIER_COMMAND_PREFIX_INVALID",
         ),
-        # Case 5: bare copier command
+        # Case 7: bare copier command
         (
             "BARE_COPIER_COMMAND",
+            True,
+            True,
             True,
             True,
             ("copier", "--version"),
@@ -1020,12 +1064,14 @@ def validate_checkout_portability_marker_isolation_contract() -> tuple[bool, str
             False,
             "PORTABLE_COPIER_COMMAND_PREFIX_INVALID",
         ),
-        # Case 6: wrong cwd
+        # Case 8: wrong cwd
         (
             "WRONG_CWD",
             True,
             True,
-            ("uv", "run", "copier", "--version"),
+            True,
+            True,
+            ("uv", "run", "--frozen", "copier", "--version"),
             Path("/tmp"),
             False,
             "PORTABLE_COPIER_CWD_INVALID",
@@ -1036,6 +1082,8 @@ def validate_checkout_portability_marker_isolation_contract() -> tuple[bool, str
         case_name,
         has_copier_yml,
         has_template,
+        has_pyproject,
+        has_uv_lock,
         command,
         cwd,
         expected_pass,
@@ -1045,6 +1093,8 @@ def validate_checkout_portability_marker_isolation_contract() -> tuple[bool, str
             repository_root=REPOSITORY_ROOT,
             copier_yml_is_file=has_copier_yml,
             template_is_dir=has_template,
+            pyproject_is_file=has_pyproject,
+            uv_lock_is_file=has_uv_lock,
             invocation_command=command,
             invocation_cwd=cwd,
         )
@@ -1064,7 +1114,9 @@ def validate_checkout_portability_marker_isolation_contract() -> tuple[bool, str
         repository_root=REPOSITORY_ROOT,
         copier_yml_is_file=True,
         template_is_dir=True,
-        invocation_command=("uv", "run", "copier", "--version"),
+        pyproject_is_file=True,
+        uv_lock_is_file=True,
+        invocation_command=("uv", "run", "--frozen", "copier", "--version"),
         invocation_cwd=REPOSITORY_ROOT,
     )
 
@@ -2372,10 +2424,14 @@ def main() -> int:
     )
 
     # Evaluate checkout portability contract
+    pyproject_path = REPOSITORY_ROOT / "pyproject.toml"
+    uv_lock_path = REPOSITORY_ROOT / "uv.lock"
     portability_passed, portability_error = evaluate_checkout_portability_contract(
         repository_root=REPOSITORY_ROOT,
         copier_yml_is_file=copier_yml_path.is_file(),
         template_is_dir=template_dir_path.is_dir(),
+        pyproject_is_file=pyproject_path.is_file(),
+        uv_lock_is_file=uv_lock_path.is_file(),
         invocation_command=version_command,
         invocation_cwd=version_cwd,
     )
@@ -2436,7 +2492,7 @@ def main() -> int:
     for line in marker_lines:
         print(line)
     print(f"Copier version: {stdout.strip()}")
-    print("COPIER_COMMAND=uv run copier")
+    print("COPIER_COMMAND=uv run --frozen copier")
     print("BOOTSTRAP_COPIER_VALIDATOR_CHECKOUT_PORTABILITY_CONTRACT=PASS")
     print("BOOTSTRAP_COPIER_CHECKOUT_PORTABILITY_MARKER_ISOLATION_CONTRACT=PASS")
     print(f"COPIER_VERSION={TARGET_COPIER_VERSION}")

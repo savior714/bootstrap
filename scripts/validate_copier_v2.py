@@ -17,6 +17,8 @@ import yaml
 
 TARGET_COPIER_VERSION = "9.17.0"
 
+COPIER_COMMAND = ("uv", "run", "--frozen", "copier")
+
 SIMPLE_PROFILE = {
     "project_name": "Simple Smoke",
     "project_slug": "simple-smoke",
@@ -171,7 +173,7 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subp
 
 
 def check_copier_version() -> None:
-    result = run_cmd(["copier", "--version"], check=False)
+    result = run_cmd([*COPIER_COMMAND, "--version"], check=False)
     if result.returncode != 0:
         print("BOOTSTRAP_V2_COPIER_CLI_CONTRACT=FAIL")
         print("FIRST_FAILURE=COPIER_VERSION_MISMATCH")
@@ -273,7 +275,7 @@ def setup_temp_template(template_dir: Path) -> Path:
 
 def run_copier_copy(template_src: Path, destination: Path, profile: dict[str, Any]) -> None:
     cmd = [
-        "copier",
+        *COPIER_COMMAND,
         "copy",
         "--defaults",
         "--vcs-ref",
@@ -476,7 +478,7 @@ def update_template_core(template_repo: Path) -> None:
 
 
 def run_copier_update(destination: Path, template_src: Path) -> None:
-    cmd = ["copier", "update", "--defaults", "--vcs-ref", "v0.0.2", "--conflict", "inline", "."]
+    cmd = [*COPIER_COMMAND, "update", "--defaults", "--vcs-ref", "v0.0.2", "--conflict", "inline", "."]
 
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=destination)
     if result.returncode != 0:

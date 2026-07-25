@@ -57,7 +57,9 @@ v2가 생성·업데이트 smoke test를 통과하고 실제 프로젝트 migrat
 첫 stable tag가 발행되기 전에는 로컬 checkout에서 smoke test만 수행합니다.
 
 ```bash
-uvx copier copy \
+uv sync --frozen
+
+uv run --frozen copier copy \
   --vcs-ref main \
   /path/to/bootstrap \
   /tmp/bootstrap-smoke
@@ -66,7 +68,7 @@ uvx copier copy \
 stable release 이후:
 
 ```bash
-uvx copier copy \
+uv run --frozen copier copy \
   --vcs-ref v2.0.0 \
   gh:savior714/bootstrap \
   /path/to/new-project
@@ -84,6 +86,17 @@ uvx copier copy \
 6. **Stable release** — SemVer tag와 update contract
 
 한 단계는 하나의 failure domain으로 진행합니다.
+
+## 검은 모님
+
+```
+bash
+uv run --frozen python \
+  scripts/validate_copier_conditional_path.py
+
+uv run --frozen python \
+  scripts/validate_copier_v2.py
+```
 
 ## ChatGPT 프로젝트
 
