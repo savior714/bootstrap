@@ -61,7 +61,7 @@ v2 구현에 필요한 내용을 legacy에서 복사하더라도 EMR 고유 규�
 - 실제 존재하지 않는 command와 path를 생성하지 않는다.
 - 작은 작업의 기본 gate로 full release suite를 강제하지 않는다.
 - source acceptance와 runtime acceptance를 분리한다.
-- 단일 작업 프롬프트는 1000줄을 넘기지 않는다.
+- 단일 작업 프롬프트는 700줄을 넘지 않는다.
 
 ## 6. 검증
 

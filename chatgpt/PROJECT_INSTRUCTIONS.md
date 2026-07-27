@@ -15,7 +15,7 @@
 - 수정 전 재현 조건과 PASS/FAIL 기준을 고정한다.
 - 수정 후 현재 가설만 targeted validation으로 확인한다.
 - full suite를 작은 변경의 기본 gate로 사용하지 않는다.
-- 프롬프트가 1000줄을 넘을 가능성이 있으면 순차 작업으로 분할한다.
+- 프롬프트가 700줄을 넘을 가능성이 있으면 순차 작업으로 분할한다.
 - 공통 규칙을 매 작업 프롬프트에 재삽입하지 않는다.
 - repository `AGENTS.md`와 context routing을 SSOT로 사용한다.
 
