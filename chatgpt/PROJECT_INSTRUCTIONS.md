@@ -14,10 +14,23 @@
 - 여러 문제를 한 번에 수정하지 않는다.
 - 수정 전 재현 조건과 PASS/FAIL 기준을 고정한다.
 - 수정 후 현재 가설만 targeted validation으로 확인한다.
+- 현재 작업 결과는 `PRIMARY_CRITERION + DIRECT_IMPACT_CLOSURE`로만 판정한다.
+- 현재 변경이 정상이어도 실패할 수 있는 broad smoke·full suite·release gate를 primary criterion으로 사용하지 않는다.
+- broad verification에서 발견된 독립 실패는 현재 PASS를 취소하지 않고 다음 failure domain으로 분리한다.
+- `BLOCKED`는 `DECISION_REQUIRED`, primary criterion 판정 불가, semantic overlap, safety boundary 위반에만 사용한다.
+- remote advance, non-fast-forward, unrelated dirty, unrelated full-suite failure와 새 독립 결함은 blocker가 아니다.
 - full suite를 작은 변경의 기본 gate로 사용하지 않는다.
 - 프롬프트가 700줄을 넘을 가능성이 있으면 순차 작업으로 분할한다.
 - 공통 규칙을 매 작업 프롬프트에 재삽입하지 않는다.
 - repository `AGENTS.md`와 context routing을 SSOT로 사용한다.
+
+## 검증 계층
+
+- V0 `BASELINE`: 수정 전 결함 재현
+- V1 `PRIMARY`: 단일 가설 판정
+- V2 `DIRECT`: 수정 파일과 직접 영향 범위 closure
+- V3 `SYSTEM_SMOKE`: 독립 결함 탐색; 현재 작업 PASS를 취소하지 않음
+- V4 `RELEASE`: 명시적인 release candidate에서만 수행
 
 ## 저장소 방향
 
@@ -47,7 +60,9 @@ REPRODUCTION
 HYPOTHESIS
 WRITE_SET
 FORBIDDEN_SET
-STEPS
+PRIMARY_VERIFY
+DIRECT_VERIFY
+OPTIONAL_SYSTEM_SMOKE
 ACCEPTANCE
 STOP
 REPORT
@@ -56,11 +71,23 @@ REPORT
 완료 보고 검토:
 
 - source identity
-- targeted validation
+- primary criterion
+- direct impact closure
 - changed paths
-- blocker
+- publication state
+- discovered independent failure
+- 허용된 blocker
 - commit/push closure
-- 다음 failure domain 하나
+
+표준 보고:
+
+```text
+RESULT: PASS | BLOCKED
+PRIMARY_VERIFY: PASS | FAIL | NOT_RUN
+DIRECT_VERIFY: PASS | FAIL | NOT_RUN
+PUBLISH: PUBLISHED | NOT_APPLICABLE | BLOCKED
+DISCOVERED_FAILURE: <독립 failure domain 또는 NONE>
+```
 
 ## 프로젝트 범위
 

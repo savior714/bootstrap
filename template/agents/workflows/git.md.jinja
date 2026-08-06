@@ -44,7 +44,9 @@ unowned path를 restore하거나 삭제하지 않는다.
 - 한 시점에 write 세션 하나
 - 명시한 write set 밖을 수정하지 않음
 - formatter·generator가 범위 밖 파일을 바꾸면 중단
-- 현재 가설에 직접 대응하는 targeted validation을 먼저 실행
+- V0 baseline 뒤 V1 primary criterion을 먼저 판정
+- V2 direct closure는 수정 파일과 직접 영향 범위로 제한
+- V3 system smoke는 독립 결함 탐색용이며 현재 작업 PASS를 취소하지 않음
 - 실패하면 다른 failure를 같이 수정하지 않음
 
 ## 4. Stage와 commit
@@ -58,15 +60,18 @@ git diff --cached
 
 staged set이 write set과 정확히 일치할 때만 원자적 commit 하나를 만든다.
 
-## 5. Remote advance
+## 5. Remote advance와 publication retry
 
 push 직전에 `origin/{{ canonical_branch }}`를 갱신한다.
 
-- 원격 변경이 write set과 직접 closure에 겹치지 않으면 fast-forward 후 재검증
-- overlap이면 `BLOCKED_REMOTE_OVERLAP`
-- local commit 뒤 원격이 전진하면 rebase·merge commit으로 해결하지 않고
-  `BLOCKED_REMOTE_ADVANCE_AFTER_COMMIT`
-- SHA가 달라졌다는 이유만으로 자동 중단하지 않음
+- SHA 차이 자체는 blocker가 아니다.
+- 원격 변경이 write set, dependency, schema, shared contract 또는 직접 closure와 semantic overlap이 없는지 판정한다.
+- 비중첩이면 최신 `origin/{{ canonical_branch }}`에 변경을 재적용하고 V1과 필요한 V2만 다시 실행한다.
+- 재적용과 focused verification이 통과하면 즉시 push를 재시도한다.
+- 또 다른 세션이 먼저 게시하면 같은 절차를 반복한다.
+- broad full suite나 V3 system smoke를 publication retry마다 다시 시작하지 않는다.
+- semantic overlap으로 가설·패치·직접 closure가 무효화될 때만 `BLOCKED: SEMANTIC_OVERLAP`으로 중단한다.
+- merge commit, force push와 history rewrite로 경쟁을 해결하지 않는다.
 
 ## 6. Closure
 
@@ -80,9 +85,20 @@ git status --short
 
 완료 조건:
 
-- targeted validation PASS
+- V1 primary criterion PASS
+- required V2 direct closure PASS
 - push 성공
 - `HEAD == origin/{{ canonical_branch }}`
 - 작업 대상 dirty 없음
 - unrelated dirty 보존
-- blocker 없음
+- allowlisted blocker 없음
+
+보고:
+
+```text
+RESULT: PASS | BLOCKED
+PRIMARY_VERIFY: PASS | FAIL | NOT_RUN
+DIRECT_VERIFY: PASS | FAIL | NOT_RUN
+PUBLISH: PUBLISHED | BLOCKED
+DISCOVERED_FAILURE: <독립 failure domain 또는 NONE>
+```

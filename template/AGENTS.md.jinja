@@ -21,6 +21,11 @@
 - 무관 오류와 개선은 별도 잔여 작업으로 남긴다.
 - 수정 전 재현 조건과 binary criterion을 정한다.
 - 수정 후 현재 가설만 targeted validation으로 검증한다.
+- 현재 작업 결과는 `PRIMARY_CRITERION + DIRECT_IMPACT_CLOSURE`로만 판정한다.
+- 현재 변경이 정상이어도 실패할 수 있는 broad smoke·full suite·release gate는 primary criterion으로 사용하지 않는다.
+- broad verification에서 발견된 독립 실패는 현재 PASS를 취소하지 않고 `DISCOVERED_FAILURE`로 분리한다.
+- `BLOCKED`는 `DECISION_REQUIRED`, primary criterion 판정 불가, semantic overlap, safety boundary 위반에만 사용한다.
+- remote advance, non-fast-forward, unrelated dirty, unrelated full-suite failure와 새 독립 결함은 blocker가 아니다.
 - 공통 규칙을 작업 프롬프트에 반복하지 않는다.
 - 단일 프롬프트가 700줄을 넘을 가능성이 있으면 순차 작업으로 분할한다.
 
@@ -40,10 +45,13 @@
 - 실제 경로와 command 를 확인한 뒤 수정한다.
 - 기존 구조를 유지하는 최소 변경을 우선한다.
 - 행동 변경에는 가장 작은 회귀 검증을 추가하거나 갱신한다.
+- 검증은 V0 baseline → V1 primary → V2 direct closure 순서로 수행한다.
+- V3 system smoke는 독립 결함 탐색용이며 현재 작업 PASS를 취소하지 않는다.
+- V4 release gate는 명시적인 release candidate에서만 실행한다.
 - 작은 변경에서 full release suite 를 기본 gate 로 실행하지 않는다.
 - source acceptance 와 runtime acceptance 를 한 작업에 섞지 않는다.
 - mock, skip, snapshot 갱신, 오류 exit 무시로 필수 검증을 우회하지 않는다.
-- required validator 를 사용할 수 없으면 BLOCKED 로 보고한다.
+- required validator 를 사용할 수 없고 primary criterion을 동등하게 판정할 방법이 없으면 BLOCKED 로 보고한다.
 
 프로젝트 실행 명령은 `agents/project/PROFILE.md` 에서 확인한다.
 실제 저장소 config 와 다르면 config 를 확인한 뒤 project profile 을 갱신한다.
@@ -57,7 +65,8 @@
 - 한 시점에 write 세션 하나
 - exact path staging
 - unrelated dirty 보존
-- remote SHA 차이가 아니라 write-set overlap으로 중단 여부 판정
+- remote SHA 차이가 아니라 write-set과 semantic closure overlap으로 중단 여부 판정
+- 비중첩 remote advance는 최신 main에 재적용하고 V1·V2만 다시 실행한 뒤 게시 재시도
 - force push와 history rewrite 금지
 - 한 작업은 원자적 commit 하나를 기본으로 함
 
@@ -65,6 +74,7 @@
 
 - 단일 criterion 판정 완료
 - required targeted validation PASS
+- 직접 영향 범위 closure PASS
 - 의도한 파일만 변경
 - commit·push 성공
 - local HEAD와 remote canonical branch 일치
@@ -75,10 +85,11 @@ runtime-only 작업은 source 변경·commit·push 없음이 정상 조건일 �
 
 ## 7. 완료 보고
 
-- RESULT
-- failure domain과 가설 판정
+- `RESULT: PASS | BLOCKED`
+- `PRIMARY_VERIFY: PASS | FAIL | NOT_RUN`
+- `DIRECT_VERIFY: PASS | FAIL | NOT_RUN`
+- `PUBLISH: PUBLISHED | NOT_APPLICABLE | BLOCKED`
+- `DISCOVERED_FAILURE: <독립 failure domain 또는 NONE>`
 - 변경 파일
-- targeted validation
-- blocker 또는 별도 failure domain
-- commit SHA와 push 상태
-- 다음 작업이 필요하면 후보 하나
+- 실제 게시된 경우 commit SHA
+- 허용된 blocker가 있는 경우에만 blocker와 다음 단일 결정
