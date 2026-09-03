@@ -275,6 +275,167 @@ else
 	fail "no stash/merge residue from helper" "residue found"
 fi
 
+# --- 6b. REMOTE_ADVANCED is a topology-only verdict ----------------------------------
+# Regression for the candidate-rematerialization loop: remote movement by itself
+# must not be reported as semantic invalidation and must not blindly prescribe
+# semantic re-derivation/re-proof. Classification belongs to the governing
+# repository/runtime contract (DEVELOPMENT.md publication closure).
+assert_contains "blocked verdict preserved" "${OUTP}" "GIT_SAFETY: BLOCKED"
+assert_contains "remote advanced stays a topology verdict" "${OUTP}" "topology-only verdict"
+assert_contains "remote base difference explicit" "${OUTP}" "current remote base differs from admitted base"
+assert_contains "not fast-forward eligible" "${OUTP}" "not currently fast-forward eligible"
+assert_contains "remote movement is not semantic invalidation" "${OUTP}" "is not semantic invalidation"
+assert_contains "candidate/worktree preservation explicit" "${OUTP}" "nothing was removed, overwritten, or reconciled"
+assert_contains "required field TASK" "${OUTP}" "TASK: task2"
+assert_contains "required field REMOTE_REF" "${OUTP}" "REMOTE_REF: origin/main"
+assert_contains "required field WORKTREE" "${OUTP}" "WORKTREE: "
+assert_contains "remediation hands classification to governing contract" "${OUTP}" "governing repository/runtime contract"
+assert_contains "remediation requires classification first" "${OUTP}" "classify intervening movement"
+assert_contains "remediation defers transition choice" "${OUTP}" "next bounded transition"
+assert_contains "remediation scopes re-check to overlapping movement" "${OUTP}" "only overlapping semantic movement requires"
+assert_contains "remediation forbids bypass" "${OUTP}" "do not bypass git-safety"
+assert_contains "remediation forbids reconciliation" "${OUTP}" "do not merge/rebase/cherry-pick/force-push"
+assert_eq "admitted base still original B" "${FRESH_BASE}" "$(field "${OUTP}" 'ADMITTED_BASE')"
+if [ "$(field "${OUTP}" 'ADMITTED_BASE')" != "$(field "${OUTP}" 'CURRENT_BASE')" ]; then
+	pass "CURRENT_BASE differs from ADMITTED_BASE as expected"
+else
+	fail "CURRENT_BASE differs from ADMITTED_BASE as expected" "both are $(field "${OUTP}" 'CURRENT_BASE')"
+fi
+if grep -q -F "SEMANTIC_INVALID" "${OUTP}"; then
+	fail "no SEMANTIC_INVALID claim on topology-only movement" "found SEMANTIC_INVALID in ${OUTP}"
+else
+	pass "no SEMANTIC_INVALID claim on topology-only movement"
+fi
+if grep -q -F "semantic overlap" "${OUTP}"; then
+	fail "no presumed semantic overlap in output" "found [semantic overlap] in ${OUTP}"
+else
+	pass "no presumed semantic overlap in output"
+fi
+if grep -q -F "proof is invalid" "${OUTP}" || grep -q -F "proof invalid" "${OUTP}"; then
+	fail "no presumed proof invalidation in output" "found proof-invalid claim in ${OUTP}"
+else
+	pass "no presumed proof invalidation in output"
+fi
+if grep -q -F "re-apply the semantic delta" "${OUTP}"; then
+	fail "no blind semantic reapplication in output" "found unconditional [re-apply the semantic delta] in ${OUTP}"
+else
+	pass "no blind semantic reapplication in output"
+fi
+if grep -q -F "carry the semantic delta" "${OUTP}"; then
+	fail "no presumed semantic carryover in output" "found [carry the semantic delta] in ${OUTP}"
+else
+	pass "no presumed semantic carryover in output"
+fi
+if grep -q -F "create <next-task-id>" "${OUTP}"; then
+	fail "no blind follow-up task prescription in output" "found [create <next-task-id>] in ${OUTP}"
+else
+	pass "no blind follow-up task prescription in output"
+fi
+if grep -q -F "follow-up task" "${OUTP}"; then
+	fail "no presumed follow-up task in output" "found [follow-up task] in ${OUTP}"
+else
+	pass "no presumed follow-up task in output"
+fi
+if grep -q -F "re-apply the semantic delta" "${CANON}"; then
+	fail "canonical helper has no unconditional re-apply remediation" "old wording still in ${CANON}"
+else
+	pass "canonical helper has no unconditional re-apply remediation"
+fi
+if grep -q -F "carry the semantic delta" "${CANON}"; then
+	fail "canonical helper has no presumed carryover wording" "old wording still in ${CANON}"
+else
+	pass "canonical helper has no presumed carryover wording"
+fi
+if grep -q -F "create <next-task-id>" "${CANON}"; then
+	fail "canonical helper has no blind follow-up task prescription" "old wording still in ${CANON}"
+else
+	pass "canonical helper has no blind follow-up task prescription"
+fi
+if grep -q -F 'GIT_SAFETY_CONTRACT_VERSION="1"' "${CANON}"; then
+	pass "contract remains bootstrap-git-safety/1"
+else
+	fail "contract remains bootstrap-git-safety/1" "version changed"
+fi
+if cmp -s "${CANON}" "${ROOT}/scaffold/scripts/lib/git-safety-canonical.sh"; then
+	pass "root/scaffold canonical helper remain byte-identical after correction"
+else
+	fail "root/scaffold canonical helper remain byte-identical after correction" "diff root vs scaffold canonical"
+fi
+if grep -q -F "Unrelated upstream movement is information, not invalidation" "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md" && grep -q -F "is not semantic invalidation" "${OUTP}"; then
+	pass "cold-read consistency: unrelated movement is not semantic invalidation in both contracts"
+else
+	fail "cold-read consistency: unrelated movement is not semantic invalidation in both contracts" "DEVELOPMENT.md vs REMOTE_ADVANCED disagree"
+fi
+if grep -q -F "not an independent mutation topology" "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md" && grep -q -F "Remote topology movement alone does not reopen semantic work" "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md"; then
+	pass "development contract states same-branch mutation serialization rule"
+else
+	fail "development contract states same-branch mutation serialization rule" "DEVELOPMENT.md §7"
+fi
+if grep -q -F "do not pre-materialize" "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md" && grep -q -F "serialize that mutation/materialization boundary" "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md"; then
+	pass "development contract serializes same-branch materialization by default"
+else
+	fail "development contract serializes same-branch materialization by default" "DEVELOPMENT.md §7"
+fi
+if grep -q -F "not a helper-enforced mutex" "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md" && grep -q -F "independent repositories / independent publication destinations" "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md" && grep -q -F "Read-only investigation remains parallel" "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md"; then
+	pass "development contract keeps parallelism for read-only and independent destinations without helper mutex"
+else
+	fail "development contract keeps parallelism for read-only and independent destinations without helper mutex" "DEVELOPMENT.md §7"
+fi
+
+# --- 6c. two-writer topology contention proof --------------------------------------
+# Minimal B/T1/T2 model for the rematerialization loop:
+#   B --- T1            (both T1=task1 and T2=task2 admitted from B=FRESH_BASE)
+#    \--- T2
+# After T1-equivalent publication (OTHER) advances origin/main B -> NEW_BASE:
+#   B --- T1 (=NEW_BASE) <- origin/main
+#    \--- T2 (old head, still at/below B)
+# Old T2 is no longer a direct fast-forward publication candidate. This is
+# topology staleness irrespective of whether T1/T2 touched semantically
+# unrelated surfaces; no semantic-overlap inference is encoded here.
+T1_BASE=$(cat "${CLONE}/.git/git-safety/tasks/task1/BASE")
+T2_BASE=$(cat "${CLONE}/.git/git-safety/tasks/task2/BASE")
+assert_eq "T1 originates from B" "${FRESH_BASE}" "${T1_BASE}"
+assert_eq "T2 originates from B" "${FRESH_BASE}" "${T2_BASE}"
+assert_eq "T2 admitted base in output is B" "${FRESH_BASE}" "$(field "${OUTP}" 'ADMITTED_BASE')"
+assert_eq "origin moved B -> NEW_BASE" "${NEW_BASE}" "$(field "${OUTP}" 'CURRENT_BASE')"
+if [ "${FRESH_BASE}" != "${NEW_BASE}" ]; then
+	pass "origin movement proven (B != NEW_BASE)"
+else
+	fail "origin movement proven (B != NEW_BASE)" "no movement"
+fi
+# Sibling staleness: the other candidate from B is stale too once one publishes.
+OUTP_T1="${TMPBASE}/t-prepublish-t1.out"
+CODE=$(run_entry "${OUTP_T1}" -- --repo "${CLONE}" pre-publish task1)
+assert_exit "sibling T1 also blocked after origin advance exit 3" "3" "${CODE}"
+assert_contains "sibling T1 reason still REMOTE_ADVANCED" "${OUTP_T1}" "REASON: REMOTE_ADVANCED"
+assert_eq "sibling T1 sees same moved base" "${NEW_BASE}" "$(field "${OUTP_T1}" 'CURRENT_BASE')"
+# Unrelated surfaces still stale: T2 commits on surface-t2 while the T1-equivalent
+# advance never touched that path, yet pre-publish stays topology-blocked.
+echo "t2-unrelated-surface" >"${WT2}/surface-t2.txt"
+git -C "${WT2}" add surface-t2.txt
+git -C "${WT2}" commit -q -m "t2 unrelated surface"
+T2_NEW_HEAD=$(git -C "${WT2}" rev-parse HEAD)
+if git -C "${WT2}" merge-base --is-ancestor "${FRESH_BASE}" "${T2_NEW_HEAD}" 2>/dev/null; then
+	pass "T2 descends from B (was valid before T1 published)"
+else
+	fail "T2 descends from B (was valid before T1 published)" "T2_NEW_HEAD=${T2_NEW_HEAD}"
+fi
+if git -C "${CLONE}" merge-base --is-ancestor "${NEW_BASE}" "${T2_NEW_HEAD}" 2>/dev/null; then
+	fail "old T2 is not a fast-forward descendant of current main" "unexpectedly FF-publishable"
+else
+	pass "old T2 is not a fast-forward descendant of current main"
+fi
+if git -C "${CLONE}" show --name-only --format= "${NEW_BASE}" 2>/dev/null | grep -q -F "surface-t2.txt"; then
+	fail "T1/T2 surfaces are disjoint in this proof" "overlap found"
+else
+	pass "T1/T2 surfaces are disjoint in this proof (staleness is topology, not semantics)"
+fi
+OUTP_T2B="${TMPBASE}/t-prepublish-t2b.out"
+CODE=$(run_entry "${OUTP_T2B}" -- --repo "${CLONE}" pre-publish task2)
+assert_exit "T2 with unrelated delta still topology-blocked exit 3" "3" "${CODE}"
+assert_contains "T2 unrelated delta reason still REMOTE_ADVANCED" "${OUTP_T2B}" "REASON: REMOTE_ADVANCED"
+assert_contains "T2 unrelated delta stays topology-only" "${OUTP_T2B}" "topology-only verdict"
+
 # fresh task after advance is publishable (FF still possible at new base)
 OUTN="${TMPBASE}/t-new.out"
 CODE=$(run_entry "${OUTN}" -- --repo "${CLONE}" create task3)

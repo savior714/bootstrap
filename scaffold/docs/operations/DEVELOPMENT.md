@@ -56,6 +56,8 @@ If publication cannot safely complete, report `CONTINUABLE` or `BLOCKED` with th
 
 Independent work may proceed independently when mutation, authority, and evidence boundaries are independent. Add coordination machinery only after direct recurring evidence demonstrates that ordinary repository-native practice cannot preserve the required semantics at lower cost.
 
+Under the Git Safety Baseline (§8), publication-intended mutation targeting one shared canonical branch is not an independent mutation topology: with immutable admitted BASE plus fast-forward-only publication and no history reconciliation, only work admitted after the current BASE can publish directly, and any sibling admitted from an older BASE stops being fast-forward-publishable once the first publishes. By default, do not pre-materialize a second publication-intended mutating candidate against the same canonical branch while an earlier one is still unpublished; serialize that mutation/materialization boundary and admit the next one only after the earlier one has closed. This is a runtime/repository admission discipline, not a helper-enforced mutex (git-safety `create` does not refuse admission merely because another record exists). Read-only investigation remains parallel, as does mutation against independent repositories / independent publication destinations. Remote topology movement alone does not reopen semantic work; whether intervening movement matters is decided by §6 (only overlapping semantic movement requires re-checking meaning and proof).
+
 ## 8. Git Safety Baseline (conditional)
 
 Applies only when this repository is agent-mutable **and** uses a shared remote. Local-only scratch repositories are out of scope and must not gain coupling to this section.
