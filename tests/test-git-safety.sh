@@ -690,11 +690,14 @@ OUT_B_CHECK="${TMPBASE}/t-proof-b-check.out"
 CODE=$(run_entry "${OUT_B_CHECK}" -- --repo "${WT_B}" check)
 assert_exit "proof-B: bare check from admitted worktree exit 0" "0" "${CODE}"
 assert_contains "proof-B: bare check selects worktree task" "${OUT_B_CHECK}" "TASK: proofb"
-# The published-but-now-stale WT_NEW still infers its own identity safely.
+# WT_NEW already published its own HEAD (CURRENT == HEAD, direct containment
+# evidence), so it is FF-eligible despite its older admitted BASE — string
+# inequality alone never marks a contained candidate stale (§6/§8 freshness
+# policy). Identity inference safety still holds on this path.
 OUT_B_STALE_WT="${TMPBASE}/t-proof-b-stale-wt.out"
 CODE=$(run_entry "${OUT_B_STALE_WT}" -- --repo "${WT_NEW}" pre-publish)
-assert_exit "proof-B: bare pre-publish from stale worktree stays BLOCKED exit 3" "3" "${CODE}"
-assert_contains "proof-B: stale worktree inference reports REMOTE_ADVANCED" "${OUT_B_STALE_WT}" "REASON: REMOTE_ADVANCED"
+assert_exit "proof-B: bare pre-publish from published worktree is PUBLISHABLE exit 0" "0" "${CODE}"
+assert_contains "proof-B: published worktree inference publishable" "${OUT_B_STALE_WT}" "GIT_SAFETY: PUBLISHABLE_FF"
 assert_contains "proof-B: stale worktree inference selects newtask" "${OUT_B_STALE_WT}" "TASK: newtask"
 # C. stale sole admission from unrelated checkout is already proven above via
 # OUT_ID_IMP (TASK_ID_REQUIRED, no REMOTE_ADVANCED, record preserved).

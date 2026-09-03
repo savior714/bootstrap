@@ -439,23 +439,35 @@ cmd_pre_publish() {
 	resolve_base "${_repo}" "${_branch}"
 	_current=${_BASE}
 	_head=$(git -C "${_wt_rec}" rev-parse HEAD 2>/dev/null || true)
+	_ff_despite_move=""
 	if [ "${_current}" != "${_base}" ]; then
-		out "GIT_SAFETY: BLOCKED"
-		out "REASON: REMOTE_ADVANCED"
-		out "REQUIRED_CONTRACT: ${GIT_SAFETY_CONTRACT}"
-		out "OBSERVED_CONTRACT: ${GIT_SAFETY_CONTRACT}"
-		out "TASK: ${_task}"
-		out "TASK_SELECTION: ${_sel}"
-		out "ADMITTED_BASE: ${_base}"
-		out "CURRENT_BASE: ${_current}"
-		out "REMOTE_REF: ${REMOTE}/${_branch}"
-		out "CANDIDATE_HEAD: ${_head}"
-		out "CANDIDATE_SCOPE: admitted task worktree HEAD only (not the invoking checkout/main HEAD)"
-		out "WORKTREE: ${_wt_rec}"
-		out "AUTO_RECONCILIATION: none (merge/rebase/cherry-pick/force-push refused by baseline scope)"
-		out "DETAIL: topology-only verdict about TASK ${_task} worktree candidate only (CANDIDATE_HEAD is the admitted task worktree HEAD, not the invoking checkout/main HEAD); current remote base differs from admitted base; candidate/worktree state is preserved and publication is not currently fast-forward eligible for this TASK candidate; this verdict is not proof about any other checkout/candidate; remote movement by itself is not semantic invalidation; nothing was removed, overwritten, or reconciled"
-		out "REMEDIATION: return this topology result to the governing repository/runtime contract; classify intervening movement before choosing the next bounded transition (only overlapping semantic movement requires re-checking meaning and proof); a BLOCKED result never authorizes raw-git publication of any candidate (including a different local HEAD that appears fast-forward-safe) — publish only the admitted TASK worktree HEAD after PUBLISHABLE_FF for that same TASK, or admit a fresh TASK for the intended candidate and re-prove; do not bypass git-safety and do not merge/rebase/cherry-pick/force-push"
-		exit $EXIT_BLOCKED
+		# Direct containment evidence overrides string inequality: a candidate
+		# whose HEAD already contains the current remote base (JIT-bound child
+		# of the fresh trunk, or an already-published HEAD) is FF-publishable
+		# despite admitted-base movement. String comparison alone never marks
+		# such a candidate stale.
+		if [ -n "${_head}" ] \
+			&& git -C "${_wt_rec}" merge-base --is-ancestor "${_current}" "${_head}" 2>/dev/null \
+			&& git -C "${_wt_rec}" merge-base --is-ancestor "${_base}" "${_head}" 2>/dev/null; then
+			_ff_despite_move="yes"
+		else
+			out "GIT_SAFETY: BLOCKED"
+			out "REASON: REMOTE_ADVANCED"
+			out "REQUIRED_CONTRACT: ${GIT_SAFETY_CONTRACT}"
+			out "OBSERVED_CONTRACT: ${GIT_SAFETY_CONTRACT}"
+			out "TASK: ${_task}"
+			out "TASK_SELECTION: ${_sel}"
+			out "ADMITTED_BASE: ${_base}"
+			out "CURRENT_BASE: ${_current}"
+			out "REMOTE_REF: ${REMOTE}/${_branch}"
+			out "CANDIDATE_HEAD: ${_head}"
+			out "CANDIDATE_SCOPE: admitted task worktree HEAD only (not the invoking checkout/main HEAD)"
+			out "WORKTREE: ${_wt_rec}"
+			out "AUTO_RECONCILIATION: none (merge/rebase/cherry-pick/force-push refused by baseline scope)"
+			out "DETAIL: topology-only verdict about TASK ${_task} worktree candidate only (CANDIDATE_HEAD is the admitted task worktree HEAD, not the invoking checkout/main HEAD); current remote base differs from admitted base; candidate/worktree state is preserved and publication is not currently fast-forward eligible for this TASK candidate; this verdict is not proof about any other checkout/candidate; remote movement by itself is not semantic invalidation; nothing was removed, overwritten, or reconciled"
+			out "REMEDIATION: return this topology result to the governing repository/runtime contract; classify intervening movement before choosing the next bounded transition (only overlapping semantic movement requires re-checking meaning and proof); a BLOCKED result never authorizes raw-git publication of any candidate (including a different local HEAD that appears fast-forward-safe) — publish only the admitted TASK worktree HEAD after PUBLISHABLE_FF for that same TASK, or admit a fresh TASK for the intended candidate and re-prove; do not bypass git-safety and do not merge/rebase/cherry-pick/force-push"
+			exit $EXIT_BLOCKED
+		fi
 	fi
 	git -C "${_wt_rec}" merge-base --is-ancestor "${_base}" "${_head}" 2>/dev/null \
 		|| blocked "CANDIDATE_DIVERGED" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "ADMITTED_BASE: ${_base}" "CANDIDATE_HEAD: ${_head}" "CANDIDATE_SCOPE: admitted task worktree HEAD only (not the invoking checkout/main HEAD)" "DETAIL: candidate (admitted task worktree HEAD) does not descend from the admitted BASE"
@@ -468,6 +480,9 @@ cmd_pre_publish() {
 	out "CANDIDATE_HEAD: ${_head}"
 	out "CANDIDATE_SCOPE: admitted task worktree HEAD only (not the invoking checkout/main HEAD)"
 	out "WORKTREE: ${_wt_rec}"
+	if [ -n "${_ff_despite_move}" ]; then
+		out "NOTE: admitted base differs from current base but the current base is a direct ancestor of the candidate (containment evidence); FF-eligible without re-derivation"
+	fi
 	exit $EXIT_OK
 }
 
