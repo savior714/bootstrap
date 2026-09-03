@@ -208,13 +208,19 @@ default_worktree_path() {
 }
 
 select_task() {
-	# $1 = safety dir, $2 = maybe-task. Sets _TASK or BLOCKEDs.
+	# $1 = safety dir, $2 = maybe-task. Sets _TASK and _TASK_SELECTION or BLOCKEDs.
+	# _TASK_SELECTION is "explicit" when the caller passed <task-id> and
+	# "implicit-singleton" when the sole stored admission was auto-selected.
+	# Publication-intended checks must pass an explicit <task-id>; the implicit
+	# path exists only for backward-compatible diagnostics and its verdict
+	# covers only the auto-selected task's worktree candidate.
 	_sdir=$1
 	_maybe=$2
 	if [ -n "${_maybe}" ]; then
 		valid_task_id "${_maybe}" || blocked "INVALID_TASK_ID" "TASK: ${_maybe}"
 		[ -f "${_sdir}/tasks/${_maybe}/BASE" ] || blocked "NO_ADMISSION" "TASK: ${_maybe}" "DETAIL: no admission record; run 'create ${_maybe}' first"
 		_TASK=${_maybe}
+		_TASK_SELECTION="explicit"
 		return 0
 	fi
 	_count=0
@@ -229,6 +235,7 @@ select_task() {
 	fi
 	if [ "${_count}" = "1" ]; then
 		_TASK=${_only}
+		_TASK_SELECTION="implicit-singleton"
 	elif [ "${_count}" = "0" ]; then
 		blocked "NO_ADMISSION" "DETAIL: no admission record; run 'create <task-id>' first"
 	else
@@ -337,20 +344,21 @@ cmd_check() {
 	_sdir="${_cdir}/git-safety"
 	select_task "${_sdir}" "${1:-}"
 	_task=${_TASK}
+	_sel=${_TASK_SELECTION}
 	_rdir=$(record_dir "${_cdir}" "${_task}")
 	_base=$(read_record "${_rdir}" "BASE")
 	_base_ref=$(read_record "${_rdir}" "BASE_REF")
 	_rurl_rec=$(read_record "${_rdir}" "REMOTE_URL")
 	_wt_rec=$(read_record "${_rdir}" "WORKTREE")
-	[ -n "${_base}" ] && [ -n "${_wt_rec}" ] || blocked "NO_ADMISSION" "TASK: ${_task}"
-	worktree_registered_at "${_repo}" "${_wt_rec}" || blocked "WORKTREE_MISSING" "TASK: ${_task}" "WORKTREE: ${_wt_rec}" "DETAIL: admitted worktree is not registered; state was preserved, nothing was recreated"
+	[ -n "${_base}" ] && [ -n "${_wt_rec}" ] || blocked "NO_ADMISSION" "TASK: ${_task}" "TASK_SELECTION: ${_sel}"
+	worktree_registered_at "${_repo}" "${_wt_rec}" || blocked "WORKTREE_MISSING" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "WORKTREE: ${_wt_rec}" "DETAIL: admitted worktree is not registered; state was preserved, nothing was recreated"
 	_head=$(git -C "${_wt_rec}" rev-parse HEAD 2>/dev/null || true)
-	[ -n "${_head}" ] || blocked "WORKTREE_MISSING" "TASK: ${_task}" "WORKTREE: ${_wt_rec}"
+	[ -n "${_head}" ] || blocked "WORKTREE_MISSING" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "WORKTREE: ${_wt_rec}"
 	git -C "${_wt_rec}" merge-base --is-ancestor "${_base}" "${_head}" 2>/dev/null \
-		|| blocked "BASE_MISMATCH" "TASK: ${_task}" "ADMITTED_BASE: ${_base}" "CANDIDATE_HEAD: ${_head}" "DETAIL: admitted BASE is not an ancestor of the worktree HEAD"
+		|| blocked "BASE_MISMATCH" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "ADMITTED_BASE: ${_base}" "CANDIDATE_HEAD: ${_head}" "CANDIDATE_SCOPE: admitted task worktree HEAD only (not the invoking checkout/main HEAD)" "DETAIL: admitted BASE is not an ancestor of the worktree HEAD"
 	_live_url=$(remote_url "${_repo}")
 	if [ -n "${_rurl_rec}" ] && [ -n "${_live_url}" ] && [ "${_rurl_rec}" != "${_live_url}" ]; then
-		blocked "REMOTE_MISMATCH" "TASK: ${_task}" "ADMITTED_REMOTE_URL: ${_rurl_rec}" "CURRENT_REMOTE_URL: ${_live_url}"
+		blocked "REMOTE_MISMATCH" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "ADMITTED_REMOTE_URL: ${_rurl_rec}" "CURRENT_REMOTE_URL: ${_live_url}"
 	fi
 	if [ -z "$(git -C "${_wt_rec}" status --porcelain 2>/dev/null)" ]; then
 		_state="CLEAN"
@@ -359,9 +367,11 @@ cmd_check() {
 	fi
 	out "GIT_SAFETY: OK"
 	out "TASK: ${_task}"
+	out "TASK_SELECTION: ${_sel}"
 	out "ADMITTED_BASE: ${_base}"
 	out "BASE_REF: ${_base_ref}"
 	out "CANDIDATE_HEAD: ${_head}"
+	out "CANDIDATE_SCOPE: admitted task worktree HEAD only (not the invoking checkout/main HEAD)"
 	out "WORKTREE: ${_wt_rec}"
 	out "WORKTREE_STATE: ${_state}"
 	exit $EXIT_OK
@@ -377,13 +387,14 @@ cmd_pre_publish() {
 	_sdir="${_cdir}/git-safety"
 	select_task "${_sdir}" "${1:-}"
 	_task=${_TASK}
+	_sel=${_TASK_SELECTION}
 	_rdir=$(record_dir "${_cdir}" "${_task}")
 	_base=$(read_record "${_rdir}" "BASE")
 	_base_ref=$(read_record "${_rdir}" "BASE_REF")
 	_branch=${BASE_REF:-${_base_ref#"${REMOTE}/"}}
-	[ -n "${_base}" ] || blocked "NO_ADMISSION" "TASK: ${_task}"
+	[ -n "${_base}" ] || blocked "NO_ADMISSION" "TASK: ${_task}" "TASK_SELECTION: ${_sel}"
 	_wt_rec=$(read_record "${_rdir}" "WORKTREE")
-	worktree_registered_at "${_repo}" "${_wt_rec}" || blocked "WORKTREE_MISSING" "TASK: ${_task}" "WORKTREE: ${_wt_rec}"
+	worktree_registered_at "${_repo}" "${_wt_rec}" || blocked "WORKTREE_MISSING" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "WORKTREE: ${_wt_rec}"
 	fresh_fetch "${_repo}"
 	resolve_base "${_repo}" "${_branch}"
 	_current=${_BASE}
@@ -394,24 +405,28 @@ cmd_pre_publish() {
 		out "REQUIRED_CONTRACT: ${GIT_SAFETY_CONTRACT}"
 		out "OBSERVED_CONTRACT: ${GIT_SAFETY_CONTRACT}"
 		out "TASK: ${_task}"
+		out "TASK_SELECTION: ${_sel}"
 		out "ADMITTED_BASE: ${_base}"
 		out "CURRENT_BASE: ${_current}"
 		out "REMOTE_REF: ${REMOTE}/${_branch}"
 		out "CANDIDATE_HEAD: ${_head}"
+		out "CANDIDATE_SCOPE: admitted task worktree HEAD only (not the invoking checkout/main HEAD)"
 		out "WORKTREE: ${_wt_rec}"
 		out "AUTO_RECONCILIATION: none (merge/rebase/cherry-pick/force-push refused by baseline scope)"
-		out "DETAIL: topology-only verdict; current remote base differs from admitted base; candidate/worktree state is preserved and publication is not currently fast-forward eligible; remote movement by itself is not semantic invalidation; nothing was removed, overwritten, or reconciled"
-		out "REMEDIATION: return this topology result to the governing repository/runtime contract; classify intervening movement before choosing the next bounded transition (only overlapping semantic movement requires re-checking meaning and proof); do not bypass git-safety and do not merge/rebase/cherry-pick/force-push"
+		out "DETAIL: topology-only verdict about TASK ${_task} worktree candidate only (CANDIDATE_HEAD is the admitted task worktree HEAD, not the invoking checkout/main HEAD); current remote base differs from admitted base; candidate/worktree state is preserved and publication is not currently fast-forward eligible for this TASK candidate; this verdict is not proof about any other checkout/candidate; remote movement by itself is not semantic invalidation; nothing was removed, overwritten, or reconciled"
+		out "REMEDIATION: return this topology result to the governing repository/runtime contract; classify intervening movement before choosing the next bounded transition (only overlapping semantic movement requires re-checking meaning and proof); a BLOCKED result never authorizes raw-git publication of any candidate (including a different local HEAD that appears fast-forward-safe) — publish only the admitted TASK worktree HEAD after PUBLISHABLE_FF for that same TASK, or admit a fresh TASK for the intended candidate and re-prove; do not bypass git-safety and do not merge/rebase/cherry-pick/force-push"
 		exit $EXIT_BLOCKED
 	fi
 	git -C "${_wt_rec}" merge-base --is-ancestor "${_base}" "${_head}" 2>/dev/null \
-		|| blocked "CANDIDATE_DIVERGED" "TASK: ${_task}" "ADMITTED_BASE: ${_base}" "CANDIDATE_HEAD: ${_head}" "DETAIL: candidate does not descend from the admitted BASE"
+		|| blocked "CANDIDATE_DIVERGED" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "ADMITTED_BASE: ${_base}" "CANDIDATE_HEAD: ${_head}" "CANDIDATE_SCOPE: admitted task worktree HEAD only (not the invoking checkout/main HEAD)" "DETAIL: candidate (admitted task worktree HEAD) does not descend from the admitted BASE"
 	out "GIT_SAFETY: PUBLISHABLE_FF"
 	out "TASK: ${_task}"
+	out "TASK_SELECTION: ${_sel}"
 	out "ADMITTED_BASE: ${_base}"
 	out "CURRENT_BASE: ${_current}"
 	out "REMOTE_REF: ${REMOTE}/${_branch}"
 	out "CANDIDATE_HEAD: ${_head}"
+	out "CANDIDATE_SCOPE: admitted task worktree HEAD only (not the invoking checkout/main HEAD)"
 	out "WORKTREE: ${_wt_rec}"
 	exit $EXIT_OK
 }

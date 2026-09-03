@@ -475,5 +475,133 @@ assert_exit "spaced path check exit 0" "0" "${CODE}"
 assert_contains "spaced path check ok" "${OUTS2}" "GIT_SAFETY: OK"
 if [ -d "${WTS}" ]; then pass "spaced worktree path intact"; else fail "spaced worktree path intact" "WTS=${WTS}"; fi
 
+# --- 9. publication-identity: stale singleton is not proof for another candidate ---
+# Regression for the e2a6bbe publication ambiguity: `pre-publish` without an
+# explicit task-id implicitly selects the sole stored admission and reports that
+# task's worktree HEAD as CANDIDATE_HEAD. That verdict is scoped to the admitted
+# task candidate only and must never be mistaken for proof about a different
+# invoking-checkout/main HEAD, even when that other HEAD is fast-forward-safe.
+# Publication-intended checks must carry the same <task-id> from create through
+# pre-publish; a BLOCKED result never authorizes raw-git publication of any
+# candidate.
+# shellcheck disable=SC2046
+set -- $(make_origin_with_clone repoidentity)
+ID_BARE=$1
+ID_CLONE=$2
+ID_BASE=$(git -C "${ID_CLONE}" rev-parse origin/main)
+OUT_ID_CREATE="${TMPBASE}/t-identity-create.out"
+CODE=$(run_entry "${OUT_ID_CREATE}" -- --repo "${ID_CLONE}" create oldtask)
+assert_exit "identity: create oldtask exit 0" "0" "${CODE}"
+WT_OLD=$(field "${OUT_ID_CREATE}" 'WORKTREE')
+HEAD_OLD=$(git -C "${WT_OLD}" rev-parse HEAD)
+assert_eq "identity: worktree starts at admitted base" "${ID_BASE}" "${HEAD_OLD}"
+ID_OTHER="${TMPBASE}/identity-other"
+git clone -q "file://${ID_BARE}" "${ID_OTHER}" 2>/dev/null
+git -C "${ID_OTHER}" commit -q --allow-empty -m "identity-advance"
+git -C "${ID_OTHER}" push -q origin main
+ID_NEW_BASE=$(git -C "${ID_CLONE}" ls-remote "file://${ID_BARE}" refs/heads/main | awk '{print $1}')
+git -C "${ID_CLONE}" fetch -q origin
+git -C "${ID_CLONE}" checkout -q main
+git -C "${ID_CLONE}" reset -q --hard origin/main
+git -C "${ID_CLONE}" commit -q --allow-empty -m "identity-main-candidate"
+MAIN_HEAD=$(git -C "${ID_CLONE}" rev-parse HEAD)
+if [ "${MAIN_HEAD}" != "${HEAD_OLD}" ]; then
+	pass "identity: main HEAD differs from admitted worktree HEAD"
+else
+	fail "identity: main HEAD differs from admitted worktree HEAD" "both ${MAIN_HEAD}"
+fi
+if git -C "${ID_CLONE}" merge-base --is-ancestor "${ID_NEW_BASE}" "${MAIN_HEAD}" 2>/dev/null; then
+	pass "identity: main candidate descends from current remote base (FF-safe shape)"
+else
+	fail "identity: main candidate descends from current remote base (FF-safe shape)" "MAIN_HEAD=${MAIN_HEAD} NEW_BASE=${ID_NEW_BASE}"
+fi
+OUT_ID_IMP="${TMPBASE}/t-identity-implicit.out"
+CODE=$(run_entry "${OUT_ID_IMP}" -- --repo "${ID_CLONE}" pre-publish)
+assert_exit "identity: implicit pre-publish stays BLOCKED exit 3" "3" "${CODE}"
+assert_contains "identity: implicit verdict is BLOCKED" "${OUT_ID_IMP}" "GIT_SAFETY: BLOCKED"
+assert_contains "identity: implicit reason REMOTE_ADVANCED" "${OUT_ID_IMP}" "REASON: REMOTE_ADVANCED"
+assert_contains "identity: implicit reports stored TASK" "${OUT_ID_IMP}" "TASK: oldtask"
+assert_contains "identity: implicit selection is visible" "${OUT_ID_IMP}" "TASK_SELECTION: implicit-singleton"
+assert_contains "identity: candidate scope is worktree-only" "${OUT_ID_IMP}" "CANDIDATE_SCOPE:"
+assert_contains "identity: scope excludes invoking checkout" "${OUT_ID_IMP}" "not the invoking checkout/main HEAD"
+assert_eq "identity: implicit CANDIDATE_HEAD is worktree HEAD, not main HEAD" "${HEAD_OLD}" "$(field "${OUT_ID_IMP}" 'CANDIDATE_HEAD')"
+if [ "$(field "${OUT_ID_IMP}" 'CANDIDATE_HEAD')" != "${MAIN_HEAD}" ]; then
+	pass "identity: BLOCKED CANDIDATE_HEAD is not the main HEAD"
+else
+	fail "identity: BLOCKED CANDIDATE_HEAD is not the main HEAD" "confused with main ${MAIN_HEAD}"
+fi
+assert_contains "identity: BLOCKED is not proof about other candidates" "${OUT_ID_IMP}" "not proof about any other"
+assert_contains "identity: BLOCKED never authorizes any candidate" "${OUT_ID_IMP}" "never authorizes"
+OUT_ID_EXP="${TMPBASE}/t-identity-explicit.out"
+CODE=$(run_entry "${OUT_ID_EXP}" -- --repo "${ID_CLONE}" pre-publish oldtask)
+assert_exit "identity: explicit pre-publish stays BLOCKED exit 3" "3" "${CODE}"
+assert_contains "identity: explicit selection is visible" "${OUT_ID_EXP}" "TASK_SELECTION: explicit"
+assert_eq "identity: explicit CANDIDATE_HEAD matches implicit" "$(field "${OUT_ID_IMP}" 'CANDIDATE_HEAD')" "$(field "${OUT_ID_EXP}" 'CANDIDATE_HEAD')"
+OUT_ID_CHECK="${TMPBASE}/t-identity-check.out"
+CODE=$(run_entry "${OUT_ID_CHECK}" -- --repo "${ID_CLONE}" check oldtask)
+assert_exit "identity: explicit check exit 0" "0" "${CODE}"
+assert_contains "identity: check carries TASK_SELECTION" "${OUT_ID_CHECK}" "TASK_SELECTION: explicit"
+assert_contains "identity: check candidate scope worktree-only" "${OUT_ID_CHECK}" "not the invoking checkout/main HEAD"
+if grep -q -F './scripts/git-safety pre-publish <task-id>' "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md"; then
+	pass "identity: docs require explicit pre-publish <task-id>"
+else
+	fail "identity: docs require explicit pre-publish <task-id>" "DEVELOPMENT.md §8"
+fi
+if grep -q -F 'do not rely on singleton auto-selection' "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md"; then
+	pass "identity: docs forbid relying on singleton auto-selection for publication"
+else
+	fail "identity: docs forbid relying on singleton auto-selection for publication" "DEVELOPMENT.md §8"
+fi
+if grep -q -F 'never the invoking checkout/main HEAD' "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md"; then
+	pass "identity: docs scope CANDIDATE_HEAD to task worktree only"
+else
+	fail "identity: docs scope CANDIDATE_HEAD to task worktree only" "DEVELOPMENT.md §8"
+fi
+if grep -q -F 'never authorizes' "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md" && grep -q -F '§8 still owns Git publication safety' "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md"; then
+	pass "identity: docs state BLOCKED never authorizes bypass (§6 does not override §8)"
+else
+	fail "identity: docs state BLOCKED never authorizes bypass (§6 does not override §8)" "DEVELOPMENT.md §6/§8"
+fi
+if grep -q -F 'CANDIDATE_SCOPE:' "${CANON}"; then
+	pass "identity: canonical helper emits CANDIDATE_SCOPE"
+else
+	fail "identity: canonical helper emits CANDIDATE_SCOPE" "${CANON}"
+fi
+if grep -q -F 'TASK_SELECTION:' "${CANON}"; then
+	pass "identity: canonical helper emits TASK_SELECTION"
+else
+	fail "identity: canonical helper emits TASK_SELECTION" "${CANON}"
+fi
+if grep -q -F 'GIT_SAFETY_CONTRACT_VERSION="1"' "${CANON}"; then
+	pass "identity: contract remains bootstrap-git-safety/1"
+else
+	fail "identity: contract remains bootstrap-git-safety/1" "version changed"
+fi
+OUT_ID_NEW="${TMPBASE}/t-identity-new.out"
+CODE=$(run_entry "${OUT_ID_NEW}" -- --repo "${ID_CLONE}" create newtask)
+assert_exit "identity: create newtask at moved base exit 0" "0" "${CODE}"
+WT_NEW=$(field "${OUT_ID_NEW}" 'WORKTREE')
+echo "identity-payload" >"${WT_NEW}/identity.txt"
+git -C "${WT_NEW}" add identity.txt
+git -C "${WT_NEW}" commit -q -m "identity correct-flow change"
+NEW_HEAD=$(git -C "${WT_NEW}" rev-parse HEAD)
+OUT_ID_PRE="${TMPBASE}/t-identity-new-pre.out"
+CODE=$(run_entry "${OUT_ID_PRE}" -- --repo "${ID_CLONE}" pre-publish newtask)
+assert_exit "identity: correct-flow pre-publish exit 0" "0" "${CODE}"
+assert_contains "identity: correct-flow publishable" "${OUT_ID_PRE}" "GIT_SAFETY: PUBLISHABLE_FF"
+assert_contains "identity: correct-flow selection explicit" "${OUT_ID_PRE}" "TASK_SELECTION: explicit"
+assert_eq "identity: correct-flow candidate is worktree HEAD" "${NEW_HEAD}" "$(field "${OUT_ID_PRE}" 'CANDIDATE_HEAD')"
+git -C "${WT_NEW}" push -q origin "HEAD:main"
+ID_READBACK=$(git -C "${ID_CLONE}" ls-remote "file://${ID_BARE}" refs/heads/main | awk '{print $1}')
+assert_eq "identity: remote read-back matches published candidate" "${NEW_HEAD}" "${ID_READBACK}"
+OUT_ID_STALE="${TMPBASE}/t-identity-stale.out"
+CODE=$(run_entry "${OUT_ID_STALE}" -- --repo "${ID_CLONE}" pre-publish oldtask)
+assert_exit "identity: stale task still BLOCKED after advance exit 3" "3" "${CODE}"
+assert_contains "identity: stale reason still REMOTE_ADVANCED" "${OUT_ID_STALE}" "REASON: REMOTE_ADVANCED"
+OUT_ID_AMB="${TMPBASE}/t-identity-ambiguous.out"
+CODE=$(run_entry "${OUT_ID_AMB}" -- --repo "${ID_CLONE}" pre-publish)
+assert_exit "identity: implicit with two tasks is AMBIGUOUS exit 3" "3" "${CODE}"
+assert_contains "identity: ambiguous requires explicit" "${OUT_ID_AMB}" "REASON: AMBIGUOUS_TASK"
+
 printf '\n== result: %s passed, %s failed ==\n' "${PASS}" "${FAIL}"
 [ "${FAIL}" = "0" ]

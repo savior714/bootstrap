@@ -37,7 +37,7 @@ Prompts are disposable execution artifacts, not canonical project state. Investi
 
 ## 6. Publication closure
 
-Before publication, fetch fresh upstream state and determine whether intervening changes materially affect the task. Overlapping semantic movement requires re-checking meaning and proof before proceeding; unrelated movement does not.
+Before publication, fetch fresh upstream state and determine whether intervening changes materially affect the task. Overlapping semantic movement requires re-checking meaning and proof before proceeding; unrelated movement does not. §6 classifies semantic re-check requirements and the next bounded transition; it never authorizes bypassing a `BLOCKED` Git Safety result. §8 still owns Git publication safety.
 
 For publication-intended work, when the current user instruction authorizes it and no local-only restriction exists:
 
@@ -67,6 +67,6 @@ Before repository mutation:
 1. admit a fresh remote base: `./scripts/git-safety create <task-id>`;
 2. work only in the admitted task-owned worktree;
 3. do not bypass a `BLOCKED` Git Safety result with raw Git (`git worktree add`, manual branches, or direct checkout mutation are not substitutes);
-4. before publication, re-check fresh topology: `./scripts/git-safety pre-publish [<task-id>]` — publication is fast-forward-only and the helper never merges, rebases, cherry-picks, or force-pushes.
+4. before publication, re-check fresh topology for the same task: `./scripts/git-safety pre-publish <task-id>` (pass the same `<task-id>` used at `create`; do not rely on singleton auto-selection) — the reported `CANDIDATE_HEAD` is the admitted task-owned worktree HEAD only, never the invoking checkout/main HEAD, and the verdict covers only that task candidate. Publication is fast-forward-only and the helper never merges, rebases, cherry-picks, or force-pushes. A `BLOCKED` result never authorizes raw-Git publication of any candidate (including a different local HEAD that appears fast-forward-safe); publish only the admitted task worktree HEAD after `PUBLISHABLE_FF` for that same task, or admit a fresh task for the intended candidate and re-prove.
 
 `./scripts/git-safety` is the stable entrypoint; any convenience alias delegates to it and owns no independent semantics. If the helper reports missing/incompatible/unverifiable implementation, re-apply the bootstrap `scripts/` starter per the output's `REMEDIATION`, never a local safety reimplementation.
