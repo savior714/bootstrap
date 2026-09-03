@@ -21,7 +21,13 @@ docs/
 └── operations/
     ├── DEVELOPMENT.md
     └── TESTING.md
+scripts/
+├── git-safety                        # thin repo-local entrypoint (delegates only)
+└── lib/
+    └── git-safety-canonical.sh       # central canonical implementation (sole semantics owner)
 ```
+
+`scripts/` carries the conditional Git Safety Baseline (agent-mutable + shared-remote repositories only; see `docs/operations/DEVELOPMENT.md` §8). The entrypoint only discovers, contract-verifies, and delegates to the canonical implementation; it owns no Git safety semantics.
 
 For an existing repository, merge the semantics into the existing owners instead of blindly duplicating files or authority.
 

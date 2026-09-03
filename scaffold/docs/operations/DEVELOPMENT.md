@@ -55,3 +55,16 @@ If publication cannot safely complete, report `CONTINUABLE` or `BLOCKED` with th
 ## 7. Concurrency
 
 Independent work may proceed independently when mutation, authority, and evidence boundaries are independent. Add coordination machinery only after direct recurring evidence demonstrates that ordinary repository-native practice cannot preserve the required semantics at lower cost.
+
+## 8. Git Safety Baseline (conditional)
+
+Applies only when this repository is agent-mutable **and** uses a shared remote. Local-only scratch repositories are out of scope and must not gain coupling to this section.
+
+Before repository mutation:
+
+1. admit a fresh remote base: `./scripts/git-safety create <task-id>`;
+2. work only in the admitted task-owned worktree;
+3. do not bypass a `BLOCKED` Git Safety result with raw Git (`git worktree add`, manual branches, or direct checkout mutation are not substitutes);
+4. before publication, re-check fresh topology: `./scripts/git-safety pre-publish [<task-id>]` — publication is fast-forward-only and the helper never merges, rebases, cherry-picks, or force-pushes.
+
+`./scripts/git-safety` is the stable entrypoint; any convenience alias delegates to it and owns no independent semantics. If the helper reports missing/incompatible/unverifiable implementation, re-apply the bootstrap `scripts/` starter per the output's `REMEDIATION`, never a local safety reimplementation.

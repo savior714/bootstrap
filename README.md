@@ -11,6 +11,7 @@ Bootstrap a repository with the smallest durable development kernel needed for r
 - `AGENTS.md` — precedence, authority routing, and decision boundary
 - `docs/operations/DEVELOPMENT.md` — bounded repository-native execution and publication closure
 - `docs/operations/TESTING.md` — evidence and validation semantics
+- `scripts/git-safety` — conditional Git Safety Baseline entrypoint (agent-mutable + shared-remote repositories only): fresh remote BASE admission into a task-owned worktree before mutation; no daemon, queue, scheduler, lock, or reconciliation engine
 
 The reusable templates live under [`scaffold/`](scaffold/).
 
