@@ -142,7 +142,7 @@ discover_branch() {
 		return 0
 	fi
 	for _candidate in main master; do
-		if [ -n "$(git -C "${1}" ls-remote --heads "${REMOTE}" "${_candidate}" 2>/dev/null || true)" ]; then
+		if [ -n "$(git -C "${1}" ls-remote --branches "${REMOTE}" "${_candidate}" 2>/dev/null || true)" ]; then
 			_BRANCH=${_candidate}
 			return 0
 		fi
