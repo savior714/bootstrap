@@ -517,26 +517,46 @@ else
 fi
 OUT_ID_IMP="${TMPBASE}/t-identity-implicit.out"
 CODE=$(run_entry "${OUT_ID_IMP}" -- --repo "${ID_CLONE}" pre-publish)
-assert_exit "identity: implicit pre-publish stays BLOCKED exit 3" "3" "${CODE}"
-assert_contains "identity: implicit verdict is BLOCKED" "${OUT_ID_IMP}" "GIT_SAFETY: BLOCKED"
-assert_contains "identity: implicit reason REMOTE_ADVANCED" "${OUT_ID_IMP}" "REASON: REMOTE_ADVANCED"
-assert_contains "identity: implicit reports stored TASK" "${OUT_ID_IMP}" "TASK: oldtask"
-assert_contains "identity: implicit selection is visible" "${OUT_ID_IMP}" "TASK_SELECTION: implicit-singleton"
-assert_contains "identity: candidate scope is worktree-only" "${OUT_ID_IMP}" "CANDIDATE_SCOPE:"
-assert_contains "identity: scope excludes invoking checkout" "${OUT_ID_IMP}" "not the invoking checkout/main HEAD"
-assert_eq "identity: implicit CANDIDATE_HEAD is worktree HEAD, not main HEAD" "${HEAD_OLD}" "$(field "${OUT_ID_IMP}" 'CANDIDATE_HEAD')"
-if [ "$(field "${OUT_ID_IMP}" 'CANDIDATE_HEAD')" != "${MAIN_HEAD}" ]; then
+assert_exit "identity: bare pre-publish from unrelated checkout stays BLOCKED exit 3" "3" "${CODE}"
+assert_contains "identity: unrelated bare verdict is BLOCKED" "${OUT_ID_IMP}" "GIT_SAFETY: BLOCKED"
+assert_contains "identity: unrelated bare requires explicit task-id" "${OUT_ID_IMP}" "REASON: TASK_ID_REQUIRED"
+assert_contains "identity: unrelated bare carries invocation repo" "${OUT_ID_IMP}" "INVOCATION_REPO:"
+assert_contains "identity: unrelated bare never implicitly selects" "${OUT_ID_IMP}" "never implicitly selects an unrelated admission"
+assert_contains "identity: unrelated bare remediation offers explicit or worktree" "${OUT_ID_IMP}" "explicit task-id"
+if grep -q -F "REASON: REMOTE_ADVANCED" "${OUT_ID_IMP}"; then
+	fail "identity: stale sole admission from unrelated checkout must not report REMOTE_ADVANCED" "found REMOTE_ADVANCED in ${OUT_ID_IMP}"
+else
+	pass "identity: stale sole admission from unrelated checkout must not report REMOTE_ADVANCED"
+fi
+if [ -f "${ID_CLONE}/.git/git-safety/tasks/oldtask/BASE" ]; then
+	pass "identity: fail-closed bare pre-publish preserves admission record"
+else
+	fail "identity: fail-closed bare pre-publish preserves admission record" "record missing"
+fi
+OUT_ID_WT="${TMPBASE}/t-identity-worktree-implicit.out"
+CODE=$(run_entry "${OUT_ID_WT}" -- --repo "${WT_OLD}" pre-publish)
+assert_exit "identity: bare pre-publish from admitted worktree stays BLOCKED exit 3" "3" "${CODE}"
+assert_contains "identity: worktree implicit verdict is BLOCKED" "${OUT_ID_WT}" "GIT_SAFETY: BLOCKED"
+assert_contains "identity: worktree implicit reason REMOTE_ADVANCED" "${OUT_ID_WT}" "REASON: REMOTE_ADVANCED"
+assert_contains "identity: worktree implicit reports stored TASK" "${OUT_ID_WT}" "TASK: oldtask"
+assert_contains "identity: worktree implicit selection is visible" "${OUT_ID_WT}" "TASK_SELECTION: implicit-singleton"
+assert_contains "identity: candidate scope is worktree-only" "${OUT_ID_WT}" "CANDIDATE_SCOPE:"
+assert_contains "identity: scope excludes invoking checkout" "${OUT_ID_WT}" "not the invoking checkout/main HEAD"
+assert_eq "identity: worktree implicit CANDIDATE_HEAD is worktree HEAD, not main HEAD" "${HEAD_OLD}" "$(field "${OUT_ID_WT}" 'CANDIDATE_HEAD')"
+if [ "$(field "${OUT_ID_WT}" 'CANDIDATE_HEAD')" != "${MAIN_HEAD}" ]; then
 	pass "identity: BLOCKED CANDIDATE_HEAD is not the main HEAD"
 else
 	fail "identity: BLOCKED CANDIDATE_HEAD is not the main HEAD" "confused with main ${MAIN_HEAD}"
 fi
-assert_contains "identity: BLOCKED is not proof about other candidates" "${OUT_ID_IMP}" "not proof about any other"
-assert_contains "identity: BLOCKED never authorizes any candidate" "${OUT_ID_IMP}" "never authorizes"
+assert_contains "identity: BLOCKED is not proof about other candidates" "${OUT_ID_WT}" "not proof about any other"
+assert_contains "identity: BLOCKED never authorizes any candidate" "${OUT_ID_WT}" "never authorizes"
 OUT_ID_EXP="${TMPBASE}/t-identity-explicit.out"
 CODE=$(run_entry "${OUT_ID_EXP}" -- --repo "${ID_CLONE}" pre-publish oldtask)
 assert_exit "identity: explicit pre-publish stays BLOCKED exit 3" "3" "${CODE}"
 assert_contains "identity: explicit selection is visible" "${OUT_ID_EXP}" "TASK_SELECTION: explicit"
-assert_eq "identity: explicit CANDIDATE_HEAD matches implicit" "$(field "${OUT_ID_IMP}" 'CANDIDATE_HEAD')" "$(field "${OUT_ID_EXP}" 'CANDIDATE_HEAD')"
+assert_contains "identity: explicit reports stored TASK" "${OUT_ID_EXP}" "TASK: oldtask"
+assert_contains "identity: explicit stale stays topology-only" "${OUT_ID_EXP}" "topology-only verdict"
+assert_eq "identity: explicit CANDIDATE_HEAD matches worktree implicit" "$(field "${OUT_ID_WT}" 'CANDIDATE_HEAD')" "$(field "${OUT_ID_EXP}" 'CANDIDATE_HEAD')"
 OUT_ID_CHECK="${TMPBASE}/t-identity-check.out"
 CODE=$(run_entry "${OUT_ID_CHECK}" -- --repo "${ID_CLONE}" check oldtask)
 assert_exit "identity: explicit check exit 0" "0" "${CODE}"
@@ -562,6 +582,21 @@ if grep -q -F 'never authorizes' "${ROOT}/scaffold/docs/operations/DEVELOPMENT.m
 else
 	fail "identity: docs state BLOCKED never authorizes bypass (§6 does not override §8)" "DEVELOPMENT.md §6/§8"
 fi
+if grep -q -F 'an omitted `<task-id>` is inferred only when the invocation repository' "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md"; then
+	pass "identity: docs state context-bound omitted-id inference only"
+else
+	fail "identity: docs state context-bound omitted-id inference only" "DEVELOPMENT.md §8"
+fi
+if grep -q -F 'TASK_ID_REQUIRED' "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md"; then
+	pass "identity: docs name TASK_ID_REQUIRED for lone unrelated admission"
+else
+	fail "identity: docs name TASK_ID_REQUIRED for lone unrelated admission" "DEVELOPMENT.md §8"
+fi
+if grep -q -F 'never reports that unrelated admission' "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md"; then
+	pass "identity: docs forbid unrelated REMOTE_ADVANCED on bare pre-publish"
+else
+	fail "identity: docs forbid unrelated REMOTE_ADVANCED on bare pre-publish" "DEVELOPMENT.md §8"
+fi
 if grep -q -F 'CANDIDATE_SCOPE:' "${CANON}"; then
 	pass "identity: canonical helper emits CANDIDATE_SCOPE"
 else
@@ -571,6 +606,16 @@ if grep -q -F 'TASK_SELECTION:' "${CANON}"; then
 	pass "identity: canonical helper emits TASK_SELECTION"
 else
 	fail "identity: canonical helper emits TASK_SELECTION" "${CANON}"
+fi
+if grep -q -F 'TASK_ID_REQUIRED' "${CANON}"; then
+	pass "identity: canonical helper emits TASK_ID_REQUIRED"
+else
+	fail "identity: canonical helper emits TASK_ID_REQUIRED" "${CANON}"
+fi
+if grep -q -F 'implicit-worktree' "${CANON}"; then
+	pass "identity: canonical helper emits implicit-worktree for multi-task worktree inference"
+else
+	fail "identity: canonical helper emits implicit-worktree for multi-task worktree inference" "${CANON}"
 fi
 if grep -q -F 'GIT_SAFETY_CONTRACT_VERSION="1"' "${CANON}"; then
 	pass "identity: contract remains bootstrap-git-safety/1"
@@ -598,10 +643,80 @@ OUT_ID_STALE="${TMPBASE}/t-identity-stale.out"
 CODE=$(run_entry "${OUT_ID_STALE}" -- --repo "${ID_CLONE}" pre-publish oldtask)
 assert_exit "identity: stale task still BLOCKED after advance exit 3" "3" "${CODE}"
 assert_contains "identity: stale reason still REMOTE_ADVANCED" "${OUT_ID_STALE}" "REASON: REMOTE_ADVANCED"
+assert_contains "identity: stale explicit keeps BLOCKED verdict" "${OUT_ID_STALE}" "GIT_SAFETY: BLOCKED"
+assert_contains "identity: stale explicit keeps topology-only" "${OUT_ID_STALE}" "topology-only verdict"
+assert_contains "identity: stale explicit selects requested task" "${OUT_ID_STALE}" "TASK: oldtask"
+assert_contains "identity: stale explicit selection visible" "${OUT_ID_STALE}" "TASK_SELECTION: explicit"
 OUT_ID_AMB="${TMPBASE}/t-identity-ambiguous.out"
 CODE=$(run_entry "${OUT_ID_AMB}" -- --repo "${ID_CLONE}" pre-publish)
 assert_exit "identity: implicit with two tasks is AMBIGUOUS exit 3" "3" "${CODE}"
 assert_contains "identity: ambiguous requires explicit" "${OUT_ID_AMB}" "REASON: AMBIGUOUS_TASK"
+if grep -q -F "REASON: REMOTE_ADVANCED" "${OUT_ID_AMB}"; then
+	fail "identity: multi-task unrelated bare must not report REMOTE_ADVANCED" "found REMOTE_ADVANCED in ${OUT_ID_AMB}"
+else
+	pass "identity: multi-task unrelated bare must not report REMOTE_ADVANCED"
+fi
+if grep -q -F "PUBLISHABLE_FF" "${OUT_ID_AMB}"; then
+	fail "identity: multi-task unrelated bare must not report PUBLISHABLE" "found PUBLISHABLE in ${OUT_ID_AMB}"
+else
+	pass "identity: multi-task unrelated bare must not report PUBLISHABLE"
+fi
+
+# --- 10. task-identity selection proof (A-E) --------------------------------------
+# A. explicit task identity with several admissions selects exactly that task.
+assert_contains "proof-A: explicit oldtask selects oldtask" "${OUT_ID_STALE}" "TASK: oldtask"
+assert_contains "proof-A: explicit newtask flow selects newtask" "${OUT_ID_PRE}" "TASK: newtask"
+if [ "$(field "${OUT_ID_STALE}" 'TASK')" != "oldtask" ]; then
+	fail "proof-A: explicit oldtask TASK field exact" "$(field "${OUT_ID_STALE}" 'TASK')"
+else
+	pass "proof-A: explicit oldtask TASK field exact"
+fi
+# B. current admitted worktree + omitted id keeps the convenience safely.
+# After publication WT_NEW is itself stale (its admitted BASE predates its own
+# push), so prove PUBLISHABLE inference on a fresh admission at current base.
+OUT_B_FRESH="${TMPBASE}/t-proof-b-fresh.out"
+CODE=$(run_entry "${OUT_B_FRESH}" -- --repo "${ID_CLONE}" create proofb)
+assert_exit "proof-B: create fresh task at current base exit 0" "0" "${CODE}"
+WT_B=$(field "${OUT_B_FRESH}" 'WORKTREE')
+HEAD_B=$(git -C "${WT_B}" rev-parse HEAD)
+OUT_B_WT="${TMPBASE}/t-proof-b-worktree.out"
+CODE=$(run_entry "${OUT_B_WT}" -- --repo "${WT_B}" pre-publish)
+assert_exit "proof-B: bare pre-publish from admitted worktree exit 0" "0" "${CODE}"
+assert_contains "proof-B: worktree inference publishable" "${OUT_B_WT}" "GIT_SAFETY: PUBLISHABLE_FF"
+assert_contains "proof-B: worktree inference selects proofb" "${OUT_B_WT}" "TASK: proofb"
+assert_contains "proof-B: multi-task worktree selection visible" "${OUT_B_WT}" "TASK_SELECTION: implicit-worktree"
+assert_eq "proof-B: worktree candidate is its own HEAD" "${HEAD_B}" "$(field "${OUT_B_WT}" 'CANDIDATE_HEAD')"
+OUT_B_CHECK="${TMPBASE}/t-proof-b-check.out"
+CODE=$(run_entry "${OUT_B_CHECK}" -- --repo "${WT_B}" check)
+assert_exit "proof-B: bare check from admitted worktree exit 0" "0" "${CODE}"
+assert_contains "proof-B: bare check selects worktree task" "${OUT_B_CHECK}" "TASK: proofb"
+# The published-but-now-stale WT_NEW still infers its own identity safely.
+OUT_B_STALE_WT="${TMPBASE}/t-proof-b-stale-wt.out"
+CODE=$(run_entry "${OUT_B_STALE_WT}" -- --repo "${WT_NEW}" pre-publish)
+assert_exit "proof-B: bare pre-publish from stale worktree stays BLOCKED exit 3" "3" "${CODE}"
+assert_contains "proof-B: stale worktree inference reports REMOTE_ADVANCED" "${OUT_B_STALE_WT}" "REASON: REMOTE_ADVANCED"
+assert_contains "proof-B: stale worktree inference selects newtask" "${OUT_B_STALE_WT}" "TASK: newtask"
+# C. stale sole admission from unrelated checkout is already proven above via
+# OUT_ID_IMP (TASK_ID_REQUIRED, no REMOTE_ADVANCED, record preserved).
+# Re-assert the fixture shape here for cold readers.
+if [ "$(cat "${ID_CLONE}/.git/git-safety/tasks/oldtask/BASE")" = "${ID_BASE}" ]; then
+	pass "proof-C: stale fixture admitted base is still original B"
+else
+	fail "proof-C: stale fixture admitted base is still original B" "record changed"
+fi
+# D. multiple admissions with no safe connection never guess (covered by AMB).
+if [ -f "${ID_CLONE}/.git/git-safety/tasks/oldtask/BASE" ] && [ -f "${ID_CLONE}/.git/git-safety/tasks/newtask/BASE" ]; then
+	pass "proof-D: ambiguous fail-closed preserves both admission records"
+else
+	fail "proof-D: ambiguous fail-closed preserves both admission records" "record missing"
+fi
+# E. existing topology semantics preserved on the explicit stale path.
+assert_contains "proof-E: explicit stale keeps exit-3 BLOCKED shape" "${OUT_ID_STALE}" "GIT_SAFETY: BLOCKED"
+if grep -q -F "SEMANTIC_INVALID" "${OUT_ID_STALE}"; then
+	fail "proof-E: explicit stale stays topology-only" "found SEMANTIC_INVALID"
+else
+	pass "proof-E: explicit stale stays topology-only"
+fi
 
 printf '\n== result: %s passed, %s failed ==\n' "${PASS}" "${FAIL}"
 [ "${FAIL}" = "0" ]

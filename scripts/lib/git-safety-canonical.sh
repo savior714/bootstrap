@@ -208,14 +208,20 @@ default_worktree_path() {
 }
 
 select_task() {
-	# $1 = safety dir, $2 = maybe-task. Sets _TASK and _TASK_SELECTION or BLOCKEDs.
-	# _TASK_SELECTION is "explicit" when the caller passed <task-id> and
-	# "implicit-singleton" when the sole stored admission was auto-selected.
-	# Publication-intended checks must pass an explicit <task-id>; the implicit
-	# path exists only for backward-compatible diagnostics and its verdict
-	# covers only the auto-selected task's worktree candidate.
+	# $1 = safety dir, $2 = maybe-task, $3 = invocation repo physical top-level.
+	# Sets _TASK and _TASK_SELECTION or BLOCKEDs.
+	# _TASK_SELECTION is "explicit" when the caller passed <task-id>,
+	# "implicit-singleton" when the sole stored admission is selected via
+	# invocation-worktree inference, and "implicit-worktree" when the
+	# invocation repository is exactly one of several admissions' WORKTREE.
+	# An omitted <task-id> never selects a stored admission merely because one
+	# exists: inference requires direct evidence that the invocation repository
+	# IS the admitted task worktree. A lone unrelated admission fails closed
+	# with TASK_ID_REQUIRED; several unrelated admissions fail closed with
+	# AMBIGUOUS_TASK. No record is created, deleted, or rewritten here.
 	_sdir=$1
 	_maybe=$2
+	_inv=${3:-}
 	if [ -n "${_maybe}" ]; then
 		valid_task_id "${_maybe}" || blocked "INVALID_TASK_ID" "TASK: ${_maybe}"
 		[ -f "${_sdir}/tasks/${_maybe}/BASE" ] || blocked "NO_ADMISSION" "TASK: ${_maybe}" "DETAIL: no admission record; run 'create ${_maybe}' first"
@@ -225,19 +231,53 @@ select_task() {
 	fi
 	_count=0
 	_only=""
+	_match_count=0
+	_match_task=""
 	if [ -d "${_sdir}/tasks" ]; then
 		for _d in "${_sdir}"/tasks/*/; do
 			[ -d "${_d}" ] || continue
 			[ -f "${_d}/BASE" ] || continue
 			_count=$((_count + 1))
 			_only=$(basename "${_d}")
+			if [ -n "${_inv}" ] && [ -f "${_d}/WORKTREE" ]; then
+				_wt_try=$(cat "${_d}/WORKTREE" 2>/dev/null || true)
+				if [ -n "${_wt_try}" ] && [ "${_wt_try}" = "${_inv}" ]; then
+					_match_count=$((_match_count + 1))
+					_match_task=$(basename "${_d}")
+				fi
+			fi
 		done
 	fi
-	if [ "${_count}" = "1" ]; then
-		_TASK=${_only}
-		_TASK_SELECTION="implicit-singleton"
-	elif [ "${_count}" = "0" ]; then
+	if [ "${_count}" = "0" ]; then
 		blocked "NO_ADMISSION" "DETAIL: no admission record; run 'create <task-id>' first"
+	fi
+	if [ "${_match_count}" = "1" ]; then
+		_TASK=${_match_task}
+		if [ "${_count}" = "1" ]; then
+			_TASK_SELECTION="implicit-singleton"
+		else
+			_TASK_SELECTION="implicit-worktree"
+		fi
+		return 0
+	fi
+	if [ "${_match_count}" -gt "1" ]; then
+		out "GIT_SAFETY: BLOCKED"
+		out "REASON: AMBIGUOUS_TASK"
+		out "REQUIRED_CONTRACT: ${GIT_SAFETY_CONTRACT}"
+		out "OBSERVED_CONTRACT: ${GIT_SAFETY_CONTRACT}"
+		out "DETAIL: ${_match_count} admitted worktrees match the invocation repository; re-run with an explicit <task-id>"
+		out "REMEDIATION: retry with an explicit task-id; do not bypass with raw git"
+		exit $EXIT_BLOCKED
+	fi
+	if [ "${_count}" = "1" ]; then
+		out "GIT_SAFETY: BLOCKED"
+		out "REASON: TASK_ID_REQUIRED"
+		out "REQUIRED_CONTRACT: ${GIT_SAFETY_CONTRACT}"
+		out "OBSERVED_CONTRACT: ${GIT_SAFETY_CONTRACT}"
+		out "INVOCATION_REPO: ${_inv}"
+		out "DETAIL: 1 admitted task exists but the invocation repository is not its admitted worktree; omitted <task-id> never implicitly selects an unrelated admission — re-run with an explicit <task-id> or invoke from the admitted worktree (--repo <worktree>)"
+		out "REMEDIATION: retry with an explicit task-id (or invoke from the admitted task worktree); do not bypass with raw git"
+		exit $EXIT_BLOCKED
 	else
 		out "GIT_SAFETY: BLOCKED"
 		out "REASON: AMBIGUOUS_TASK"
@@ -342,7 +382,7 @@ cmd_check() {
 	common_dir "${_repo}"
 	_cdir=${_CDIR}
 	_sdir="${_cdir}/git-safety"
-	select_task "${_sdir}" "${1:-}"
+	select_task "${_sdir}" "${1:-}" "${_repo}"
 	_task=${_TASK}
 	_sel=${_TASK_SELECTION}
 	_rdir=$(record_dir "${_cdir}" "${_task}")
@@ -385,7 +425,7 @@ cmd_pre_publish() {
 	common_dir "${_repo}"
 	_cdir=${_CDIR}
 	_sdir="${_cdir}/git-safety"
-	select_task "${_sdir}" "${1:-}"
+	select_task "${_sdir}" "${1:-}" "${_repo}"
 	_task=${_TASK}
 	_sel=${_TASK_SELECTION}
 	_rdir=$(record_dir "${_cdir}" "${_task}")
