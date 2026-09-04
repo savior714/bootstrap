@@ -893,5 +893,30 @@ else
 	fail "close-H: root materialization identical to scaffold template (no drift)" "diff root scripts/ vs scaffold/scripts/"
 fi
 
+# H2. usage lifecycle clarity (help surface only; no behavior change).
+OUT_H2="${TMPBASE}/t-usage-lifecycle.out"
+CODE=$(run_entry "${OUT_H2}" -- --help)
+assert_exit "usage-H2: --help exit 2" "2" "${CODE}"
+assert_contains "usage-H2: lifecycle ordering" "${OUT_H2}" "lifecycle: create → work → check/pre-publish → publish/read-back → close"
+assert_contains "usage-H2: create meaning" "${OUT_H2}" "fresh BASE admission + task worktree creation/recording"
+assert_contains "usage-H2: check is not publication verdict" "${OUT_H2}" "NOT a publication verdict"
+assert_contains "usage-H2: pre-publish does not push" "${OUT_H2}" "DOES NOT PUSH"
+assert_contains "usage-H2: separate publish/read-back same HEAD" "${OUT_H2}" "SAME admitted task worktree HEAD"
+assert_contains "usage-H2: close resource lifecycle" "${OUT_H2}" "resource/admission cleanup"
+assert_contains "usage-H2: close infers no completion" "${OUT_H2}" "DOES NOT infer semantic completion"
+assert_contains "usage-H2: exit-code contract" "${OUT_H2}" "exit codes: 0 ok/admitted/publishable/closed/not-applicable, 2 usage error, 3 blocked."
+assert_contains "usage-H2: admitted verdict" "${OUT_H2}" "ADMITTED"
+assert_contains "usage-H2: publishable verdict" "${OUT_H2}" "PUBLISHABLE_FF"
+assert_contains "usage-H2: closed verdict" "${OUT_H2}" "CLOSED"
+if grep -q -F "lifecycle: create → work → check/pre-publish → publish/read-back → close" "${ROOT}/scaffold/scripts/lib/git-safety-canonical.sh"; then
+	pass "usage-H2: scaffold canonical owns lifecycle help"
+else
+	fail "usage-H2: scaffold canonical owns lifecycle help" "missing in scaffold canonical"
+fi
+OUT_H2_HELP="${TMPBASE}/t-usage-help-alias.out"
+CODE=$(run_entry "${OUT_H2_HELP}" -- help)
+assert_exit "usage-H2: help stays version alias exit 0" "0" "${CODE}"
+assert_contains "usage-H2: help version contract" "${OUT_H2_HELP}" "CONTRACT: bootstrap-git-safety/1"
+
 printf '\n== result: %s passed, %s failed ==\n' "${PASS}" "${FAIL}"
 [ "${FAIL}" = "0" ]

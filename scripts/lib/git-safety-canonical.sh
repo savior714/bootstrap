@@ -62,6 +62,13 @@ usage:
   git-safety version
   git-safety help
 
+lifecycle: create → work → check/pre-publish → publish/read-back → close
+  create: fresh BASE admission + task worktree creation/recording (ADMITTED)
+  check: admitted-state/worktree verification only; NOT a publication verdict (OK)
+  pre-publish: fresh topology recheck + FF-eligible verdict only; DOES NOT PUSH (PUBLISHABLE_FF)
+  publish/read-back: separate operator/runtime action using the SAME admitted task worktree HEAD
+  close: resource/admission cleanup after required publication/read-back; DOES NOT infer semantic completion (CLOSED)
+
 exit codes: 0 ok/admitted/publishable/closed/not-applicable, 2 usage error, 3 blocked.
 USAGE
 	exit $EXIT_USAGE
