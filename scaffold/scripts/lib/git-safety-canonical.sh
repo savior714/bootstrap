@@ -58,10 +58,11 @@ usage:
   git-safety [--repo <path>] [--remote <name>] create <task-id> [--base-ref <branch>] [--worktree <path>]
   git-safety [--repo <path>] check [ <task-id> ]
   git-safety [--repo <path>] [--remote <name>] pre-publish [ <task-id> ] [--base-ref <branch>]
+  git-safety [--repo <path>] [--remote <name>] close [ <task-id> ]
   git-safety version
   git-safety help
 
-exit codes: 0 ok/admitted/publishable/not-applicable, 2 usage error, 3 blocked.
+exit codes: 0 ok/admitted/publishable/closed/not-applicable, 2 usage error, 3 blocked.
 USAGE
 	exit $EXIT_USAGE
 }
@@ -493,6 +494,64 @@ cmd_version() {
 	exit $EXIT_OK
 }
 
+cmd_close() {
+	# $1 = maybe-task. Safe resource-lifecycle closure for a completed task.
+	# Removes ONLY the admitted task-owned linked worktree (never forced)
+	# and, after verified removal, ONLY that task's admission record. Never
+	# infers semantic completion: the caller requests closure after semantic
+	# and publication closure; this owns objective Git safety only. Any
+	# failure is fail-closed with state preserved.
+	resolve_repo "${REPO}"
+	_repo=${_REPO}
+	remote_configured "${_repo}" || not_applicable "REMOTE: ${REMOTE} (not configured)"
+	common_dir "${_repo}"
+	_cdir=${_CDIR}
+	_sdir="${_cdir}/git-safety"
+	select_task "${_sdir}" "${1:-}" "${_repo}"
+	_task=${_TASK}
+	_sel=${_TASK_SELECTION}
+	_rdir=$(record_dir "${_cdir}" "${_task}")
+	_base=$(read_record "${_rdir}" "BASE")
+	_base_ref=$(read_record "${_rdir}" "BASE_REF")
+	_rurl_rec=$(read_record "${_rdir}" "REMOTE_URL")
+	_wt_rec=$(read_record "${_rdir}" "WORKTREE")
+	[ -n "${_base}" ] && [ -n "${_wt_rec}" ] || blocked "NO_ADMISSION" "TASK: ${_task}" "TASK_SELECTION: ${_sel}"
+	worktree_registered_at "${_repo}" "${_wt_rec}" || blocked "WORKTREE_MISSING" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "WORKTREE: ${_wt_rec}" "DETAIL: admitted worktree is not registered; state was preserved, nothing was removed and the admission record was kept"
+	_live_url=$(remote_url "${_repo}")
+	if [ -n "${_rurl_rec}" ] && [ -n "${_live_url}" ] && [ "${_rurl_rec}" != "${_live_url}" ]; then
+		blocked "REMOTE_MISMATCH" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "ADMITTED_REMOTE_URL: ${_rurl_rec}" "CURRENT_REMOTE_URL: ${_live_url}"
+	fi
+	if [ -n "$(git -C "${_wt_rec}" status --porcelain 2>/dev/null)" ]; then
+		blocked "WORKTREE_DIRTY" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "WORKTREE: ${_wt_rec}" "DETAIL: task worktree has uncommitted or untracked changes; state was preserved, nothing was removed"
+	fi
+	_head=$(git -C "${_wt_rec}" rev-parse HEAD 2>/dev/null || true)
+	[ -n "${_head}" ] || blocked "WORKTREE_MISSING" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "WORKTREE: ${_wt_rec}"
+	_branch=${_base_ref#"${REMOTE}/"}
+	[ -n "${_branch}" ] || blocked "NO_ADMISSION" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "DETAIL: admission record has no BASE_REF"
+	fresh_fetch "${_repo}"
+	resolve_base "${_repo}" "${_branch}"
+	_current=${_BASE}
+	if ! git -C "${_repo}" merge-base --is-ancestor "${_head}" "${_current}" 2>/dev/null; then
+		blocked "UNPUBLISHED_CANDIDATE" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "ADMITTED_BASE: ${_base}" "CANDIDATE_HEAD: ${_head}" "CANDIDATE_SCOPE: admitted task worktree HEAD only (not the invoking checkout/main HEAD)" "CURRENT_BASE: ${_current}" "REMOTE_REF: ${REMOTE}/${_branch}" "DETAIL: candidate is not contained in current canonical remote history; removing the worktree could discard an unpublished unique candidate — worktree and admission record were preserved"
+	fi
+	if ! _err=$(git -C "${_repo}" worktree remove -- "${_wt_rec}" 2>&1); then
+		_detail=$(printf '%s\n' "${_err}" | head -n 1)
+		blocked "WORKTREE_REMOVE_FAILED" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "WORKTREE: ${_wt_rec}" "DETAIL: ${_detail}"
+	fi
+	worktree_registered_at "${_repo}" "${_wt_rec}" && blocked "WORKTREE_REMOVE_FAILED" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "WORKTREE: ${_wt_rec}" "DETAIL: worktree still registered after removal; admission record was kept"
+	rm -rf "${_rdir}"
+	[ -e "${_rdir}" ] && blocked "WORKTREE_REMOVE_FAILED" "TASK: ${_task}" "TASK_SELECTION: ${_sel}" "DETAIL: admission record could not be removed; worktree was already removed"
+	out "GIT_SAFETY: CLOSED"
+	out "TASK: ${_task}"
+	out "TASK_SELECTION: ${_sel}"
+	out "ADMITTED_BASE: ${_base}"
+	out "CANDIDATE_HEAD: ${_head}"
+	out "CURRENT_BASE: ${_current}"
+	out "REMOTE_REF: ${REMOTE}/${_branch}"
+	out "WORKTREE: ${_wt_rec}"
+	exit $EXIT_OK
+}
+
 # --- argument parsing ----------------------------------------------------------
 
 main() {
@@ -559,6 +618,14 @@ main() {
 				-*) usage ;;
 			esac
 			cmd_check "${1:-}"
+			;;
+		close)
+			shift
+			[ $# -le 1 ] || usage
+			case "${1:-}" in
+				-*) usage ;;
+			esac
+			cmd_close "${1:-}"
 			;;
 		pre-publish)
 			shift

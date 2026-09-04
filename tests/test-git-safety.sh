@@ -721,5 +721,177 @@ else
 	pass "proof-E: explicit stale stays topology-only"
 fi
 
+# --- 11. close lifecycle --------------------------------------------------------
+# close is an explicitly requested resource-lifecycle action after
+# semantic/publication closure; it owns objective Git safety only.
+# shellcheck disable=SC2046
+set -- $(make_origin_with_clone repoclose)
+C_BARE=$1
+C_CLONE=$2
+C_BASE=$(git -C "${C_CLONE}" rev-parse origin/main)
+
+# A. create produces a clean DETACHED task worktree and no task branch.
+OUT_CA="${TMPBASE}/t-close-create.out"
+CODE=$(run_entry "${OUT_CA}" -- --repo "${C_CLONE}" create closetask)
+assert_exit "close-A: create exit 0" "0" "${CODE}"
+WT_C=$(field "${OUT_CA}" 'WORKTREE')
+if [ -z "$(git -C "${C_CLONE}" branch --list closetask)" ]; then
+	pass "close-A: create makes no task branch"
+else
+	fail "close-A: create makes no task branch" "branch closetask exists"
+fi
+if git -C "${WT_C}" symbolic-ref -q HEAD >/dev/null 2>&1; then
+	fail "close-A: worktree is detached" "HEAD is a symbolic ref"
+else
+	pass "close-A: worktree is detached"
+fi
+if [ -z "$(git -C "${WT_C}" status --porcelain)" ]; then
+	pass "close-A: fresh worktree is clean"
+else
+	fail "close-A: fresh worktree is clean" "dirty"
+fi
+# A companion admission for the untouched-unrelated proof (E).
+OUT_CA2="${TMPBASE}/t-close-create2.out"
+CODE=$(run_entry "${OUT_CA2}" -- --repo "${C_CLONE}" create closetask2)
+assert_exit "close-A: companion create exit 0" "0" "${CODE}"
+WT_C2=$(field "${OUT_CA2}" 'WORKTREE')
+
+# B. close refuses a dirty task worktree without deleting anything.
+echo "uncommitted-wip" >"${WT_C}/dirty.txt"
+OUT_CB="${TMPBASE}/t-close-dirty.out"
+CODE=$(run_entry "${OUT_CB}" -- --repo "${C_CLONE}" close closetask)
+assert_exit "close-B: dirty close exit 3" "3" "${CODE}"
+assert_contains "close-B: dirty reason" "${OUT_CB}" "REASON: WORKTREE_DIRTY"
+if git -C "${C_CLONE}" worktree list --porcelain | grep -q -F -x "worktree ${WT_C}"; then
+	pass "close-B: dirty worktree stays registered"
+else
+	fail "close-B: dirty worktree stays registered" "worktree gone"
+fi
+if [ -f "${C_CLONE}/.git/git-safety/tasks/closetask/BASE" ] && [ -f "${WT_C}/dirty.txt" ]; then
+	pass "close-B: dirty admission record and WIP preserved"
+else
+	fail "close-B: dirty admission record and WIP preserved" "state lost"
+fi
+rm -f "${WT_C}/dirty.txt"
+
+# C. close refuses an unpublished/uncontained candidate.
+echo "unique-work" >"${WT_C}/feat.txt"
+git -C "${WT_C}" add feat.txt
+git -C "${WT_C}" commit -q -m "close-fixture unique candidate"
+HEAD_C_UNIQUE=$(git -C "${WT_C}" rev-parse HEAD)
+OUT_CC="${TMPBASE}/t-close-unpublished.out"
+CODE=$(run_entry "${OUT_CC}" -- --repo "${C_CLONE}" close closetask)
+assert_exit "close-C: unpublished close exit 3" "3" "${CODE}"
+assert_contains "close-C: unpublished reason" "${OUT_CC}" "REASON: UNPUBLISHED_CANDIDATE"
+assert_eq "close-C: candidate head reported" "${HEAD_C_UNIQUE}" "$(field "${OUT_CC}" 'CANDIDATE_HEAD')"
+if [ "$(git -C "${WT_C}" rev-parse HEAD)" = "${HEAD_C_UNIQUE}" ] && [ -f "${C_CLONE}/.git/git-safety/tasks/closetask/BASE" ]; then
+	pass "close-C: unique candidate and record preserved"
+else
+	fail "close-C: unique candidate and record preserved" "state lost"
+fi
+
+# D. after candidate publication/containment, close removes only the
+# admitted worktree and admission record.
+git -C "${WT_C}" push -q origin "HEAD:main"
+C_READBACK=$(git -C "${C_CLONE}" ls-remote "file://${C_BARE}" refs/heads/main | awk '{print $1}')
+assert_eq "close-D: remote read-back matches published candidate" "${HEAD_C_UNIQUE}" "${C_READBACK}"
+OUT_CD="${TMPBASE}/t-close-done.out"
+CODE=$(run_entry "${OUT_CD}" -- --repo "${C_CLONE}" close closetask)
+assert_exit "close-D: published close exit 0" "0" "${CODE}"
+assert_contains "close-D: closed verdict" "${OUT_CD}" "GIT_SAFETY: CLOSED"
+assert_eq "close-D: closed task exact" "closetask" "$(field "${OUT_CD}" 'TASK')"
+if git -C "${C_CLONE}" worktree list --porcelain | grep -q -F -x "worktree ${WT_C}"; then
+	fail "close-D: admitted worktree no longer registered" "still registered"
+else
+	pass "close-D: admitted worktree no longer registered"
+fi
+if [ ! -e "${C_CLONE}/.git/git-safety/tasks/closetask" ] && [ ! -e "${WT_C}" ]; then
+	pass "close-D: only the admitted worktree and record removed"
+else
+	fail "close-D: only the admitted worktree and record removed" "residue: ${WT_C}"
+fi
+
+# D2. NO_CHANGE case: a candidate that never moved from an admitted base
+# closes once direct Git evidence shows reachability from current authority.
+OUT_CN="${TMPBASE}/t-close-nochange-create.out"
+CODE=$(run_entry "${OUT_CN}" -- --repo "${C_CLONE}" create closenothing)
+assert_exit "close-D2: create exit 0" "0" "${CODE}"
+WT_CN=$(field "${OUT_CN}" 'WORKTREE')
+OUT_CN2="${TMPBASE}/t-close-nochange.out"
+CODE=$(run_entry "${OUT_CN2}" -- --repo "${WT_CN}" close)
+assert_exit "close-D2: implicit worktree close exit 0" "0" "${CODE}"
+assert_contains "close-D2: closed verdict" "${OUT_CN2}" "GIT_SAFETY: CLOSED"
+assert_contains "close-D2: worktree inference visible" "${OUT_CN2}" "TASK: closenothing"
+if [ ! -e "${C_CLONE}/.git/git-safety/tasks/closenothing" ]; then
+	pass "close-D2: no-change admission record removed"
+else
+	fail "close-D2: no-change admission record removed" "record remains"
+fi
+
+# E. unrelated worktrees/admissions remain untouched.
+if [ -f "${C_CLONE}/.git/git-safety/tasks/closetask2/BASE" ]; then
+	pass "close-E: unrelated admission record untouched"
+else
+	fail "close-E: unrelated admission record untouched" "record missing"
+fi
+OUT_CE="${TMPBASE}/t-close-companion-check.out"
+CODE=$(run_entry "${OUT_CE}" -- --repo "${C_CLONE}" check closetask2)
+assert_exit "close-E: unrelated check still exit 0" "0" "${CODE}"
+assert_contains "close-E: unrelated check ok" "${OUT_CE}" "GIT_SAFETY: OK"
+if git -C "${C_CLONE}" worktree list --porcelain | grep -q -F -x "worktree ${WT_C2}"; then
+	pass "close-E: unrelated worktree stays registered"
+else
+	fail "close-E: unrelated worktree stays registered" "worktree gone"
+fi
+
+# F. no force worktree removal / history rewrite path exists.
+if grep -F "worktree remove" "${CANON}" | grep -q -F -- "--force"; then
+	fail "close-F: worktree removal never forced" "found --force on worktree remove"
+else
+	pass "close-F: worktree removal never forced"
+fi
+if grep -q -F -- "--force" "${CANON}"; then
+	fail "close-F: no --force flag anywhere in canonical helper" "found --force"
+else
+	pass "close-F: no --force flag anywhere in canonical helper"
+fi
+if grep -q -E 'git -C "\$\{_[A-Za-z_]+\}" (push|pull|merge|rebase|cherry-pick|branch|checkout|reset|clean|stash)([[:space:]]|$)' "${CANON}"; then
+	fail "close-F: no publication/history/branch mutation primitives in helper" "found mutating git verb"
+else
+	pass "close-F: no publication/history/branch mutation primitives in helper"
+fi
+if [ "$(grep -c -F 'rm -rf' "${CANON}")" = "1" ] && grep -q -F 'rm -rf "${_rdir}"' "${CANON}"; then
+	pass "close-F: only the admitted record dir is ever removed"
+else
+	fail "close-F: only the admitted record dir is ever removed" "unexpected rm surface"
+fi
+if grep -q -F './scripts/git-safety close <task-id>' "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md" && grep -q -F 'create → work → check/pre-publish → publish/read-back → close' "${ROOT}/scaffold/docs/operations/DEVELOPMENT.md"; then
+	pass "close-F: lifecycle discoverable in the development contract"
+else
+	fail "close-F: lifecycle discoverable in the development contract" "DEVELOPMENT.md §8"
+fi
+
+# H. stable entrypoint still delegates; no local semantic duplication.
+OUT_CH="${TMPBASE}/t-close-usage.out"
+set +e
+sh "${ENTRY}" close-usage-probe >"${OUT_CH}" 2>&1
+set -e
+assert_contains "close-H: usage discovers close" "${OUT_CH}" "close [ <task-id> ]"
+if grep -q -F 'git -C' "${ENTRY}" || grep -q -F '$(git' "${ENTRY}"; then
+	fail "close-H: entrypoint owns no git execution" "found git invocation in ${ENTRY}"
+else
+	pass "close-H: entrypoint owns no git execution"
+fi
+if grep -q -F 'worktree remove' "${ENTRY}" || grep -q -F 'merge-base' "${ENTRY}"; then
+	fail "close-H: entrypoint owns no worktree/topology semantics" "found semantics in ${ENTRY}"
+else
+	pass "close-H: entrypoint owns no worktree/topology semantics"
+fi
+if cmp -s "${ENTRY}" "${ROOT}/scaffold/scripts/git-safety" && cmp -s "${CANON}" "${ROOT}/scaffold/scripts/lib/git-safety-canonical.sh"; then
+	pass "close-H: root materialization identical to scaffold template (no drift)"
+else
+	fail "close-H: root materialization identical to scaffold template (no drift)" "diff root scripts/ vs scaffold/scripts/"
+fi
+
 printf '\n== result: %s passed, %s failed ==\n' "${PASS}" "${FAIL}"
 [ "${FAIL}" = "0" ]
