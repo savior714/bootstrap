@@ -33,4 +33,4 @@ Read only the owners directly relevant to the current task. Project-specific bui
 
 ## 4. Execution
 
-Ordinary repository-native execution is canonical. Do not introduce runners, daemons, queues, schedulers, persistent work/task state, admission protocols, or other execution-lifecycle machinery. Detailed execution and publication semantics are owned by `docs/operations/DEVELOPMENT.md`; evidence semantics by `docs/operations/TESTING.md`.
+Ordinary repository-native execution is canonical. Do not introduce runners, daemons, queues, schedulers, persistent work/task state, admission protocols, or other execution-lifecycle machinery. Memory, handoff summaries, and an external coordination surface, when a project uses them, are continuity/advisory inputs only: not a new instruction tier and not implementation authority. Re-read current project authority for any current-state claim. Ordinary execution stays possible from the bounded prompt plus current repository authority without requiring that surface. Detailed execution and publication semantics are owned by `docs/operations/DEVELOPMENT.md`; evidence semantics by `docs/operations/TESTING.md`.

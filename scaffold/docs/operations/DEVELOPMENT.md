@@ -30,6 +30,8 @@ Use the simplest safe workspace. The current checkout is fine when ownership and
 
 Prompts are disposable execution artifacts, not canonical project state. Investigation scratch work stays temporary; promote only durable verified conclusions to their actual authority owner. Do not store task queues, receipts, or execution progress in repository documentation.
 
+An optional external coordination surface stays outside the repository execution path and is non-authoritative: current repository/Git/runtime/provider/artifact evidence wins for any current-state claim. A coordinator may consult active external coordination before issuing runnable mutating work and may keep semantic-owner reservations, dependencies, reported candidates, blockers/resume points, and lifecycle transitions there; executor-side execution stays bounded-prompt plus repository-authority based and must not require that surface. No live task/project state moves into repository documentation because such a surface exists. When the surface is unavailable or stale, otherwise-safe work reconstructible from the current task plus live authority proceeds fail-soft; unknown coordination state stays UNKNOWN, never assumed safe or disjoint.
+
 ## 5. Proof and stopping
 
 - Obtain proof proportional to the changed behavior, risk, and fan-out; `TESTING.md` owns what counts as faithful evidence.

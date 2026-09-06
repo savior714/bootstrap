@@ -8,6 +8,7 @@ This document owns the repository's durable **evidence semantics**: what counts 
 - Every claim requires evidence at the exact boundary and scope being claimed. A lower-level or adjacent proof does not become a higher-level proof by accumulation.
 - `PASS`/`DONE` wording, green summaries, badges, test names, or command names are not evidence. Evidence is the concrete observation: executed output, diff, response, rendered state.
 - Agreement among components that derive their truth from the same assumption (code + its mock, fixture + its parser) proves internal consistency only, not the external fact.
+- Reported executor, remembered-summary, or coordination-ledger claims (including `PASS` / `COMPLETE` / `PUBLISHED` strings) are reported evidence only: they do not themselves prove the corresponding current-state claim. Such a claim requires independent observation at the authority/runtime boundary that owns it.
 
 ## 2. Proportionate proof
 

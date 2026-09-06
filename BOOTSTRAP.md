@@ -48,6 +48,8 @@ It does **not** prescribe:
 - runners, daemons, queues, schedulers, lifecycle state, receipts, registries, candidate refs, or publication coordinators;
 - automatic synchronization with this repository.
 
+An external memory/coordination surface is likewise neither provided nor required by the portable kernel or the target repository runtime. Where an existing project already uses such a surface outside the repository, treat it as non-authoritative continuity input under the existing owners; do not copy a repo-local coordination system for it.
+
 Project-specific truth must come from the target repository's actual product decisions, code, configuration, tests, runtime, and applicable authority.
 
 ## 4. Validate the bootstrap

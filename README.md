@@ -2,7 +2,7 @@
 
 A deliberately thin starter kit for agent-driven software repositories.
 
-This repository is **not** a runtime harness. It does not own or manage an agent's execution lifecycle. There is no runner, daemon, queue, scheduler, registry, admission protocol, candidate-ref system, publication coordinator, executor adapter, or central policy sync.
+This repository is **not** a runtime harness. It does not own or manage an agent's execution lifecycle. There is no runner, daemon, queue, scheduler, registry, admission protocol, candidate-ref system, publication coordinator, executor adapter, or central policy sync. That means this repository neither ships nor requires such runtime/control-plane machinery; it does not forbid a project from using an optional external non-authoritative continuity aid outside the repository.
 
 ## Purpose
 
